@@ -53,3 +53,12 @@ button.btn-primary:disabled{background:#a9b6c6;cursor:not-allowed;}
 .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted);padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;}
 .btn-ghost:hover{border-color:var(--navy-600);color:var(--navy-800);}
 @media (max-width:640px){.card-grid{grid-template-columns:1fr;}}
+
+.admin-table{width:100%;border-collapse:collapse;margin-top:16px;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.admin-table th,.admin-table td{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13.5px;text-align:left}
+.admin-table th{background:var(--navy-950);color:#fff;font-weight:700}
+.status-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.status-badge.status-approved{background:#e8f6ee;color:var(--success)}
+.status-badge.status-pending{background:var(--navy-100);color:var(--navy-700)}
+.status-badge.status-rejected{background:#fdecea;color:var(--danger)}
+.admin-table select{padding:4px 8px;border:1px solid var(--line);border-radius:6px}
