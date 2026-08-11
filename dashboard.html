@@ -10,16 +10,17 @@
 <body>
 <div class="navbar">
   <a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
-  <nav><a href="#" id="logoutLink">로그아웃</a></nav>
+  <nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="#" id="logoutLink">로그아웃</a></nav>
 </div>
 <div class="dash-wrap">
   <h1>안녕하세요<span id="userEmail"></span> 👋</h1>
   <p class="sub">이용하실 기능을 선택해주세요</p>
   <div class="card-grid">
-    <a href="history.html" class="feature-card">
+    <a href="history.html" class="feature-card" id="historyCard">
       <div class="icon">📋</div>
       <h3>병력정리</h3>
       <p>기본진료정보와 세부진료정보를 업로드해 자동으로 병력을 정리하고 고지사항 텍스트를 생성합니다.</p>
+      <span class="badge-soon" id="historyBadge" style="display:none">승인 대기중</span>
     </a>
     <a href="coverage.html" class="feature-card">
       <div class="icon">📊</div>
@@ -35,6 +36,23 @@
   const session = await requireLogin();
   if(session){
     document.getElementById('userEmail').textContent = ', ' + session.user.email;
+    const profile = await getMyProfile();
+    if(profile){
+      const hasAccess = profile.role === 'admin' || profile.approval_status === 'approved';
+      if(!hasAccess){
+        const card = document.getElementById('historyCard');
+        card.removeAttribute('href');
+        card.style.opacity = '0.5';
+        document.getElementById('historyBadge').style.display = 'inline-block';
+        card.addEventListener('click', function(e){
+          e.preventDefault();
+          alert('관리자 승인 후 이용할 수 있습니다.');
+        });
+      }
+      if(profile.role === 'admin'){
+        document.getElementById('adminLink').style.display = 'inline';
+      }
+    }
   }
 })();
 document.getElementById('logoutLink').addEventListener('click', async (e)=>{
