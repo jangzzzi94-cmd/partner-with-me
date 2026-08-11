@@ -5,8 +5,8 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 async function requireLogin(){
     const { data:{ session } } = await supabaseClient.auth.getSession();
     if(!session){
-          window.location.href = "login.html";
-          return null;
+        window.location.href = "login.html";
+        return null;
     }
     return session;
 }
@@ -21,7 +21,7 @@ async function getMyProfile(){
     if(!session) return null;
     const { data, error } = await supabaseClient
         .from("profiles")
-        .select("id, email, role, approval_status")
+        .select("id, email, role, approval_status, points")
         .eq("id", session.user.id)
         .single();
     if(error){
@@ -40,4 +40,13 @@ async function requireAdmin(){
         return null;
     }
     return profile;
+}
+
+async function spendPoints(feature){
+    const { data, error } = await supabaseClient.rpc("spend_points", { p_feature: feature });
+    if(error){
+        console.error(error);
+        return false;
+    }
+    return data === true;
 }
