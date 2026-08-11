@@ -9,26 +9,27 @@
 </head>
 <body>
 <div class="navbar">
-  <a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
-  <nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="#" id="logoutLink">로그아웃</a></nav>
+<a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
+<nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="#" id="logoutLink">로그아웃</a></nav>
 </div>
 <div class="dash-wrap">
-  <h1>안녕하세요<span id="userEmail"></span> 👋</h1>
-  <p class="sub">이용하실 기능을 선택해주세요</p>
-  <div class="card-grid">
-    <a href="history.html" class="feature-card" id="historyCard">
-      <div class="icon">📋</div>
-      <h3>병력정리</h3>
-      <p>기본진료정보와 세부진료정보를 업로드해 자동으로 병력을 정리하고 고지사항 텍스트를 생성합니다.</p>
-      <span class="badge-soon" id="historyBadge" style="display:none">승인 대기중</span>
-    </a>
-    <a href="coverage.html" class="feature-card">
-      <div class="icon">📊</div>
-      <h3>보장분석표</h3>
-      <p>가입된 보장 내역을 분석해 표로 정리합니다.</p>
-      <span class="badge-soon">준비중</span>
-    </a>
-  </div>
+<h1>안녕하세요<span id="userEmail"></span> 👋</h1>
+<p class="sub">이용하실 기능을 선택해주세요</p>
+<p class="sub" id="pointsLine" style="display:none"></p>
+<div class="card-grid">
+<a href="history.html" class="feature-card" id="historyCard">
+<div class="icon">📋</div>
+<h3>병력정리</h3>
+<p>기본진료정보와 세부진료정보를 업로드해 자동으로 병력을 정리하고 고지사항 텍스트를 생성합니다.</p>
+<span class="badge-soon" id="historyBadge" style="display:none">승인 대기중</span>
+</a>
+<a href="coverage.html" class="feature-card">
+<div class="icon">📊</div>
+<h3>보장분석표</h3>
+<p>가입된 보장 내역을 분석해 표로 정리합니다.</p>
+<span class="badge-soon">준비중</span>
+</a>
+</div>
 </div>
 <script src="assets/supabase-client.js"></script>
 <script>
@@ -38,23 +39,50 @@
     document.getElementById('userEmail').textContent = ', ' + session.user.email;
     const profile = await getMyProfile();
     if(profile){
-      const hasAccess = profile.role === 'admin' || profile.approval_status === 'approved';
-      if(!hasAccess){
-        const card = document.getElementById('historyCard');
-        card.removeAttribute('href');
-        card.style.opacity = '0.5';
-        document.getElementById('historyBadge').style.display = 'inline-block';
-        card.addEventListener('click', function(e){
-          e.preventDefault();
-          alert('관리자 승인 후 이용할 수 있습니다.');
-        });
-      }
       if(profile.role === 'admin'){
         document.getElementById('adminLink').style.display = 'inline';
+      }
+      if(profile.role === 'admin' || profile.role === 'gold'){
+        // 관리자/골드 회원: 무제한 무료 이용
+      } else {
+        const pointsLine = document.getElementById('pointsLine');
+        pointsLine.textContent = '보유 포인트: ' + (profile.points || 0) + 'P';
+        pointsLine.style.display = 'block';
+
+        const card = document.getElementById('historyCard');
+        const badge = document.getElementById('historyBadge');
+        card.removeAttribute('href');
+
+        if(profile.approval_status !== 'approved'){
+          badge.textContent = '승인 대기중';
+          badge.style.display = 'inline-block';
+          card.style.opacity = '0.5';
+          card.addEventListener('click', function(e){
+            e.preventDefault();
+            alert('관리자 승인 후 이용할 수 있습니다.');
+          });
+        } else {
+          badge.textContent = '1회 1,000P';
+          badge.style.display = 'inline-block';
+          card.addEventListener('click', async function(e){
+            e.preventDefault();
+            if((profile.points || 0) < 1000){
+              alert('포인트가 부족합니다. (병력정리 이용에 1,000P가 필요합니다. 보유 포인트: ' + (profile.points || 0) + 'P)\n관리자에게 포인트 충전을 요청해주세요.');
+              return;
+            }
+            const ok = await spendPoints('history');
+            if(ok){
+              window.location.href = 'history.html';
+            } else {
+              alert('포인트 차감에 실패했습니다. 다시 시도해주세요.');
+            }
+          });
+        }
       }
     }
   }
 })();
+
 document.getElementById('logoutLink').addEventListener('click', async (e)=>{
   e.preventDefault();
   await logout();
