@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>병력정리 자동 매칭</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+<style>
+:root{
+  --ink:#132a4c;
+  --ink-soft:#5b6b7c;
+  --paper:#f5f7fb;
+  --panel:#ffffff;
+  --line:#dfe5ec;
+  --amber:#16305c;
+  --amber-deep:#0a1a30;
+  --green:#c6efce;
+  --green-line:#7fbf8f;
+  --pink:#ffc0cb;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;line-height:1.5;}
+.wrap{max-width:1080px;margin:0 auto;padding:36px 24px 80px;}
+.chart-header{display:flex; align-items:flex-end; gap:10px; margin-bottom:28px;}
+.tab{padding:9px 16px 8px;border-radius:8px 8px 0 0;font-size:12px;letter-spacing:.03em;font-weight:600;color:#fff;}
+.tab.t1{background:var(--ink);}
+.tab.t2{background:var(--amber);}
+.tab.t3{background:var(--green-line);}
+h1{font-size:26px; margin:0 0 6px; letter-spacing:-0.01em; font-weight:800;}
+.sub{color:var(--ink-soft); font-size:14px; margin:0;}
+.privacy{display:inline-flex; align-items:center; gap:6px;margin-top:14px; padding:7px 12px;background:#eef4ee; border:1px solid #cfe3cf; border-radius:20px;font-size:12.5px; color:#2f5c3f;}
+.privacy::before{content:"●"; color:#4c9a63; font-size:8px;}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:28px 0 20px;}
+@media (max-width:640px){ .grid2{grid-template-columns:1fr;} }
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;}
+.card h3{margin:0 0 4px; font-size:14.5px; display:flex; align-items:center; gap:8px;}
+.card h3 .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.card p.desc{margin:0 0 12px; font-size:12.5px; color:var(--ink-soft);}
+.drop{border:1.5px dashed #c9c1ad;border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;transition:.15s;background:#fbfaf6;}
+.drop:hover, .drop.drag{border-color:var(--amber); background:#eef2f8;}
+.drop input{display:none;}
+.drop .hint{font-size:12px; color:#9a927e; margin-top:4px;}
+.drop .icon{font-size:20px; margin-bottom:4px;}
+.filename{margin-top:10px; font-size:12.5px; font-family:var(--mono);background:#f1efe6; border-radius:6px; padding:7px 9px;display:none; word-break:break-all;}
+.filename.show{display:block;}
+.run-row{display:flex; align-items:center; gap:14px; margin:24px 0;}
+button.primary{background:var(--amber); color:#fff; border:none;padding:13px 26px; border-radius:9px; font-size:14.5px; font-weight:700;cursor:pointer; transition:.15s;}
+button.primary:hover:not(:disabled){background:var(--amber-deep);}
+button.primary:disabled{background:#d8d2c2; cursor:not-allowed;}
+button.ghost{background:transparent; border:1px solid var(--line); color:var(--ink-soft);padding:12px 18px; border-radius:9px; font-size:13px; cursor:pointer;}
+button.ghost:hover{border-color:var(--ink-soft); color:var(--ink);}
+.status{font-size:13px; color:var(--ink-soft);}
+.status.err{color:#b5453a;}
+.status.ok{color:#2f7d4d;}
+.results{display:none;}
+.results.show{display:block;}
+.tabbar{display:flex; gap:6px; border-bottom:1px solid var(--line); margin:8px 0 0;}
+.tabbtn{padding:10px 16px; font-size:13px; font-weight:600; color:var(--ink-soft);background:none; border:none; cursor:pointer; border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tabbtn.active{color:var(--ink); border-color:var(--amber);}
+.panel{display:none; padding:18px 0;}
+.panel.active{display:block;}
+.tablewrap{overflow:auto; max-height:520px; border:1px solid var(--line); border-radius:10px; background:#fff;}
+table.result{border-collapse:collapse; width:100%; font-size:12px; font-family:var(--mono);}
+table.result th{position:sticky; top:0; background:#f2f2f2; border:1px solid #ddd;padding:8px 6px; font-weight:700; white-space:nowrap;}
+table.result td{border:1px solid #e6e6e6; padding:6px; text-align:center; vertical-align:middle;}
+tr.hosp td{background:var(--green);}
+td.surg-hit{background:var(--pink);}
+.legend{display:flex; gap:18px; font-size:12px; color:var(--ink-soft); margin:10px 0;}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.swatch{width:12px;height:12px;border-radius:3px; display:inline-block;}
+.textbox{white-space:pre-wrap; background:#fff; border:1px solid var(--line); border-radius:10px;padding:18px; font-size:13px; max-height:520px; overflow:auto; font-family:var(--mono); line-height:1.6;}
+.dl-row{display:flex; align-items:center; gap:12px; margin-top:18px;}
+.meta{font-size:12px; color:var(--ink-soft); margin-top:6px;}
+.note{font-size:12px; color:#9a927e; margin-top:24px; line-height:1.7;}
+.section-divider{display:flex; align-items:center; gap:12px; margin:44px 0 18px;}
+.section-divider .num{width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.section-divider h2{font-size:17px; margin:0;}
+.section-divider .line{flex:1; height:1px; background:var(--line);}
+.pdf-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px;}
+.filelist{margin-top:10px; display:flex; flex-direction:column; gap:6px;}
+.filelist .fitem{font-size:12.5px; font-family:var(--mono); background:#f1efe6; border-radius:6px;padding:7px 9px; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+.filelist .fitem button{background:none;border:none;color:#b5453a;cursor:pointer;font-size:12px;padding:0 4px;}
+.use-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
+button.secondary{background:#eef4ee; color:#2f5c3f; border:1px solid #cfe3cf;padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;}
+button.secondary:hover{background:#e2eee2;}
+.used-badge{display:none; margin-top:8px; font-size:12px; color:#2f5c3f; background:#eef4ee;border:1px solid #cfe3cf; border-radius:6px; padding:6px 10px;}
+.used-badge.show{display:block;}
+</style>
+</head>
+<body>
+<div class="navbar">
+<a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
+<nav><a href="dashboard.html">대시보드</a><a href="#" id="logoutLink">로그아웃</a></nav>
+</div>
+<div class="wrap">
+  <div class="chart-header">
+    <div class="tab t1">기본진료정보</div>
+    <div class="tab t2">세부진료정보</div>
+    <div class="tab t3">병력정리</div>
+  </div>
+  <h1>병력정리 자동 매칭</h1>
+  <p class="sub">기본진료정보 + 세부진료정보 엑셀 업로드 → 매칭·정렬·하이라이트 → 병력정리 / 병력정리텍스트 자동 생성</p>
+  <div class="privacy">업로드한 파일은 서버로 전송되지 않고 이 브라우저 안에서만 처리됩니다</div>
+  <div class="pdf-card" style="margin-bottom:22px;">
+    <p class="desc" style="margin:0;">📑 <strong>기본진료정보 / 세부진료정보</strong> 칸에 엑셀(.xlsx/.xlsm) 또는 PDF를 그대로 올리세요. PDF는 자동으로 표를 인식해 변환한 뒤 바로 매칭에 사용합니다. 여러 페이지짜리 PDF도 한 파일로 이어 붙여 처리합니다.</p>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3><span class="n">1</span> 기본진료정보 파일</h3>
+      <p class="desc">순번·진료시작일·병의원·진단과·입원외래·주상병코드 등이 담긴 원본 자료</p>
+      <label class="drop" id="drop1">
+        <input type="file" id="file1" accept=".xlsx,.xls,.xlsm,.pdf">
+        <div class="icon">📄</div>
+        <div>클릭 또는 파일을 끌어다 놓으세요</div>
+        <div class="hint">.xlsx / .xlsm / .pdf</div>
+      </label>
+      <div class="filename" id="fname1"></div>
+    </div>
+    <div class="card">
+      <h3><span class="n">2</span> 세부진료정보 파일</h3>
+      <p class="desc">날짜별 처방·수술 상세 내역이 담긴 원본 자료</p>
+      <label class="drop" id="drop2">
+        <input type="file" id="file2" accept=".xlsx,.xls,.xlsm,.pdf">
+        <div class="icon">📄</div>
+        <div>클릭 또는 파일을 끌어다 놓으세요</div>
+        <div class="hint">.xlsx / .xlsm / .pdf</div>
+      </label>
+      <div class="filename" id="fname2"></div>
+    </div>
+  </div>
+  <div class="run-row">
+    <button class="primary" id="runBtn" disabled>매칭 실행</button>
+    <button class="ghost" id="resetBtn">초기화</button>
+    <span class="status" id="status"></span>
+  </div>
+  <div class="results" id="results">
+    <div class="tabbar">
+      <button class="tabbtn active" data-panel="p-table">병력정리 표</button>
+      <button class="tabbtn" data-panel="p-a">간편 고지사항</button>
+      <button class="tabbtn" data-panel="p-b">표준체 고지사항</button>
+    </div>
+    <div class="panel active" id="p-table">
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--green)"></i> 입원 행</span>
+        <span><i class="swatch" style="background:var(--pink)"></i> 수술내역 있음</span>
+      </div>
+      <div class="tablewrap"><table class="result" id="resultTable"></table></div>
+      <div class="meta" id="rowMeta"></div>
+    </div>
+    <div class="panel" id="p-a">
+      <div class="textbox" id="textA"></div>
+    </div>
+    <div class="panel" id="p-b">
+      <div class="textbox" id="textB"></div>
+    </div>
+    <div class="dl-row">
+      <button class="primary" id="dlBtn">엑셀 파일 다운로드 (.xlsx)</button>
+      <span class="status" id="dlStatus"></span>
+    </div>
+  </div>
+  <div class="note" id="footNote"></div>
+</div>
+<script src="assets/supabase-client.js"></script>
+<script>
+requireLogin();
+document.getElementById("logoutLink").addEventListener("click", async (e)=>{
+  e.preventDefault();
+  await logout();
+});
+</script>
+<script>
+const EXCLUDE_LIST = ["수술팩","구강내소염수술","발치,치근, 치조골성형술 등","결막결석제거술","결막이물제거술","안저 광응고술",
+"치관확장술[1치당](치은 절제술)","치주소파술","악관절탈구비관혈적정복","후두소작술","치석제거","치주소파술 후","치은신부착술",
+"교합조정술","치은절제술","세포질내","첩모발거술","자궁경부(질)약물소작술","비인강소작","발치술[1치당]-","치근활택술",
+"수술후처치[1일당]-단순 처치","화술 실시"];
+const HEADERS_FIXED = ["순번","진료시작일","병·의원&약국","진단과","입원/외래","주상병코드","주상병명","내원일수","내가 낸 의료비(진료비)","내복약일수","수술내역"];
+let file1=null, file2=null;
+let lastResult=null;
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js";
+const REF_WIDTH = 595.28;
+const WORD_GAP = 3.0;
+const LINE_TOL = 1.5;
+const PDF_TEMPLATES = {
+  base:   { marker: "주상병명", anchors: [36.6, 55.6, 119.1, 181.4, 217.7, 242.9, 283.8, 337.0, 374.2, 449.6, 516.2] },
+  detail: { marker: "코드명",   anchors: [36.6, 64.5, 145.5, 249.9, 356.0, 456.3, 499.6, 542.4] }
+};
+async function extractPdfPages(file){
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const pages = [];
+  for(let p=1;p<=doc.numPages;p++){
+    const page = await doc.getPage(p);
+    const viewport = page.getViewport({scale:1});
+    const content = await page.getTextContent();
+    const items = content.items.map(it=>{
+      const x0 = it.transform[4], y = it.transform[5];
+      return { x0, top: viewport.height - y, text: it.str, width: it.width||0 };
+    });
+    pages.push({ items, width: viewport.width, height: viewport.height });
+  }
+  return pages;
+}
+function mergeWordsPdf(chars, scale){
+  chars = chars.slice().sort((a,b)=> a.top-b.top || a.x0-b.x0);
+  const words = []; let cur=null;
+  for(const c of chars){
+    if(c.text.trim().length===0){
+      if(cur){ words.push(cur); cur=null; }
+      continue;
+    }
+    if(cur && Math.abs(c.top-cur.top) < LINE_TOL*scale && (c.x0-cur.endX) <= WORD_GAP*scale){
+      cur.text += c.text; cur.endX = c.x0+c.width;
+    } else { if(cur) words.push(cur); cur = {text:c.text, x0:c.x0, top:c.top, endX:c.x0+c.width}; }
+  }
+  if(cur) words.push(cur);
+  return words;
+}
+function nearestColPdf(x0, anchors){
+  let best=0, bd=Infinity;
+  for(let i=0;i<anchors.length;i++){ const d=Math.abs(x0-anchors[i]); if(d<bd){bd=d; best=i;} }
+  return best;
+}
+function detectColumnsDynamic(perPageWords){
+  const allWordsFlat = perPageWords.flat();
+  const digitWords = allWordsFlat.filter(w=>/^[0-9]{1,4}$/.test(w.text));
+  const dxs = digitWords.map(w=>w.x0).sort((a,b)=>a-b);
+  const dclusters=[]; let dcur=null;
+  for(const x of dxs){
+    if(dcur && x-dcur.max<=8){ dcur.max=x; }
+    else { if(dcur) dclusters.push(dcur); dcur={min:x,max:x}; }
+  }
+  if(dcur) dclusters.push(dcur);
+  dclusters.sort((a,b)=>a.min-b.min);
+  const col0 = dclusters[0];
+  if(!col0) return null;
+  const others = allWordsFlat.filter(w=> !(w.x0>=col0.min-3 && w.x0<=col0.max+3)).map(w=>w.x0).sort((a,b)=>a-b);
+  const clusters=[]; let cur=null;
+  for(const x of others){
+    if(cur && x-cur.max<=10){ cur.max=x; cur.xs.push(x); }
+    else { if(cur) clusters.push(cur); cur={min:x,max:x,xs:[x]}; }
+  }
+  if(cur) clusters.push(cur);
+  const totalWords = allWordsFlat.length;
+  const kept = clusters.filter(c=>c.xs.length >= Math.max(20, totalWords*0.02));
+  const allClusters = [{xs:digitWords.map(w=>w.x0)}, ...kept].sort((a,b)=>a.xs[0]-b.xs[0]);
+  return allClusters.map(c=> c.xs.reduce((a,b)=>a+b,0)/c.xs.length);
+}
+function processPdfPages(pages){
+  const scale = pages[0].width / REF_WIDTH;
+  const perPageWords = pages.map(p=>{
+    const filtered = p.items.filter(it=> it.top>90*scale && it.top<p.height-70*scale);
+    return mergeWordsPdf(filtered, scale);
+  });
+  const page1Text = perPageWords[0].map(w=>w.text).join(" ");
+  let anchors;
+  if(page1Text.includes(PDF_TEMPLATES.base.marker)) anchors = PDF_TEMPLATES.base.anchors.map(a=>a*scale);
+  else if(page1Text.includes(PDF_TEMPLATES.detail.marker)) anchors = PDF_TEMPLATES.detail.anchors.map(a=>a*scale);
+  else anchors = detectColumnsDynamic(perPageWords);
+  if(!anchors) return { header: [], rows: [] };
+  const NCOLS = anchors.length;
+  let headerCols = null;
+  const allRows = [];
+  for(let pageIdx=0; pageIdx<pages.length; pageIdx++){
+    const words = perPageWords[pageIdx].map(w=>({...w, col: nearestColPdf(w.x0, anchors)}));
+    const rowAnchorWords = words.filter(w=> w.col===0 && /^[0-9]{1,4}$/.test(w.text));
+    const rowTops = rowAnchorWords.map(w=>w.top).sort((a,b)=>a-b);
+    if(rowTops.length===0) continue;
+    const rowSpacing = rowTops.length>1 ? (rowTops[1]-rowTops[0]) : 50*scale;
+    const headerCutoff = rowTops[0] - rowSpacing/2;
+    if(!headerCols){
+      const headerWords = words.filter(w=> w.top < headerCutoff);
+      const hBuckets = Array.from({length:NCOLS},()=>[]);
+      headerWords.forEach(w=>hBuckets[w.col].push(w));
+      const hCols = hBuckets.map(list=>{
+        list.sort((a,b)=>a.top-b.top || a.x0-b.x0);
+        return list.map(w=>w.text).join(" ").trim();
+      });
+      if(!hCols.every(h=>!h)) headerCols = hCols;
+    }
+    const bodyWords = words.filter(w=> w.top >= headerCutoff);
+    const pageRows = rowTops.map(()=> Array.from({length:NCOLS}, ()=>[]));
+    for(const w of bodyWords){
+      let bestIdx=0, bd=Infinity;
+      for(let i=0;i<rowTops.length;i++){ const d=Math.abs(rowTops[i]-w.top); if(d<bd){bd=d; bestIdx=i;} }
+      pageRows[bestIdx][w.col].push(w);
+    }
+    for(const rowBuckets of pageRows){
+      const rowVals = rowBuckets.map(list=>{
+        list.sort((a,b)=>a.top-b.top || a.x0-b.x0);
+        return list.map(w=>w.text).join(" ").trim().replace(/\s+/g," ");
+      });
+      allRows.push(rowVals);
+    }
+  }
+  return { header: headerCols || Array.from({length:NCOLS},(_,i)=>`열${i+1}`), rows: allRows };
+}
+function coerceCell(s){
+  if(s===undefined || s===null || s==="") return null;
+  const t = String(s).trim();
+  if(/^-?[0-9][0-9,]*$/.test(t)) return Number(t.replace(/,/g,""));
+  const dateKey = normalizeDateKey(t);
+  if(dateKey && /^\d{4}-\d{2}-\d{2}$/.test(t)) return toDateObj(t);
+  return t;
+}
+async function loadMatrixFromPdf(file){
+  const pages = await extractPdfPages(file);
+  const res = processPdfPages(pages);
+  if(res.rows.length===0) throw new Error(`"${file.name}"에서 표 데이터를 인식하지 못했습니다. 텍스트 기반 PDF인지 확인해주세요.`);
+  const matrix = [res.header.slice()];
+  res.rows.forEach(r=> matrix.push(r.map(coerceCell)));
+  return matrix;
+}
+async function loadMatrixAuto(file){
+  if(/\.pdf$/i.test(file.name)) return await loadMatrixFromPdf(file);
+  return await loadMatrix(file);
+}
+function pad(n){ return String(n).padStart(2,"0"); }
+function excelSerialToDate(serial){
+  const utc_days = Math.floor(serial - 25569);
+  const utc_value = utc_days*86400;
+  const d = new Date(utc_value*1000);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+function normalizeDateKey(v){
+  if(v===null || v===undefined) return "";
+  if(v instanceof Date){ if(isNaN(v)) return ""; return `${v.getUTCFullYear()}-${pad(v.getUTCMonth()+1)}-${pad(v.getUTCDate())}`; }
+  if(typeof v === "number"){ const d = excelSerialToDate(v); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`; }
+  const s = String(v).trim();
+  if(!s) return "";
+  const m = s.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if(m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  const d2 = new Date(s);
+  if(!isNaN(d2)) return `${d2.getFullYear()}-${pad(d2.getMonth()+1)}-${pad(d2.getDate())}`;
+  return "";
+}
+function toDateObj(v){
+  if(v instanceof Date) return isNaN(v)?null:v;
+  if(typeof v==="number") return excelSerialToDate(v);
+  const key = normalizeDateKey(v);
+  if(!key) return null;
+  const [y,m,d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y,m-1,d));
+}
+function addDays(d,n){ const r=new Date(d.getTime()); r.setUTCDate(r.getUTCDate()+n); return r; }
+function fmtDate(d){ if(!d) return ""; return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`; }
+function maxPrescriptionDays(s){
+  const re = /([0-9]+)\s*일\s*분/g;
+  let m, mx=0;
+  while((m = re.exec(s))){ const n = parseInt(m[1],10); if(n>mx) mx=n; }
+  return mx;
+}
+function stripMedPrefix(s){ return (s||"").replace(/\(양방\)/g,"").replace(/\(한방\)/g,"").trim(); }
+function removeLeadingAlpha(s){
+  s = s||"";
+  if(!s) return s;
+  return /[A-Za-z]/.test(s[0]) ? s.slice(1) : s;
+}
+function cellValue(cell){
+  let v = cell.value;
+  if(v && typeof v === "object"){
+    if(v instanceof Date) return v;
+    if("result" in v) return v.result;
+    if("richText" in v) return v.richText.map(t=>t.text).join("");
+    if("text" in v) return v.text;
+  }
+  return v;
+}
+async function loadMatrix(file){
+  const buf = await file.arrayBuffer();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  const maxCol = Math.max(ws.columnCount, ws.actualColumnCount||0, 1);
+  const matrix = [];
+  ws.eachRow({includeEmpty:true}, (row)=>{
+    const arr=[];
+    for(let c=1;c<=maxCol;c++) arr.push(cellValue(row.getCell(c)));
+    matrix.push(arr);
+  });
+  return matrix;
+}
+function processData(baseMatrix, detailMatrix){
+  if(baseMatrix.length < 1) throw new Error("기본진료정보 파일에 데이터가 없습니다.");
+  let lastColBase = 0;
+  const hdr0 = baseMatrix[0]||[];
+  for(let c=hdr0.length-1;c>=0;c--){
+    const v = hdr0[c];
+    if(v!==undefined && v!==null && String(v).trim()!==""){ lastColBase=c+1; break; }
+  }
+  if(lastColBase===0) lastColBase = hdr0.length;
+  if(lastColBase < 3) throw new Error("기본진료정보 파일의 열 구성을 인식하지 못했습니다. 원본 파일 형식을 확인해주세요.");
+  let result = baseMatrix.map(row=>{
+    const r = row.slice(0,lastColBase);
+    while(r.length<lastColBase) r.push(null);
+    return r;
+  });
+  const medDict = new Map();
+  const surgDict = new Map();
+  for(let i=1;i<detailMatrix.length;i++){
+    const row = detailMatrix[i];
+    const key = normalizeDateKey(row[1]);
+    if(!key) continue;
+    const eVal = row[4]!=null ? String(row[4]) : "";
+    if(eVal.includes("내복약")){
+      const x = maxPrescriptionDays(eVal);
+      if(x>0) medDict.set(key, (medDict.get(key)||0)+x);
+    }
+    const dVal = row[3]!=null ? String(row[3]) : "";
+    const eUpper = eVal.toUpperCase();
+    if(dVal.includes("수술") || eUpper.includes("생검용 FORCEPS")){
+      const eTrim = eVal.trim();
+      if(eTrim.length>0 && (eTrim.includes("술") || eTrim.toUpperCase().includes("생검용 FORCEPS")) &&
+         !EXCLUDE_LIST.some(x=>eTrim.includes(x))){
+        surgDict.set(key, surgDict.has(key) ? surgDict.get(key)+", "+eTrim : eTrim);
+      }
+    }
+  }
+  const medCol = lastColBase, surgCol = lastColBase+1;
+  result[0][medCol]="내복약일수"; result[0][surgCol]="수술내역";
+  for(let r=1;r<result.length;r++){
+    const key = normalizeDateKey(result[r][1]);
+    result[r][medCol] = (key && medDict.has(key)) ? medDict.get(key) : null;
+    result[r][surgCol] = (key && surgDict.has(key)) ? surgDict.get(key) : null;
+  }
+  result = result.map(row=>{ const r=row.slice(); if(r.length>8) r.splice(8, Math.min(2, Math.max(0,r.length-8))); return r; });
+  result = result.map(row=>{ const r=row.slice(0,11); while(r.length<11) r.push(null); return r; });
+  result[0] = HEADERS_FIXED.slice();
+  for(let r=result.length-1;r>=1;r--){
+    const row = result[r];
+    const nonEmpty = row.some(v=> v!==null && v!==undefined && String(v).trim()!=="");
+    if(!nonEmpty){ result.splice(r,1); continue; }
+    if(row.some(v=> v!=null && String(v).includes("순번"))){ result.splice(r,1); continue; }
+    const cVal = row[2]!=null?String(row[2]):"";
+    if(cVal.includes("약국") || cVal.includes("약 국")){ result.splice(r,1); continue; }
+  }
+  const head = result[0];
+  const dataRows = result.slice(1);
+  dataRows.sort((a,b)=>{
+    const av = a[6]!=null?String(a[6]):"";
+    const bv = b[6]!=null?String(b[6]):"";
+    return bv.localeCompare(av,"ko");
+  });
+  result = [head, ...dataRows];
+  let textA = "";
+  for(let r=1;r<result.length;r++){
+    const row = result[r];
+    const hasHosp = String(row[4]||"").includes("입원");
+    const hasSurg = String(row[10]||"").trim().length>0;
+    if(!hasHosp && !hasSurg) continue;
+    const dateText = normalizeDateKey(row[1]);
+    const diagName = stripMedPrefix(String(row[6]||""));
+    const codeText = removeLeadingAlpha(String(row[5]||""));
+    const startDate = toDateObj(row[1]);
+    let daysH = 0;
+    const hv = row[7];
+    if(typeof hv==="number") daysH=hv; else if(typeof hv==="string" && /^[0-9]+$/.test(hv.trim())) daysH=parseInt(hv,10);
+    const endDate = (daysH>=1 && startDate) ? addDays(startDate, daysH-1) : startDate;
+    const periodText = startDate ? `${fmtDate(startDate)}~${fmtDate(endDate)}` : "";
+    let treatText="";
+    if(hasHosp) treatText = daysH>0 ? `입원${daysH}일` : "입원";
+    if(hasSurg) treatText = treatText ? treatText+", 수술" : "수술";
+    let surgText = String(row[10]||"").trim(); if(!surgText) surgText="X";
+    textA += `-병력사항-\n날짜 : ${dateText}\n정확한 진단명 : ${diagName}\n진단코드 : ${codeText}\n부위 : \n치료기간 : ${periodText}\n치료내용 : ${treatText}\n수술명 : ${surgText}\nㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n`;
+  }
+  const agg = new Map();
+  for(let r=1;r<result.length;r++){
+    const row = result[r];
+    const code = removeLeadingAlpha(String(row[5]||""));
+    if(!code) continue;
+    if(!agg.has(code)){
+      agg.set(code, {visitCnt:0, sumMedDays:0, hasHosp:false, hospDays:0, hasSurg:false, surgSet:new Map(),
+        startDate: toDateObj(row[1]), endDate: toDateObj(row[1]), diag: stripMedPrefix(String(row[6]||""))});
+    }
+    const a = agg.get(code);
+    a.visitCnt++;
+    const d = toDateObj(row[1]);
+    if(d){ if(!a.startDate || d<a.startDate) a.startDate=d; if(!a.endDate || d>a.endDate) a.endDate=d; }
+    const jv = row[9];
+    if(typeof jv==="number") a.sumMedDays+=jv; else if(typeof jv==="string" && /^[0-9]+$/.test(jv.trim())) a.sumMedDays+=parseInt(jv,10);
+    if(String(row[4]||"").includes("입원")){
+      a.hasHosp=true;
+      const hv=row[7];
+      if(typeof hv==="number") a.hospDays+=hv; else if(typeof hv==="string" && /^[0-9]+$/.test(hv.trim())) a.hospDays+=parseInt(hv,10);
+    }
+    const ktxt = String(row[10]||"").trim();
+    if(ktxt){ a.hasSurg=true; if(!a.surgSet.has(ktxt)) a.surgSet.set(ktxt,true); }
+  }
+  let textB = "";
+  for(const [code,a] of agg){
+    if(a.visitCnt>=7 || a.sumMedDays>=30 || a.hasHosp || a.hasSurg){
+      const startS = fmtDate(a.startDate), endS = fmtDate(a.endDate);
+      let treatS="";
+      if(a.hasHosp) treatS = a.hospDays>0 ? `입원${a.hospDays}일` : "입원";
+      if(a.hasSurg) treatS = treatS ? treatS+", 수술" : "수술";
+      if(a.sumMedDays>0) treatS = treatS ? `${treatS}, 약${a.sumMedDays}일` : `약${a.sumMedDays}일`;
+      treatS = treatS ? `${treatS}, 통원 ${a.visitCnt}일` : `통원 ${a.visitCnt}일`;
+      let surgNames = Array.from(a.surgSet.keys()).join(", "); if(!surgNames) surgNames="X";
+      textB += `-병력사항-\n날짜 : ${startS}\n정확한 진단명 : ${a.diag}\n진단코드 : ${code}\n부위 : \n치료기간 : ${startS}~${endS}\n치료내용 : ${treatS}\n수술명 : ${surgNames}\nㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n`;
+    }
+  }
+  return { matrix: result, textA, textB };
+}
+function displayCell(v){
+  if(v===null || v===undefined) return "";
+  if(v instanceof Date) return normalizeDateKey(v);
+  return String(v);
+}
+function renderTable(matrix){
+  const table = document.getElementById("resultTable");
+  let html = "<thead><tr>" + matrix[0].map(h=>`<th>${displayCell(h)}</th>`).join("") + "</tr></thead><tbody>";
+  const PREVIEW_LIMIT = 300;
+  const rows = matrix.slice(1, 1+PREVIEW_LIMIT);
+  for(const row of rows){
+    const hasHosp = String(row[4]||"").includes("입원");
+    const hasSurg = String(row[10]||"").trim().length>0;
+    html += `<tr class="${hasHosp?"hosp":""}">`;
+    row.forEach((v,ci)=>{
+      const cls = (ci===10 && hasSurg) ? "surg-hit" : "";
+      html += `<td class="${cls}">${displayCell(v)}</td>`;
+    });
+    html += "</tr>";
+  }
+  html += "</tbody>";
+  table.innerHTML = html;
+  const meta = document.getElementById("rowMeta");
+  const total = matrix.length-1;
+  meta.textContent = total > PREVIEW_LIMIT
+    ? `전체 ${total}행 중 상위 ${PREVIEW_LIMIT}행 미리보기 (다운로드 파일에는 전체 포함)`
+    : `총 ${total}행`;
+}
+const EXCEL_CELL_LIMIT = 32000;
+function safeCellText(s){
+  if(!s) return s;
+  if(s.length <= EXCEL_CELL_LIMIT) return s;
+  return s.slice(0, EXCEL_CELL_LIMIT) + `\n\n... (내용이 길어 일부만 표시됩니다. 전체 ${s.length}자 중 ${EXCEL_CELL_LIMIT}자까지 저장됨)`;
+}
+function writeRawSheet(wb, sheetName, rawMatrix){
+  const ws = wb.addWorksheet(sheetName);
+  if(!rawMatrix || rawMatrix.length===0) return ws;
+  const colCount = Math.max(...rawMatrix.map(r=>r.length), 1);
+  rawMatrix.forEach((row, ri)=>{
+    const excelRow = ws.getRow(ri+1);
+    for(let ci=0; ci<colCount; ci++){
+      const v = row[ci];
+      const cell = excelRow.getCell(ci+1);
+      if(v instanceof Date){ cell.value = v; cell.numFmt = "yyyy-mm-dd"; }
+      else if(v!==undefined) cell.value = v;
+    }
+    if(ri===0){ excelRow.eachCell(c=>{ c.font={bold:true}; c.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFF2F2F2"}}; }); }
+  });
+  for(let ci=1; ci<=colCount; ci++){ ws.getColumn(ci).width = 14; }
+  ws.views = [{ state:"frozen", ySplit:1 }];
+  return ws;
+}
+async function buildWorkbook(matrix, textA, textB, rawBase, rawDetail){
+  const wb = new ExcelJS.Workbook();
+  writeRawSheet(wb, "기본진료정보", rawBase);
+  writeRawSheet(wb, "세부진료정보", rawDetail);
+  const ws = wb.addWorksheet("병력정리");
+  const widths = [6, 12, 16, 10, 10, 11, 20, 9, 13, 6, 30];
+  matrix.forEach((row, ri)=>{
+    const excelRow = ws.getRow(ri+1);
+    row.forEach((v, ci)=>{
+      const cell = excelRow.getCell(ci+1);
+      if(v instanceof Date){ cell.value = v; cell.numFmt = "yyyy-mm-dd"; }
+      else if(v!==undefined) cell.value = v;
+      cell.alignment = { horizontal:"center", vertical:"middle", wrapText:true };
+      cell.border = { top:{style:"thin"}, left:{style:"thin"}, bottom:{style:"thin"}, right:{style:"thin"} };
+    });
+    excelRow.height = ri===0 ? 32 : 16.5;
+    excelRow.commit && excelRow.commit();
+  });
+  widths.forEach((w,i)=>{ ws.getColumn(i+1).width = w; });
+  const headerRow = ws.getRow(1);
+  headerRow.eachCell(c=>{ c.font={bold:true}; c.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFF2F2F2"}}; });
+  for(let r=1;r<matrix.length;r++){
+    const row = matrix[r];
+    const hasHosp = String(row[4]||"").includes("입원");
+    const hasSurg = String(row[10]||"").trim().length>0;
+    const excelRow = ws.getRow(r+1);
+    if(hasHosp){
+      for(let c=1;c<=10;c++) excelRow.getCell(c).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFC6EFCE"}};
+    }
+    if(hasSurg){
+      excelRow.getCell(11).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFFFC0CB"}};
+    }
+  }
+  ws.views = [{ state:"frozen", ySplit:1 }];
+  const wsTxt = wb.addWorksheet("병력정리텍스트");
+  const a1 = wsTxt.getCell("A1"); a1.value = "간편 고지사항\n▼▼▼▼";
+  const b1 = wsTxt.getCell("B1"); b1.value = "표준체 고지사항\n▼▼▼▼";
+  [a1,b1].forEach(c=>{ c.font={bold:true,size:14}; c.alignment={horizontal:"center",vertical:"middle",wrapText:true}; });
+  wsTxt.getRow(1).height = 40;
+  const a2 = wsTxt.getCell("A2"); a2.value = safeCellText(textA); a2.alignment={wrapText:true, vertical:"top"};
+  const b2 = wsTxt.getCell("B2"); b2.value = safeCellText(textB); b2.alignment={wrapText:true, vertical:"top"};
+  wsTxt.getRow(2).height = 300;
+  wsTxt.getColumn(1).width = 80;
+  wsTxt.getColumn(2).width = 80;
+  return wb;
+}
+function setupDrop(dropId, inputId, fnameId, onSet){
+  const drop = document.getElementById(dropId);
+  const input = document.getElementById(inputId);
+  const fname = document.getElementById(fnameId);
+  input.addEventListener("change", ()=>{
+    if(input.files[0]){ onSet(input.files[0]); fname.textContent="✓ "+input.files[0].name; fname.classList.add("show"); }
+  });
+  drop.addEventListener("dragover", e=>{ e.preventDefault(); drop.classList.add("drag"); });
+  drop.addEventListener("dragleave", ()=> drop.classList.remove("drag"));
+  drop.addEventListener("drop", e=>{
+    e.preventDefault(); drop.classList.remove("drag");
+    const f = e.dataTransfer.files[0];
+    if(f){ input.files = e.dataTransfer.files; onSet(f); fname.textContent="✓ "+f.name; fname.classList.add("show"); }
+  });
+}
+setupDrop("drop1","file1","fname1", f=>{ file1=f; updateRunBtn(); });
+setupDrop("drop2","file2","fname2", f=>{ file2=f; updateRunBtn(); });
+function updateRunBtn(){ document.getElementById("runBtn").disabled = !(file1 && file2); }
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  file1=null; file2=null;
+  document.getElementById("file1").value="";
+  document.getElementById("file2").value="";
+  document.getElementById("fname1").classList.remove("show");
+  document.getElementById("fname2").classList.remove("show");
+  document.getElementById("results").classList.remove("show");
+  document.getElementById("status").textContent="";
+  document.getElementById("status").className="status";
+  updateRunBtn();
+});
+document.querySelectorAll(".tabbtn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tabbtn").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.panel).classList.add("active");
+  });
+});
+document.getElementById("runBtn").addEventListener("click", async ()=>{
+  const status = document.getElementById("status");
+  status.className="status"; status.textContent="처리 중...";
+  document.getElementById("results").classList.remove("show");
+  try{
+    const baseMatrix = await loadMatrixAuto(file1);
+    const detailMatrix = await loadMatrixAuto(file2);
+    const { matrix, textA, textB } = processData(baseMatrix, detailMatrix);
+    lastResult = { matrix, textA, textB, rawBase: baseMatrix, rawDetail: detailMatrix, baseName: file1.name.replace(/\.(xlsx|xlsm|xls)$/i,"") };
+    renderTable(matrix);
+    document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
+    document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
+    document.getElementById("results").classList.add("show");
+    status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨`;
+  }catch(err){
+    console.error(err);
+    status.className="status err"; status.textContent="오류: "+err.message;
+  }
+});
+document.getElementById("dlBtn").addEventListener("click", async ()=>{
+  const dlStatus = document.getElementById("dlStatus");
+  if(!lastResult){ return; }
+  dlStatus.textContent="파일 생성 중...";
+  try{
+    const wb = await buildWorkbook(lastResult.matrix, lastResult.textA, lastResult.textB, lastResult.rawBase, lastResult.rawDetail);
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${lastResult.baseName} 병력정리.xlsx`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    dlStatus.textContent="다운로드 완료";
+  }catch(err){
+    console.error(err);
+    dlStatus.textContent="다운로드 오류: "+err.message;
+  }
+});
+document.getElementById("footNote").textContent =
+  "※ 기본진료정보 파일은 11개 열(순번~내가 낸 의료비) 구성을 기준으로 처리하며, 그 중 I·J열은 원본 매크로와 동일하게 자동 제외됩니다. " +
+  "엑셀의 텍스트 정렬 방식과 브라우저 정렬 방식에 미세한 차이가 있을 수 있어 \"주상병명\" 정렬 결과가 원본과 완전히 동일하지 않을 수 있습니다.";
+</script>
+</body>
+</html>
