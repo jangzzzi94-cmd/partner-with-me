@@ -15,3 +15,29 @@ async function logout(){
     await supabaseClient.auth.signOut();
     window.location.href = "login.html";
 }
+
+async function getMyProfile(){
+    const { data:{ session } } = await supabaseClient.auth.getSession();
+    if(!session) return null;
+    const { data, error } = await supabaseClient
+        .from("profiles")
+        .select("id, email, role, approval_status")
+        .eq("id", session.user.id)
+        .single();
+    if(error){
+        console.error(error);
+        return null;
+    }
+    return data;
+}
+
+async function requireAdmin(){
+    const session = await requireLogin();
+    if(!session) return null;
+    const profile = await getMyProfile();
+    if(!profile || profile.role !== "admin"){
+        window.location.href = "dashboard.html";
+        return null;
+    }
+    return profile;
+}
