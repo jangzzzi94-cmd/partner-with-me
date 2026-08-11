@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로그인 | 파트너와 함께</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="navbar">
+  <a href="index.html" class="brand">파트너와 <span>함께</span></a>
+  <nav><a href="signup.html">회원가입</a></nav>
+</div>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <h1>로그인</h1>
+    <p class="sub">계정에 로그인하고 서비스를 이용하세요</p>
+    <form id="loginForm">
+      <div class="field">
+        <label>이메일</label>
+        <input type="email" id="email" required placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label>비밀번호</label>
+        <input type="password" id="password" required placeholder="비밀번호">
+      </div>
+      <button type="submit" class="btn-primary" id="submitBtn">로그인</button>
+    </form>
+    <div class="links-row">
+      <a href="reset-password.html">비밀번호 찾기</a>
+      <a href="signup.html">회원가입</a>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+<script src="assets/supabase-client.js"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const btn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+  msg.className='msg'; msg.textContent='';
+  btn.disabled = true; btn.textContent='로그인 중...';
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent='로그인';
+  if(error){
+    msg.className='msg err show';
+    msg.textContent = error.message.includes('Invalid') ? '이메일 또는 비밀번호가 올바르지 않습니다.' : error.message;
+    return;
+  }
+  window.location.href = 'dashboard.html';
+});
+</script>
+</body>
+</html>
