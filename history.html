@@ -40,7 +40,7 @@ h1{font-size:26px; margin:0 0 6px; letter-spacing:-0.01em; font-weight:800;}
 .card h3{margin:0 0 4px; font-size:14.5px; display:flex; align-items:center; gap:8px;}
 .card h3 .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
 .card p.desc{margin:0 0 12px; font-size:12.5px; color:var(--ink-soft);}
-.drop{border:1.5px dashed #c9c1ad;border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;transition:.15s;background:#fbfaf6;}
+.drop{display:block;border:1.5px dashed #c9c1ad;border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;transition:.15s;background:#fbfaf6;}
 .drop:hover, .drop.drag{border-color:var(--amber); background:#eef2f8;}
 .drop input{display:none;}
 .drop .hint{font-size:12px; color:#9a927e; margin-top:4px;}
@@ -166,7 +166,13 @@ button.secondary:hover{background:#e2eee2;}
 </div>
 <script src="assets/supabase-client.js"></script>
 <script>
-requireLogin();
+let myProfile = null;
+  let freeUnlimited = false;
+  (async ()=>{
+      await requireLogin();
+      myProfile = await getMyProfile();
+      freeUnlimited = !!myProfile && (myProfile.role === 'admin' || myProfile.role === 'gold');
+  })();
 document.getElementById("logoutLink").addEventListener("click", async (e)=>{
   e.preventDefault();
   await logout();
@@ -640,23 +646,37 @@ document.querySelectorAll(".tabbtn").forEach(btn=>{
   });
 });
 document.getElementById("runBtn").addEventListener("click", async ()=>{
-  const status = document.getElementById("status");
-  status.className="status"; status.textContent="처리 중...";
-  document.getElementById("results").classList.remove("show");
-  try{
-    const baseMatrix = await loadMatrixAuto(file1);
-    const detailMatrix = await loadMatrixAuto(file2);
-    const { matrix, textA, textB } = processData(baseMatrix, detailMatrix);
-    lastResult = { matrix, textA, textB, rawBase: baseMatrix, rawDetail: detailMatrix, baseName: file1.name.replace(/\.(xlsx|xlsm|xls)$/i,"") };
-    renderTable(matrix);
-    document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
-    document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
-    document.getElementById("results").classList.add("show");
-    status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨`;
-  }catch(err){
-    console.error(err);
-    status.className="status err"; status.textContent="오류: "+err.message;
-  }
+        const status = document.getElementById("status");
+        const runBtn = document.getElementById("runBtn");
+        status.className="status"; status.textContent="처리 중...";
+        document.getElementById("results").classList.remove("show");
+        runBtn.disabled = true;
+        try{
+                  const baseMatrix = await loadMatrixAuto(file1);
+                  const detailMatrix = await loadMatrixAuto(file2);
+                  const { matrix, textA, textB } = processData(baseMatrix, detailMatrix);
+
+                  if(!freeUnlimited){
+                              const ok = await spendPoints('history');
+                              if(!ok){
+                                            status.className="status err";
+                                            status.textContent="포인트 차감에 실패했습니다. 포인트가 부족하거나 승인 상태를 확인해주세요. (결과는 저장되지 않았습니다)";
+                                            return;
+                              }
+                  }
+
+                  lastResult = { matrix, textA, textB, rawBase: baseMatrix, rawDetail: detailMatrix, baseName: file1.name.replace(/\.(xlsx|xlsm|xls)$/i,"") };
+                  renderTable(matrix);
+                  document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
+                  document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
+                  document.getElementById("results").classList.add("show");
+                  status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (freeUnlimited ? "" : " (1,000P 차감)");
+        }catch(err){
+                  console.error(err);
+                  status.className="status err"; status.textContent="오류: "+err.message+" (포인트는 차감되지 않았습니다)";
+        } finally {
+                  runBtn.disabled = false;
+        }
 });
 document.getElementById("dlBtn").addEventListener("click", async ()=>{
   const dlStatus = document.getElementById("dlStatus");
