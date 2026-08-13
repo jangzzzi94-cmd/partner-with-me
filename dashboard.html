@@ -62,23 +62,18 @@
             alert('관리자 승인 후 이용할 수 있습니다.');
           });
         } else {
-          badge.textContent = '1회 1,000P';
-          badge.style.display = 'inline-block';
-          card.addEventListener('click', async function(e){
-            e.preventDefault();
-            if((profile.points || 0) < 1000){
-              alert('포인트가 부족합니다. (병력정리 이용에 1,000P가 필요합니다. 보유 포인트: ' + (profile.points || 0) + 'P)\n관리자에게 포인트 충전을 요청해주세요.');
-              return;
-            }
-            const ok = await spendPoints('history');
-            if(ok){
-              window.location.href = 'history.html';
-            } else {
-              alert('포인트 차감에 실패했습니다. 다시 시도해주세요.');
-            }
-          });
+                  badge.textContent = '1회 1,000P';
+                  badge.style.display = 'inline-block';
+                  card.addEventListener('click', function(e){
+                              e.preventDefault();
+                              if((profile.points || 0) < 1000){
+                                            alert('포인트가 부족합니다. (병력정리 이용에 1,000P가 필요합니다. 보유 포인트: ' + (profile.points || 0) + 'P)\n관리자에게 포인트 충전을 요청해주세요.');
+                                            return;
+                              }
+                              // 포인트 차감은 병력정리 페이지에서 매칭을 실제로 실행해 성공했을 때 이루어집니다.
+                              window.location.href = 'history.html';
+                  });
         }
-      }
     }
   }
 })();
