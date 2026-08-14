@@ -706,13 +706,21 @@ function parsePremiumNumber(raw){
 // 보장분석표(전)/(후) 시트 한 장에 컬럼 데이터를 채워 넣는다.
 // 원본 엑셀 양식의 라벨/서식/합계 수식(D열)은 전혀 건드리지 않고,
 // 상품별 입력 데이터(E열부터)만 값으로 덮어써서 원본 그대로의 색깔·셀 크기·이미지를 유지한다.
+function formatDurationBreak(raw){
+  if(!raw) return raw;
+  const s = String(raw);
+  const idx = s.indexOf("~");
+  if(idx === -1) return s;
+  return s.slice(0, idx+1) + "\n" + s.slice(idx+1);
+}
+
 function fillSheetColumns(ws, columns, getField){
   const startCol = 5; // E열
   columns.forEach((c, i)=>{
     const col = startCol + i;
     ws.getCell(3, col).value = getField(c, "insurer");
     ws.getCell(4, col).value = getField(c, "productName");
-    ws.getCell(5, col).value = getField(c, "duration");
+    ws.getCell(5, col).value = formatDurationBreak(getField(c, "duration"));
     ws.getCell(6, col).value = getField(c, "term");
     const premiumNum = parsePremiumNumber(getField(c, "premium"));
     ws.getCell(7, col).value = premiumNum != null ? premiumNum : (getField(c, "premium") || null);
@@ -777,10 +785,7 @@ dlBtn.addEventListener("click", async ()=>{
     // 표지 시트: 고객명과 작성일을 다운로드 시점 기준으로 채운다.
     const wsCover = wb.getWorksheet("표지");
     if(wsCover){
-      wsCover.getCell("D10").value = lastResult.customerName || lastResult.baseName || "";
-      const today = new Date();
-      const yy = today.getFullYear(), mm = String(today.getMonth()+1).padStart(2,"0"), dd = String(today.getDate()).padStart(2,"0");
-      wsCover.getCell("D12").value = `${yy}. ${mm}. ${dd}.`;
+      wsCover.getCell("B3").value = `${lastResult.customerName || lastResult.baseName || "고객"}님`;
     }
 
     const wsBefore = wb.getWorksheet("보장분석표(전)");
