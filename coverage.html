@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>보장분석표 | 파트너와 함께</title>
+<title>보장분석표 | With Partners</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
@@ -72,11 +72,13 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 #diffTable td{text-align:center;padding:6px 8px;border-bottom:1px solid var(--line);}
 #diffTable td.item{text-align:left;}
 #diffTable td.grouplabel{color:var(--ink-soft);font-size:11.5px;}
+[data-gridrow].range-selected{background:#cfe3ff !important;}
+.undo-delete-btn{white-space:nowrap;}
 </style>
 </head>
 <body>
 <div class="navbar">
-<a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
+<a href="dashboard.html" class="brand">With <span>Partners</span></a>
 <nav><a href="dashboard.html">대시보드</a><a href="#" id="logoutLink">로그아웃</a></nav>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:28px 24px 60px;">
@@ -106,6 +108,7 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
   <div class="card" id="previewCard" style="display:none;">
     <div class="row" style="justify-content:space-between;">
       <div><strong>보장분석표(전) 미리보기</strong> <span class="badge" id="countBadge"></span></div>
+      <button type="button" class="secondary undo-delete-btn" id="undoDeleteBtnBefore" disabled>되돌리기 (Ctrl+Z)</button>
     </div>
     <div class="scrollwrap"><table class="preview" id="previewTable"></table></div>
   </div>
@@ -124,7 +127,10 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
   <div class="card" id="afterCard">
     <div class="row" style="justify-content:space-between;">
       <h2>보장분석표(후) — 별칭 자동완성</h2>
-      <button id="addColBtn" class="secondary">플랜 열 추가</button>
+      <div class="row" style="gap:8px;">
+        <button type="button" class="secondary undo-delete-btn" id="undoDeleteBtnAfter" disabled>되돌리기 (Ctrl+Z)</button>
+        <button id="addColBtn" class="secondary">플랜 열 추가</button>
+      </div>
     </div>
     <div class="scrollwrap"><table class="grid" id="afterTable"></table></div>
   </div>
@@ -245,6 +251,177 @@ function wireExcelPaste(container){
         }
       });
     });
+  });
+}
+
+/* =========================================================================
+   삭제 + 되돌리기(실행취소)
+   - 보장분석표(전)/(후) 표에서 "삭제" 버튼을 누르면 그 열을 완전히 제거한다.
+   - 삭제 직전 상태를 deleteHistory 스택에 저장해두고, "되돌리기" 버튼이나
+     Ctrl+Z(텍스트 입력 중이 아닐 때)를 누르면 가장 최근 삭제를 그대로 복원한다.
+   - (전)에서 "유지" 중이던 상품을 삭제하면 (후)의 연동 열도 함께 사라지고,
+     되돌리면 다시 함께 돌아온다 (안정적인 id로 서로 연결되어 있기 때문).
+   ========================================================================= */
+let deleteHistory = [];
+const MAX_UNDO_HISTORY = 20;
+
+function pushDeleteHistory(entry){
+  deleteHistory.push(entry);
+  if(deleteHistory.length > MAX_UNDO_HISTORY) deleteHistory.shift();
+  updateUndoButtons();
+}
+
+function updateUndoButtons(){
+  const has = deleteHistory.length > 0;
+  document.querySelectorAll(".undo-delete-btn").forEach(btn=> btn.disabled = !has);
+}
+
+function deleteBeforeColumn(i){
+  if(!lastResult || !lastResult.columns[i]) return;
+  const removed = lastResult.columns.splice(i, 1)[0];
+  pushDeleteHistory({ kind:"before", index:i, data: JSON.parse(JSON.stringify(removed)) });
+  renderPreview(lastResult);
+  syncAfterCarryoverFromBefore();
+}
+
+function deleteAfterColumn(i){
+  const col = afterColumns[i];
+  if(!col) return;
+  afterColumns.splice(i, 1);
+  pushDeleteHistory({ kind:"after", index:i, data: JSON.parse(JSON.stringify(col)) });
+  if(col.source === "carryover" && lastResult){
+    const src = lastResult.columns.find(c=>c.id === col.sourceId);
+    if(src){ src.kept = false; applyKeptUI(); }
+  }
+  if(!afterColumns.length) afterColumns = [blankAfterColumn(), blankAfterColumn()];
+  renderAfterSheet();
+}
+
+function undoLastDelete(){
+  const entry = deleteHistory.pop();
+  updateUndoButtons();
+  if(!entry) return;
+  if(entry.kind === "before"){
+    if(!lastResult) return;
+    const idx = Math.min(entry.index, lastResult.columns.length);
+    lastResult.columns.splice(idx, 0, entry.data);
+    renderPreview(lastResult);
+    syncAfterCarryoverFromBefore();
+  } else if(entry.kind === "after"){
+    const idx = Math.min(entry.index, afterColumns.length);
+    afterColumns.splice(idx, 0, entry.data);
+    if(entry.data.source === "carryover" && lastResult){
+      const src = lastResult.columns.find(c=>c.id === entry.data.sourceId);
+      if(src){ src.kept = true; applyKeptUI(); }
+    }
+    renderAfterSheet();
+  }
+}
+
+document.querySelectorAll(".undo-delete-btn").forEach(btn=>{
+  btn.addEventListener("click", undoLastDelete);
+});
+
+// 텍스트 입력창(input/textarea)에 포커스가 있을 때는 Ctrl+Z가 브라우저 기본
+// 되돌리기(타이핑 되돌리기)로 그대로 동작하도록 건드리지 않는다. 그 외의
+// 경우(삭제 버튼을 누른 직후처럼 포커스가 버튼/표 바깥에 있을 때)에만
+// Ctrl+Z(맥은 Cmd+Z)로 방금 삭제한 열을 되돌린다.
+document.addEventListener("keydown", (e)=>{
+  const isUndoKey = (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z");
+  if(!isUndoKey) return;
+  const tag = (document.activeElement && document.activeElement.tagName) || "";
+  if(tag === "INPUT" || tag === "TEXTAREA") return;
+  e.preventDefault();
+  undoLastDelete();
+});
+
+/* =========================================================================
+   엑셀처럼 숫자를 입력하고 Enter를 누르면 바로 아래 칸으로 이동한다.
+   (data-gridrow/data-gridcol을 가진 <input>에서만 동작 -- 여러 줄 textarea인
+   상품명 칸은 Enter가 줄바꿈으로 쓰이도록 그대로 둔다.)
+   ========================================================================= */
+function wireGridEnterNav(container){
+  if(!container || container.__enterNavWired) return;
+  container.__enterNavWired = true;
+  container.addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    const target = e.target;
+    if(!target || target.tagName !== "INPUT") return;
+    if(!target.dataset || target.dataset.gridrow===undefined || target.dataset.gridcol===undefined) return;
+    e.preventDefault();
+    const row = Number(target.dataset.gridrow), col = Number(target.dataset.gridcol);
+    const next = container.querySelector(`[data-gridrow="${row+1}"][data-gridcol="${col}"]`);
+    if(next){ next.focus(); if(next.select) next.select(); }
+  });
+}
+
+/* =========================================================================
+   드래그로 범위를 선택해 복사하기 (엑셀처럼). 마우스를 누른 채로 여러 칸을
+   지나가면 사각형 범위가 파란색으로 표시되고, 그 상태에서 Ctrl+C를 누르면
+   선택한 범위가 탭/줄바꿈으로 구분된 텍스트로 클립보드에 복사된다.
+   붙여넣기는 기존 wireExcelPaste()가 그대로 처리한다 (탭/줄바꿈이 들어있는
+   텍스트를 data-gridrow/data-gridcol 기준으로 채워 넣음).
+   ========================================================================= */
+function wireDragSelect(container){
+  if(!container || container.__dragSelectWired) return;
+  container.__dragSelectWired = true;
+
+  let mouseDown = false;
+  let dragging = false;
+  let anchor = null;
+  let selection = null;
+
+  function cellAt(el){
+    const t = el && el.closest && el.closest("[data-gridrow]");
+    if(!t) return null;
+    return { row: Number(t.dataset.gridrow), col: Number(t.dataset.gridcol) };
+  }
+  function clearHighlight(){
+    container.querySelectorAll(".range-selected").forEach(el=> el.classList.remove("range-selected"));
+  }
+  function highlightRange(r1,c1,r2,c2){
+    clearHighlight();
+    const rowMin=Math.min(r1,r2), rowMax=Math.max(r1,r2), colMin=Math.min(c1,c2), colMax=Math.max(c1,c2);
+    container.querySelectorAll("[data-gridrow]").forEach(el=>{
+      const r = Number(el.dataset.gridrow), c = Number(el.dataset.gridcol);
+      if(r>=rowMin && r<=rowMax && c>=colMin && c<=colMax) el.classList.add("range-selected");
+    });
+  }
+
+  container.addEventListener("mousedown", (e)=>{
+    const cell = cellAt(e.target);
+    if(!cell) return;
+    mouseDown = true; dragging = false; anchor = cell; selection = null;
+    clearHighlight();
+  });
+  container.addEventListener("mouseover", (e)=>{
+    if(!mouseDown || !anchor) return;
+    const cell = cellAt(e.target);
+    if(!cell) return;
+    if(cell.row !== anchor.row || cell.col !== anchor.col) dragging = true;
+    if(dragging){
+      selection = { r1:anchor.row, c1:anchor.col, r2:cell.row, c2:cell.col };
+      highlightRange(selection.r1, selection.c1, selection.r2, selection.c2);
+    }
+  });
+  document.addEventListener("mouseup", ()=>{ mouseDown = false; });
+
+  container.addEventListener("copy", (e)=>{
+    if(!selection) return;
+    const rowMin=Math.min(selection.r1,selection.r2), rowMax=Math.max(selection.r1,selection.r2);
+    const colMin=Math.min(selection.c1,selection.c2), colMax=Math.max(selection.c1,selection.c2);
+    const lines = [];
+    for(let r=rowMin;r<=rowMax;r++){
+      const cells = [];
+      for(let c=colMin;c<=colMax;c++){
+        const el = container.querySelector(`[data-gridrow="${r}"][data-gridcol="${c}"]`);
+        cells.push(el ? el.value : "");
+      }
+      lines.push(cells.join("\t"));
+    }
+    const tsv = lines.join("\n");
+    e.clipboardData.setData("text/plain", tsv);
+    e.preventDefault();
   });
 }
 
@@ -477,6 +654,7 @@ async function readTableSheetsFromWorkbook(wb){
    보장분석표(전) 탭 -- 메인 파이프라인
    ========================================================================= */
 let lastResult = null;
+let nextBeforeColId = 1;
 const fileInput = document.getElementById("fileInput");
 const runBtn = document.getElementById("runBtn");
 const dlBtn = document.getElementById("dlBtn");
@@ -543,7 +721,7 @@ runBtn.addEventListener("click", async ()=>{
     log(`동작1+2 통합 매칭 로직 실행 중... (${tables.length}개 상품)`);
     const columns = tables.map(t=>{
       const { amounts, textTags } = matchCoverageLines(t.dataLines);
-      return { header: t.header, amounts, textTags, kept: false };
+      return { header: t.header, amounts, textTags, kept: false, id: "b" + (nextBeforeColId++) };
     });
 
     lastResult = { columns, customerName, baseName: file.name.replace(/\.(pdf|xlsx|xlsm)$/i,"") };
@@ -611,7 +789,8 @@ function renderPreview(result){
   let html = buildColgroupHtml([60,150,90], DATA_COL_WIDTH, result.columns.length);
   html += "<thead><tr><th></th><th>구분</th><th>합계<br>(D열)</th>";
   result.columns.forEach((c,i)=> html += `<th>${String.fromCharCode(69+i)}열<br>`+
-    `<button type="button" class="keep-btn ${c.kept?'active-keep':'secondary'}" data-col="${i}" style="margin-top:4px;padding:3px 8px;font-size:11px;">${c.kept?'유지 중 (해제하려면 클릭)':'유지'}</button></th>`);
+    `<button type="button" class="keep-btn ${c.kept?'active-keep':'secondary'}" data-col="${i}" style="margin-top:4px;padding:3px 8px;font-size:11px;">${c.kept?'유지 중 (해제하려면 클릭)':'유지'}</button>`+
+    `<button type="button" class="danger" data-delbeforecol="${i}" style="margin-top:4px;margin-left:4px;padding:3px 8px;font-size:11px;">삭제</button></th>`);
   html += "</tr></thead><tbody>";
 
   // [라벨, header 필드명] -- 이제 값은 직접 수기로 고쳐 쓸 수 있는 입력창이다.
@@ -656,9 +835,14 @@ function renderPreview(result){
   html += "</tbody>";
   table.innerHTML = html;
   wireExcelPaste(table);
+  wireGridEnterNav(table);
+  wireDragSelect(table);
 
   table.querySelectorAll(".keep-btn").forEach(btn=>{
     btn.addEventListener("click", ()=> toggleKept(Number(btn.dataset.col)));
+  });
+  table.querySelectorAll("[data-delbeforecol]").forEach(btn=>{
+    btn.addEventListener("click", ()=> deleteBeforeColumn(Number(btn.dataset.delbeforecol)));
   });
   table.querySelectorAll(".pv-meta-input").forEach(inp=>{
     inp.addEventListener("input", ()=>{
@@ -1156,7 +1340,7 @@ function renderDiffSheet(){
 }
 
 function blankAfterColumn(){
-  return { source:"manual", sourceIndex:null, alias:"", lastMatchedPlanId:null,
+  return { source:"manual", sourceId:null, alias:"", lastMatchedPlanId:null,
            productName:"", insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
 }
 let afterColumns = [blankAfterColumn(), blankAfterColumn()];
@@ -1167,20 +1351,16 @@ let afterColumns = [blankAfterColumn(), blankAfterColumn()];
 // 해제되었거나 사라진 상품의 열만 제거한다.
 function syncAfterCarryoverFromBefore(){
   if(!lastResult) return;
-  const keptIdx = lastResult.columns
-    .map((c,i)=>({c,i}))
-    .filter(x=>x.c.kept)
-    .map(x=>x.i);
+  const keptCols = lastResult.columns.filter(c=>c.kept);
   const existingBySource = new Map(
-    afterColumns.filter(c=>c.source==="carryover").map(c=>[c.sourceIndex, c])
+    afterColumns.filter(c=>c.source==="carryover").map(c=>[c.sourceId, c])
   );
-  const newCarryover = keptIdx.map(i=>{
-    if(existingBySource.has(i)) return existingBySource.get(i);
-    const src = lastResult.columns[i];
+  const newCarryover = keptCols.map(src=>{
+    if(existingBySource.has(src.id)) return existingBySource.get(src.id);
     const items = { ...src.amounts };
     if(src.textTags && src.textTags.length) items["45"] = src.textTags.join(", ");
     return {
-      source:"carryover", sourceIndex:i, alias:"", lastMatchedPlanId:null,
+      source:"carryover", sourceId: src.id, alias:"", lastMatchedPlanId:null,
       productName: src.header.productName||"", insurer: src.header.insurer||"",
       duration: src.header.duration||"", term: src.header.term||"",
       premium: src.header.premium||"", holder: src.header.holder||"",
@@ -1199,9 +1379,7 @@ function buildAfterSheetSkeleton(){
   html += "<thead><tr><th></th><th>구분</th><th>합계</th>";
   afterColumns.forEach((c,i)=>{
     html += `<th>${String.fromCharCode(69+i)}열`;
-    if(c.source === "manual"){
-      html += ` <button type="button" class="danger" data-delaftercol="${i}" style="padding:2px 6px;font-size:11px;">삭제</button>`;
-    }
+    html += ` <button type="button" class="danger" data-delaftercol="${i}" style="padding:2px 6px;font-size:11px;">삭제</button>`;
     html += `</th>`;
   });
   html += "</tr></thead><tbody>";
@@ -1247,6 +1425,8 @@ function buildAfterSheetSkeleton(){
   html += "</tbody>";
   table.innerHTML = html;
   wireExcelPaste(table);
+  wireGridEnterNav(table);
+  wireDragSelect(table);
 
   table.querySelectorAll(".col-alias").forEach(inp=>{
     inp.addEventListener("input", ()=>{
@@ -1305,12 +1485,7 @@ function buildAfterSheetSkeleton(){
     });
   });
   table.querySelectorAll("[data-delaftercol]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const i = Number(btn.dataset.delaftercol);
-      afterColumns.splice(i,1);
-      if(!afterColumns.length) afterColumns = [blankAfterColumn(), blankAfterColumn()];
-      renderAfterSheet();
-    });
+    btn.addEventListener("click", ()=> deleteAfterColumn(Number(btn.dataset.delaftercol)));
   });
 
   ROW_DEFS.forEach(([row])=> recomputeAfterRowSum(row));
