@@ -98,7 +98,7 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
     <div class="row">
       <input type="file" id="fileInput" accept=".pdf,.xlsx,.xlsm">
       <button id="runBtn" disabled>가져오기 실행</button>
-      <button id="dlBtn" class="secondary" disabled>엑셀 다운로드 (.xlsx)</button>
+      <button id="dlBtn" class="secondary" disabled>전체 다운로드 (원본 서식 .xlsx)</button>
     </div>
     <div class="status" id="status">파일을 선택하세요. (PDF 또는 .xlsx/.xlsm)</div>
   </div>
@@ -696,63 +696,93 @@ function renderPreview(result){
   });
 }
 
+// 보험료 문자열("50,000원", "50000" 등)을 원본 서식이 기대하는 순수 숫자로 변환.
+// 셀 자체에 #,##0"원" 서식이 이미 걸려 있으므로 "원" 표시는 엑셀이 알아서 붙여준다.
+function parsePremiumNumber(raw){
+  const n = parseFloat(String(raw||"").replace(/,/g,"").replace(/원/g,""));
+  return isNaN(n) ? null : n;
+}
+
+// 보장분석표(전)/(후) 시트 한 장에 컬럼 데이터를 채워 넣는다.
+// 원본 엑셀 양식의 라벨/서식/합계 수식(D열)은 전혀 건드리지 않고,
+// 상품별 입력 데이터(E열부터)만 값으로 덮어써서 원본 그대로의 색깔·셀 크기·이미지를 유지한다.
+function fillSheetColumns(ws, columns, getField){
+  const startCol = 5; // E열
+  columns.forEach((c, i)=>{
+    const col = startCol + i;
+    ws.getCell(3, col).value = getField(c, "insurer");
+    ws.getCell(4, col).value = getField(c, "productName");
+    ws.getCell(5, col).value = getField(c, "duration");
+    ws.getCell(6, col).value = getField(c, "term");
+    const premiumNum = parsePremiumNumber(getField(c, "premium"));
+    ws.getCell(7, col).value = premiumNum != null ? premiumNum : (getField(c, "premium") || null);
+    ws.getCell(8, col).value = getField(c, "holder");
+
+    // 값이 없는 행도 반드시 null로 덮어써서, 원본 서식에 남아있던 수식(마스터 조회 등)이
+    // 이 컬럼에 그대로 남아있지 않도록 한다 (서식/색은 유지되고 값/수식만 교체됨).
+    const amounts = getField(c, "amounts");
+    ROW_DEFS.forEach(([row])=>{
+      if(TEXT_ROWS.has(row)) return;
+      const v = amounts[row];
+      ws.getCell(row, col).value = v ? v : null;
+    });
+    const textVal = getField(c, "text45");
+    ws.getCell(45, col).value = textVal ? textVal : null;
+  });
+}
+
 dlBtn.addEventListener("click", async ()=>{
   if(!lastResult) return;
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("보장분석표(전)");
-  ws.getCell("D2").value = `${lastResult.customerName||""} 님 보장 분석표 - 심사전(필수담보)`;
-  ws.getCell("C2").value = lastResult.customerName || "";
-  ws.getCell("B3").value = "계약정보"; ws.getCell("C3").value = "보험회사"; ws.getCell("D3").value = "고객\n보장합산";
-  ws.getCell("C4").value = "상품명";
-  ws.getCell("C5").value = "보험기간";
-  ws.getCell("C6").value = "납기/만기";
-  ws.getCell("C7").value = "보험료";
-  ws.getCell("C8").value = "계약자";
+  dlBtn.disabled = true;
+  const prevLabel = dlBtn.textContent;
+  dlBtn.textContent = "생성 중...";
+  try{
+    // 원본 서식 파일은 base64 텍스트(assets/coverage_template.b64.txt)로 보관되어 있다.
+    // GitHub 코드 편집기로 배포하는 과정에서 바이너리(.xlsx)를 직접 올릴 수 없어서
+    // 텍스트로 안전하게 저장해두고 다운로드 시점에 디코딩한다.
+    const res = await fetch("assets/coverage_template.b64.txt");
+    if(!res.ok) throw new Error("서식 파일을 불러오지 못했습니다.");
+    const b64Text = (await res.text()).replace(/\s+/g, "");
+    const binary = atob(b64Text);
+    const buf = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) buf[i] = binary.charCodeAt(i);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf.buffer);
+    // 종합비교/보장차이 시트는 전/후 시트의 D열을 그대로 참조하는 수식으로 되어 있어
+    // 손대지 않아도 엑셀에서 열 때 자동으로 계산된다. fullCalcOnLoad를 다시 한 번 보장.
+    wb.calcProperties = wb.calcProperties || {};
+    wb.calcProperties.fullCalcOnLoad = true;
 
-  const startCol = 5; // E열
-  lastResult.columns.forEach((c, i)=>{
-    const col = startCol + i;
-    ws.getCell(3, col).value = c.header.insurer;
-    ws.getCell(4, col).value = c.header.productName;
-    ws.getCell(8, col).value = c.header.holder;
-    ws.getCell(6, col).value = c.header.term;
-    ws.getCell(5, col).value = c.header.duration;
-    const premiumNum = parseFloat(String(c.header.premium||"").replace(/,/g,"").replace(/원/g,""));
-    const premiumCell = ws.getCell(7, col);
-    if(!isNaN(premiumNum)){
-      premiumCell.value = premiumNum;
-      premiumCell.numFmt = '#,##0"원"';
-    } else {
-      premiumCell.value = c.header.premium;
-    }
-  });
-  const lastColLetter = ws.getColumn(startCol + lastResult.columns.length - 1 || startCol).letter;
-
-  ws.getCell("D7").value = { formula: `SUM(E7:${lastColLetter}7)` };
-  ws.getCell("D7").numFmt = '#,##0"원"';
-
-  ROW_DEFS.forEach(([row, group, item])=>{
-    if(group) ws.getCell(row, 2).value = group;
-    ws.getCell(row, 3).value = item;
-    lastResult.columns.forEach((c, i)=>{
-      const v = c.amounts[row];
-      if(v) ws.getCell(row, startCol+i).value = v;
+    const wsBefore = wb.getWorksheet("보장분석표(전)");
+    wsBefore.getCell("C2").value = lastResult.customerName || "";
+    fillSheetColumns(wsBefore, lastResult.columns, (c, field)=>{
+      if(field === "amounts") return c.amounts;
+      if(field === "text45") return (c.textTags && c.textTags.length) ? c.textTags.join(", ") : "";
+      return c.header[field];
     });
-    if(row <= 44){
-      ws.getCell(row, 4).value = { formula: `SUM(E${row}:${lastColLetter}${row})` };
-    }
-  });
-  lastResult.columns.forEach((c,i)=>{
-    if(c.textTags && c.textTags.length) ws.getCell(45, startCol+i).value = c.textTags.join(", ");
-  });
 
-  const buf = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = `${lastResult.baseName} 보장분석표(전).xlsx`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    const wsAfter = wb.getWorksheet("보장분석표(후)");
+    // 보장분석표(후)의 C2는 원본 서식상 '보장분석표(전)'!C2를 그대로 참조하는 수식이라 별도로 채울 필요 없음.
+    fillSheetColumns(wsAfter, afterColumns, (c, field)=>{
+      if(field === "amounts") return c.items || {};
+      if(field === "text45") return (c.items && c.items["45"]) ? c.items["45"] : "";
+      return c[field];
+    });
+
+    const buf2 = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf2], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${lastResult.customerName || lastResult.baseName} 보장분석표.xlsx`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }catch(err){
+    console.error(err);
+    alert("다운로드 중 오류가 발생했습니다: " + err.message);
+  }finally{
+    dlBtn.disabled = false;
+    dlBtn.textContent = prevLabel;
+  }
 });
 
 /* =========================================================================
