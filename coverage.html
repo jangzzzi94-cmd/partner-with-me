@@ -731,6 +731,27 @@ function fillSheetColumns(ws, columns, getField){
   });
 }
 
+// 열 번호(1=A, 2=B, ...)를 엑셀 열 문자로 변환. 인쇄 영역 계산에 사용.
+function colLetterFromIndex(n){
+  let s = "";
+  while(n > 0){
+    const m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+// 실제로 값이 채워진 상품 컬럼 수만큼만 인쇄 영역을 잡는다.
+// (원본 서식은 최대 9개 상품칸까지 인쇄영역이 고정되어 있어, 상품이 적으면 빈 칸이 인쇄되고
+//  9개보다 많으면 뒤쪽이 인쇄영역에서 잘리는 문제가 있었음.)
+function setPrintAreaForColumns(ws, columnCount){
+  const startCol = 5; // E열
+  const lastCol = startCol + Math.max(1, columnCount) - 1;
+  ws.pageSetup = ws.pageSetup || {};
+  ws.pageSetup.printArea = `B2:${colLetterFromIndex(lastCol)}45`;
+}
+
 dlBtn.addEventListener("click", async ()=>{
   if(!lastResult) return;
   dlBtn.disabled = true;
@@ -753,6 +774,15 @@ dlBtn.addEventListener("click", async ()=>{
     wb.calcProperties = wb.calcProperties || {};
     wb.calcProperties.fullCalcOnLoad = true;
 
+    // 표지 시트: 고객명과 작성일을 다운로드 시점 기준으로 채운다.
+    const wsCover = wb.getWorksheet("표지");
+    if(wsCover){
+      wsCover.getCell("D10").value = lastResult.customerName || lastResult.baseName || "";
+      const today = new Date();
+      const yy = today.getFullYear(), mm = String(today.getMonth()+1).padStart(2,"0"), dd = String(today.getDate()).padStart(2,"0");
+      wsCover.getCell("D12").value = `${yy}. ${mm}. ${dd}.`;
+    }
+
     const wsBefore = wb.getWorksheet("보장분석표(전)");
     wsBefore.getCell("C2").value = lastResult.customerName || "";
     fillSheetColumns(wsBefore, lastResult.columns, (c, field)=>{
@@ -768,6 +798,22 @@ dlBtn.addEventListener("click", async ()=>{
       if(field === "text45") return (c.items && c.items["45"]) ? c.items["45"] : "";
       return c[field];
     });
+
+    // 실제로 채워진 상품 개수만큼만 인쇄 영역을 잡아서, 인쇄 미리보기 시
+    // 빈 칸이 함께 인쇄되거나 반대로 상품이 많아 잘리는 일이 없게 한다.
+    setPrintAreaForColumns(wsBefore, lastResult.columns.length);
+    setPrintAreaForColumns(wsAfter, afterColumns.length);
+
+    // 관리자/골드 회원이 아니면 엑셀 다운로드 1회당 3,000P를 차감한다.
+    // (템플릿 로딩/데이터 채우기가 모두 성공한 뒤, 실제 파일을 만들어 내려주기 직전에 차감하여
+    //  네트워크 오류 등으로 파일을 만들지 못한 경우에는 포인트가 빠지지 않도록 한다.)
+    if(!freeUnlimited){
+      const ok = await spendPoints('coverage');
+      if(!ok){
+        alert("포인트 차감에 실패했습니다. 포인트가 부족하거나 승인 상태를 확인해주세요. (엑셀은 생성되지 않았습니다)");
+        return;
+      }
+    }
 
     const buf2 = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf2], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
@@ -866,6 +912,7 @@ const store = window.__mockStore || {
 let currentUserId = null;
 let plans = []; // [{id, plan_name, insurer, items:{...}}, ...] 마지막 열은 항상 id가 없는 빈 신규 작성용 열
 const planSaveTimers = {};
+let freeUnlimited = false; // 관리자/골드 회원은 엑셀 다운로드 포인트 차감 없이 무제한 이용
 
 function blankPlan(){
   return { id:null, plan_name:"", insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
@@ -1344,6 +1391,15 @@ document.querySelectorAll(".sheettab").forEach(btn=>{
   const session = await requireLogin(); // 세션 없으면 여기서 login.html로 리다이렉트되고 아래 코드는 실행되지 않음
   if(!session) return;
   currentUserId = session.user.id;
+
+  // 관리자/골드 회원은 엑셀 다운로드 시 포인트 차감 없이 무제한 이용.
+  // 일반 회원은 다운로드 버튼에 차감될 포인트를 표시해준다.
+  const myProfile = await getMyProfile();
+  freeUnlimited = !!myProfile && (myProfile.role === 'admin' || myProfile.role === 'gold');
+  if(!freeUnlimited){
+    dlBtn.textContent = dlBtn.textContent + " · 3,000P";
+  }
+
   await refreshPlans();
 })();
 
