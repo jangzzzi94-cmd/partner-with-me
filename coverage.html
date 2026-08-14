@@ -5,20 +5,1322 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>보장분석표 | 파트너와 함께</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-client.js"></script>
+<style>
+:root{ --ink:#132a4c; --ink-soft:#5b6b7c; --paper:#f5f7fb; --panel:#fff; --line:#dfe5ec; --amber:#16305c; }
+*{box-sizing:border-box;}
+body{font-family:"Pretendard","Malgun Gothic",sans-serif;background:var(--paper);color:var(--ink);margin:0;padding:24px;}
+h1{font-size:20px;margin:0 0 4px;}
+h2{font-size:16px;margin:0 0 10px;}
+.sub{color:var(--ink-soft);font-size:13px;margin-bottom:20px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px;}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+input[type=file]{padding:8px;border:1px dashed var(--line);border-radius:8px;background:#fafbfd;flex:1;min-width:260px;}
+input[type=text],input[type=number],input[type=password]{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;}
+button{background:var(--amber);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;}
+button:disabled{opacity:.5;cursor:not-allowed;}
+button.secondary{background:#fff;color:var(--amber);border:1px solid var(--amber);}
+button.danger{background:#fff;color:#c0392b;border:1px solid #c0392b;}
+.status{font-size:13px;margin-top:10px;white-space:pre-wrap;}
+.status.err{color:#c0392b;}
+.status.ok{color:#1a7a3c;}
+.log{font-size:12px;color:var(--ink-soft);background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:10px;}
+table.preview{border-collapse:collapse;width:100%;font-size:12px;margin-top:14px;table-layout:fixed;}
+table.preview th,table.preview td{border:1px solid var(--line);padding:5px 7px;text-align:center;white-space:normal;word-break:break-word;overflow-wrap:break-word;vertical-align:middle;}
+table.preview th{background:#eef2f8;position:sticky;top:0;}
+table.preview td.label{background:#fafbfd;font-weight:600;}
+table.preview td.grouplabel{background:#eef2f8;font-weight:700;}
+table.preview td.meta-cell.kept-cell{background:#e8c547;}
+button.keep-btn.active-keep{background:#e8c547;color:#132a4c;border-color:#c9a227;}
+table.grid{border-collapse:collapse;width:100%;font-size:12px;margin-top:10px;table-layout:fixed;}
+table.grid th,table.grid td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:normal;word-break:break-word;overflow-wrap:break-word;vertical-align:middle;}
+table.grid th{background:#eef2f8;}
+table.grid td.label{background:#fafbfd;font-weight:600;}
+table.grid td.grouplabel{background:#eef2f8;font-weight:700;}
+/* 모든 칸의 텍스트/입력값은 가운데정렬. 상품명만 여러 줄로 접힐 수 있게 넉넉한 높이의 textarea. */
+table.preview input,table.preview textarea,table.grid input,table.grid textarea{width:100%;text-align:center;font-family:inherit;border:1px solid transparent;background:transparent;padding:2px 3px;border-radius:4px;font-size:12px;resize:vertical;}
+table.preview input:focus,table.preview textarea:focus,table.grid input:focus,table.grid textarea:focus{border-color:var(--amber);background:#fff;outline:none;}
+textarea.pv-meta-input,textarea.af-productname{min-height:56px;line-height:1.4;}
+.scrollwrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px;}
+.badge{display:inline-block;background:#eef2f8;color:var(--ink-soft);border-radius:6px;padding:2px 8px;font-size:11px;margin-left:6px;}
+.col-alias{width:100%;}
+.sheettabs{display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--line);}
+.sheettab{background:#e4e9f1;color:var(--ink-soft);border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;}
+.sheettab.active{background:var(--panel);color:var(--ink);position:relative;top:2px;}
+.sheetpanel{background:var(--panel);border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;padding:20px;margin-bottom:20px;}
+.sheetpanel .card{border:1px solid var(--line);}
+.summary-premium-row{display:flex;gap:16px;margin-bottom:20px;}
+.summary-premium-box{flex:1;border:1px solid var(--line);border-radius:10px;padding:16px 18px;text-align:center;background:#f8fafc;}
+.summary-premium-box .lbl{font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
+.summary-premium-box .val{font-size:20px;font-weight:800;}
+.summary-premium-box.diff .val.up{color:#c0392b;}
+.summary-premium-box.diff .val.down{color:#1e7e50;}
+.summary-groups{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+@media (max-width:900px){.summary-groups{grid-template-columns:1fr;}}
+.summary-group{border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+.summary-group h3{margin:0;padding:10px 12px;background:var(--ink);color:#fff;font-size:13.5px;text-align:center;}
+table.summary-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+table.summary-table td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:center;}
+table.summary-table td.item{text-align:left;color:var(--ink-soft);}
+table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-soft);font-size:11.5px;}
+#diffTable td.diff-up{background:#fdecea;color:#c0392b;font-weight:700;}
+#diffTable td.diff-down{background:#e8f6ee;color:#1e7e50;font-weight:700;}
+#diffTable thead td{font-weight:700;background:var(--ink);color:#fff;}
+#diffTable td{text-align:center;padding:6px 8px;border-bottom:1px solid var(--line);}
+#diffTable td.item{text-align:left;}
+#diffTable td.grouplabel{color:var(--ink-soft);font-size:11.5px;}
+</style>
 </head>
 <body>
 <div class="navbar">
-  <a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
-  <nav><a href="dashboard.html">대시보드</a></nav>
+<a href="dashboard.html" class="brand">파트너와 <span>함께</span></a>
+<nav><a href="dashboard.html">대시보드</a><a href="#" id="logoutLink">로그아웃</a></nav>
 </div>
-<div class="dash-wrap" style="text-align:center;">
-  <h1>보장분석표</h1>
-  <p class="sub">이 기능은 아직 준비 중입니다. 곧 만나보실 수 있어요.</p>
+<div style="max-width:1200px;margin:0 auto;padding:28px 24px 60px;">
+
+<h1>보장분석표</h1>
+<div class="sub">원본 엑셀처럼 아래 탭에서 시트를 골라 볼 수 있습니다: 보장분석표(전) / 보장분석표(후) / 종합비교 / 보장차이 / 마스터.</div>
+
+<div class="sheettabs">
+  <button class="sheettab active" data-sheet="before">보장분석표(전)</button>
+  <button class="sheettab" data-sheet="after">보장분석표(후)</button>
+  <button class="sheettab" data-sheet="summary">종합비교</button>
+  <button class="sheettab" data-sheet="diff">보장차이</button>
+  <button class="sheettab" data-sheet="master">마스터</button>
 </div>
-<script src="assets/supabase-client.js"></script>
+
+<!-- ============================== 시트: 보장분석표(전) ============================== -->
+<div id="sheet-before" class="sheetpanel">
+  <div class="card">
+    <div class="row">
+      <input type="file" id="fileInput" accept=".pdf,.xlsx,.xlsm">
+      <button id="runBtn" disabled>가져오기 실행</button>
+      <button id="dlBtn" class="secondary" disabled>엑셀 다운로드 (.xlsx)</button>
+    </div>
+    <div class="status" id="status">파일을 선택하세요. (PDF 또는 .xlsx/.xlsm)</div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <div class="row" style="justify-content:space-between;">
+      <div><strong>보장분석표(전) 미리보기</strong> <span class="badge" id="countBadge"></span></div>
+    </div>
+    <div class="scrollwrap"><table class="preview" id="previewTable"></table></div>
+  </div>
+
+  <div class="card" id="logCard" style="display:none;">
+    <div class="row" style="justify-content:space-between;cursor:pointer;" id="logToggle">
+      <strong style="font-size:13px;">처리 로그 (어떤 상품이 인식됐는지 자세히 보기)</strong>
+      <span class="badge" id="logToggleLabel">펼치기</span>
+    </div>
+    <div class="log" id="log" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ============================== 시트: 보장분석표(후) ============================== -->
+<div id="sheet-after" class="sheetpanel" style="display:none;">
+  <div class="card" id="afterCard">
+    <div class="row" style="justify-content:space-between;">
+      <h2>보장분석표(후) — 별칭 자동완성</h2>
+      <button id="addColBtn" class="secondary">플랜 열 추가</button>
+    </div>
+    <div class="scrollwrap"><table class="grid" id="afterTable"></table></div>
+  </div>
+</div>
+
+<!-- ============================== 시트: 종합비교 ============================== -->
+<div id="sheet-summary" class="sheetpanel" style="display:none;">
+  <div class="card">
+    <h2 id="summaryTitle" style="margin-top:0;">종합 전·후 비교</h2>
+    <div class="sub" style="margin-bottom:16px;">보장분석표(전)/(후)에 입력된 내용을 바탕으로 자동으로 계산됩니다. 별도로 입력할 내용은 없습니다.</div>
+    <div class="summary-premium-row" id="summaryPremiumRow"></div>
+    <div class="summary-groups" id="summaryGroups"></div>
+  </div>
+</div>
+
+<!-- ============================== 시트: 보장차이 ============================== -->
+<div id="sheet-diff" class="sheetpanel" style="display:none;">
+  <div class="card">
+    <h2 style="margin-top:0;">보장 차이 (전 → 후)</h2>
+    <div class="sub" style="margin-bottom:16px;">항목별로 보장분석표(전)과 (후)의 합계를 비교합니다. 후가 전보다 늘어난 항목은 빨간색, 줄어든 항목은 초록색으로 표시됩니다. (국내 증시 표기 관례와 동일)</div>
+    <div class="scrollwrap"><table class="grid" id="diffTable"></table></div>
+  </div>
+</div>
+
+<!-- ============================== 시트: 마스터 ============================== -->
+<div id="sheet-master" class="sheetpanel" style="display:none;">
+  <div class="card" id="masterCard">
+    <div class="row" style="justify-content:space-between;">
+      <h2>마스터 — 내 플랜 라이브러리</h2>
+      <div class="status" id="masterStatus" style="margin:0;"></div>
+    </div>
+    <div class="sub" style="margin-bottom:8px;">엑셀 마스터 시트처럼 아래 표에 바로 기입하세요. 별도의 "저장" 버튼 없이, 입력하면 잠시 후 자동으로 저장됩니다. 맨 오른쪽은 항상 새 플랜을 적을 수 있는 빈 열입니다.</div>
+    <div class="scrollwrap"><table class="grid" id="masterTable"></table></div>
+  </div>
+</div>
+
+</div>
 <script>
-(async ()=>{ await requireLogin(); })();
+/* =========================================================================
+   ENGINE (동작1 + 동작2 VBA 매크로 통합 포트) -- 보장분석표(전) 탭에서 사용
+   37개 담보 타입 taxonomy (ROW_DEFS)는 후/마스터 탭과 동일하게 공유한다.
+   ========================================================================= */
+const CLAUSE_ROW_MAP = {
+  "질병(전체질병을 의미)입원의료비": 9,
+  "질병(전체질병을 의미)외래의료비": 10,
+  "질병(전체질병을 의미)의료비(입원+통원)": 9,
+  "상해+질병(전체상해 및 전체질병을 포괄)입원의료비)": 9,
+  "상해+질병(전체상해 및 전체질병을 포괄)외래의료비)": 10,
+  "상해후유장해": 35, "질병후유장해": 34, "골절진단": 43, "화상진단": 42,
+  "상해수술": 22, "상해수술(유병자)": 22, "상해입원일당": 29, "질병입원일당": 28,
+  "깁스치료": 44, "자동차사고부상위로금": 39, "자동차사고 변호사선임비용": 37,
+  "교통사고처리지원금": 36, "상해사망": 33, "상해사망(유병자)": 33,
+  "질병사망(유병자)": 32, "질병사망": 32, "질병수술": 21, "질병수술(유병자)": 21,
+  "화재벌금담보": 41, "교통사고 벌금(대인)": 38, "다빈도질병수술": 21,
+  "항암방사선약물치료비": 13, "항암방사선치료비": 13, "뇌혈관질환진단": 15,
+  "허혈성심장질환진단": 19, "급성심근경색진단": 20, "암진단": 11, "암진단(유병자)": 11,
+  "소액암진단(유사암진단)": 12, "가족생활배상책임": 40, "뇌출혈진단": 17,
+  "뇌졸중진단": 16, "간병인질병입원일당": 30, "부정맥": 18, "표적항암약물": 14,
+  "상해간병인사용일당": 31, "질병간병인사용일당": 30,
+};
+const TEXT_TAG_MAP = {
+  "대질병수술": "N대수술비", "상해간호간병통합": "상해간호통합서비스",
+  "질병간호간병통합": "질병간호통합서비스", "민사소송법률비용": "민사소송법률비용",
+  "가전제품고장": "가전제품수리비용", "1-7종": "1-7종 수술비", "1-8종": "1-8종 수술비",
+  "중입자": "중입자방사선", "창상봉합술": "창상봉합술",
+};
+// [row, groupLabel(B), itemLabel(C)] -- groupLabel만 병합 표시(첫 행에만 노출)
+const ROW_DEFS = [
+  [9,"실비","실손의료비 입원"],[10,"","실손의료비 통원"],
+  [11,"암","일반암 진단비"],[12,"","유사암 진단비"],[13,"","항암방사선약물"],[14,"","표적항암치료비"],
+  [15,"뇌혈관 질환","뇌혈관 진단비"],[16,"","뇌졸중 진단비"],[17,"","뇌출혈 진단비"],
+  [18,"심장 질환","부정맥 진단비"],[19,"","허혈성 진단비"],[20,"","급성심근경색증 진단비"],
+  [21,"수술비","질병수술비"],[22,"","상해수술비"],[23,"","1종수술비"],[24,"","2종수술비"],[25,"","3종수술비"],[26,"","4종수술비"],[27,"","5종수술비"],
+  [28,"입원비(일당)","질병일당"],[29,"","상해일당"],[30,"","질병 간병인사용 입원일당"],[31,"","상해 간병인사용 입원일당"],
+  [32,"사망","질병사망"],[33,"","상해사망"],
+  [34,"후유장해","질병후유장해 3%"],[35,"","상해후유장해 3%"],
+  [36,"운전자","교통사고처리 지원금"],[37,"","변호사 선임비용"],[38,"","벌금"],[39,"","자동차사고 부상치료비"],
+  [40,"배상책임","일상생활 배상책임"],[41,"","화재벌금"],
+  [42,"화상/골절/깁스","화상 진단비"],[43,"","골절 진단비"],[44,"","깁스 치료비"],
+  [45,"기타","기타(텍스트 태그)"],
+];
+// row 45(기타)는 금액이 아니라 텍스트이므로 숫자 합산 대상에서 제외하고 텍스트 그대로 다룬다.
+const TEXT_ROWS = new Set([45]);
+
+/* =========================================================================
+   공용 유틸: 고정 열 너비(colgroup) / 엑셀에서 드래그로 복사한 범위를 그대로
+   붙여넣기 (표 안의 <input>에 data-gridrow/data-gridcol을 매겨두면,
+   붙여넣은 텍스트를 탭/줄바꿈 기준으로 잘라서 같은 모양으로 채워 넣는다).
+   보장분석표(전)/(후) 표가 같은 값(140px)을 데이터 열 너비로 쓰도록 공유한다.
+   ========================================================================= */
+const DATA_COL_WIDTH = 140;
+function buildColgroupHtml(prefixWidths, dataWidth, dataCount){
+  let html = "<colgroup>";
+  prefixWidths.forEach(w=> html += `<col style="width:${w}px">`);
+  for(let i=0;i<dataCount;i++) html += `<col style="width:${dataWidth}px">`;
+  html += "</colgroup>";
+  return html;
+}
+function wireExcelPaste(container){
+  if(!container || container.__pasteWired) return;
+  container.__pasteWired = true;
+  container.addEventListener("paste", (e)=>{
+    const target = e.target;
+    if(!target || !target.dataset || target.dataset.gridrow===undefined || target.dataset.gridcol===undefined) return;
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if(!text || !/[\t\n]/.test(text)) return; // 값 하나만 붙여넣는 경우는 브라우저 기본 동작에 맡긴다
+    e.preventDefault();
+    const rows = text.replace(/\r/g,"").split("\n");
+    while(rows.length && rows[rows.length-1]==="") rows.pop();
+    const startRow = Number(target.dataset.gridrow);
+    const startCol = Number(target.dataset.gridcol);
+    rows.forEach((line, dr)=>{
+      line.split("\t").forEach((val, dc)=>{
+        const el = container.querySelector(`[data-gridrow="${startRow+dr}"][data-gridcol="${startCol+dc}"]`);
+        if(el){
+          el.value = val;
+          el.dispatchEvent(new Event("input", {bubbles:true}));
+        }
+      });
+    });
+  });
+}
+
+function normalizeSpace(s){ return String(s==null?"":s).replace(/ /g," ").replace(/\s+/g," ").trim(); }
+const ROMAN_FIX_MAP = { I:"Ⅰ", II:"Ⅱ", III:"Ⅲ" };
+function fixRomanNumeralGlyphs(s){
+  return String(s==null?"":s).replace(/(?<=[가-힣])I{1,3}(?![A-Za-z])/g, m => ROMAN_FIX_MAP[m] || m);
+}
+function parseAmountToManwon(raw){
+  let t = String(raw==null?"":raw).trim();
+  if(!t) return 0;
+  t = t.replace(/,/g,"");
+  if(t.includes("억")){
+    const parts = t.split("억");
+    const billionPart = parts[0].trim();
+    let lngBillionPart = 0;
+    if(/^-?\d+(\.\d+)?$/.test(billionPart)) lngBillionPart = Math.round(parseFloat(billionPart)*10000);
+    let rest = (parts[1]||"").trim();
+    let finalAmount = 0;
+    if(lngBillionPart>0){
+      if(rest.includes("만")){
+        rest = rest.replace(/만/g,"").trim();
+        finalAmount = /^-?\d+(\.\d+)?$/.test(rest) ? Math.round(parseFloat(rest))+lngBillionPart : lngBillionPart;
+      } else { finalAmount = lngBillionPart; }
+    }
+    return finalAmount;
+  }
+  t = t.replace(/만/g,"").trim();
+  return /^-?\d+(\.\d+)?$/.test(t) ? Math.round(parseFloat(t)) : 0;
+}
+function matchCoverageLines(lines){
+  const amounts = {}; const textTagsSet = new Set();
+  let count27 = 0; let row13Used = false;
+  for(const line of lines){
+    const nameE = normalizeSpace(line.normName);
+    const nameD = normalizeSpace(line.rawName);
+    const amountRaw = line.amount;
+    if(!nameE && !nameD) continue;
+    const isExcluded = /특정/.test(nameE) || /특정/.test(nameD);
+    let targetRow = 0;
+    if(!isExcluded){
+      if(nameE === "질병종수술"){
+        count27 += 1;
+        if(count27 <= 5) targetRow = 22 + count27;
+      } else if(CLAUSE_ROW_MAP[nameE] !== undefined){
+        targetRow = CLAUSE_ROW_MAP[nameE];
+      } else if(nameE.includes("교통사고처리지원금")){
+        targetRow = CLAUSE_ROW_MAP["교통사고처리지원금"];
+      } else if(nameD){
+        if(nameD.includes("부정맥")) targetRow = CLAUSE_ROW_MAP["부정맥"];
+        else if(nameD.includes("표적항암약물")) targetRow = CLAUSE_ROW_MAP["표적항암약물"];
+        else if(nameD.includes("상해간병인사용일당")) targetRow = CLAUSE_ROW_MAP["상해간병인사용일당"];
+        else if(nameD.includes("질병간병인사용일당")) targetRow = CLAUSE_ROW_MAP["질병간병인사용일당"];
+      }
+      if(targetRow>0){
+        if(targetRow===13 && row13Used){ targetRow = 0; }
+        else{
+          const amt = parseAmountToManwon(amountRaw);
+          if(amt>0){ amounts[targetRow] = (amounts[targetRow]||0)+amt; if(targetRow===13) row13Used = true; }
+        }
+      }
+    }
+    if(nameD){
+      for(const key of Object.keys(TEXT_TAG_MAP)){
+        if(nameD.includes(key)) textTagsSet.add(TEXT_TAG_MAP[key]);
+      }
+    }
+  }
+  return { amounts, textTags: Array.from(textTagsSet) };
+}
+function parseHeaderBlock(companyLine, productLine, holderTermLine, periodPremiumLine){
+  let insurer = normalizeSpace(companyLine);
+  if(insurer.includes("|")) insurer = normalizeSpace(insurer.split("|")[0]);
+  const productName = normalizeSpace(productLine);
+  const line0 = normalizeSpace(holderTermLine);
+  const line1 = normalizeSpace(periodPremiumLine);
+  let holder="", term="추출 오류";
+  const firstSlash = line0.indexOf("/");
+  if(firstSlash>=0){
+    holder = line0.slice(0,firstSlash).trim();
+    const secondSlash = line0.indexOf("/", firstSlash+1);
+    term = secondSlash>=0 ? line0.slice(secondSlash+1).trim() : "추출 오류";
+  } else { holder = line0; }
+  if(!holder) holder = "증권확인";
+  const tokens1 = line1.split(" ").filter(Boolean);
+  const duration = tokens1.length ? tokens1[0] : "";
+  let premium = tokens1.length ? tokens1[tokens1.length-1] : line1;
+  premium = premium.replace(/월납/g,"");
+  return { insurer, productName, holder, term, duration, premium };
+}
+
+/* =========================================================================
+   PDF 리더 (border-aware 좌표 기반 표 재구성)
+   ========================================================================= */
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js";
+const COL_BOUNDS = [30, 58, 88, 363, 508, 600]; // 번호/구분/원담보명/표준담보명/가입금액
+function colOf(x0, x1){
+  const cx = (x0+x1)/2;
+  for(let i=0;i<COL_BOUNDS.length-1;i++){ if(cx>=COL_BOUNDS[i] && cx<COL_BOUNDS[i+1]) return i; }
+  return -1;
+}
+async function extractPdfPages(file){
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const pages = [];
+  for(let p=1;p<=doc.numPages;p++){
+    const page = await doc.getPage(p);
+    const viewport = page.getViewport({scale:1});
+    const content = await page.getTextContent();
+    const items = content.items.map(it=>{
+      const x0 = it.transform[4], y = it.transform[5];
+      return { x0, top: viewport.height-y, text: it.str, width: it.width||0 };
+    });
+    pages.push({ items });
+  }
+  return pages;
+}
+function groupIntoLines(items, tol=2.2){
+  const sorted = items.filter(it=>it.text.trim().length>0).slice().sort((a,b)=>a.top-b.top || a.x0-b.x0);
+  const lines = [];
+  for(const it of sorted){
+    let line = lines.find(l=>Math.abs(l.top-it.top)<=tol);
+    if(!line){ line = {top:it.top, items:[]}; lines.push(line); }
+    line.items.push(it);
+  }
+  lines.sort((a,b)=>a.top-b.top);
+  for(const l of lines) l.items.sort((a,b)=>a.x0-b.x0);
+  return lines;
+}
+function joinItems(items, gapThreshold=0.8){
+  const sorted = items.slice().sort((a,b)=>a.x0-b.x0);
+  let out=""; let prevEnd=null;
+  for(const it of sorted){
+    if(prevEnd!==null && (it.x0-prevEnd)>gapThreshold) out += " ";
+    out += it.text; prevEnd = it.x0+it.width;
+  }
+  return out.replace(/\s+/g," ").trim();
+}
+function lineText(line){ return joinItems(line.items); }
+function parseReportPage(page){
+  const lines = groupIntoLines(page.items);
+  const startIdx = lines.findIndex(l=>lineText(l).includes("가입일자"));
+  if(startIdx<0) return null;
+  const header = parseHeaderBlock(
+    lineText(lines[startIdx]),
+    fixRomanNumeralGlyphs(lineText(lines[startIdx+1])),
+    lineText(lines[startIdx+2]),
+    lineText(lines[startIdx+3])
+  );
+  const dataLines = [];
+  for(let i=startIdx+4;i<lines.length;i++){
+    const txt = lineText(lines[i]);
+    if(txt.includes("가입일자")) break;
+    if(/GA사업단|GA-\d|\d+\/\d+$/.test(txt)) continue;
+    const colItems = [[],[],[],[],[]];
+    for(const it of lines[i].items){
+      const c = colOf(it.x0, it.x0+it.width);
+      if(c<0) continue;
+      colItems[c].push(it);
+    }
+    const cols = colItems.map(arr=>joinItems(arr));
+    const idx = cols[0].trim();
+    if(!/^\d+$/.test(idx)) continue;
+    dataLines.push({
+      rawName: fixRomanNumeralGlyphs(cols[2].trim()),
+      normName: fixRomanNumeralGlyphs(cols[3].trim()),
+      amount: cols[4].trim(),
+    });
+  }
+  return { header, dataLines };
+}
+function extractCustomerNameFromPdfTop(page){
+  const lines = groupIntoLines(page.items);
+  const l = lines.find(l=>lineText(l).includes("님의"));
+  if(!l) return "";
+  const t = lineText(l);
+  const m = t.match(/^([^\s(]+)/);
+  return m ? m[1] : "";
+}
+
+/* =========================================================================
+   XLSX(Table N) 리더 -- 이미 변환된 엑셀을 그대로 올린 경우
+   ========================================================================= */
+function cellText(cellValue){
+  if(cellValue == null) return "";
+  if(typeof cellValue === "object"){
+    if(Array.isArray(cellValue.richText)) return cellValue.richText.map(r=>r.text||"").join("");
+    if("result" in cellValue) return cellValue.result==null ? "" : String(cellValue.result);
+    if("text" in cellValue) return String(cellValue.text);
+    return "";
+  }
+  return String(cellValue);
+}
+function cellTextMasterOnly(cell){
+  if(cell.isMerged && cell.master !== cell) return "";
+  return cellText(cell.value);
+}
+async function readTableSheetsFromWorkbook(wb){
+  const tables = [];
+  wb.eachSheet(sheet=>{
+    if(!/^Table\s*\d+$/i.test(sheet.name)) return;
+    const a3 = cellText(sheet.getCell("A3").value);
+    const a4 = cellText(sheet.getCell("A4").value);
+    const [l0="", l1=""] = a3.split("\n");
+    const [l2="", l3=""] = a4.split("\n");
+    const header = parseHeaderBlock(l0, fixRomanNumeralGlyphs(l1), l2, l3);
+    const dataLines = [];
+    let r = 5;
+    let blanks = 0;
+    while(blanks < 4 && r < 500){
+      const d = cellTextMasterOnly(sheet.getCell("D"+r));
+      const e = cellTextMasterOnly(sheet.getCell("E"+r));
+      const f = cellTextMasterOnly(sheet.getCell("F"+r));
+      if(!d && !e && !f){ blanks++; r++; continue; }
+      blanks = 0;
+      dataLines.push({
+        rawName: fixRomanNumeralGlyphs(normalizeSpace(d)),
+        normName: fixRomanNumeralGlyphs(normalizeSpace(e)),
+        amount: normalizeSpace(f),
+      });
+      r++;
+    }
+    tables.push({ header, dataLines, sheetOrder: parseInt(sheet.name.replace(/\D/g,""),10) });
+  });
+  tables.sort((a,b)=>a.sheetOrder-b.sheetOrder);
+  return tables;
+}
+
+/* =========================================================================
+   보장분석표(전) 탭 -- 메인 파이프라인
+   ========================================================================= */
+let lastResult = null;
+const fileInput = document.getElementById("fileInput");
+const runBtn = document.getElementById("runBtn");
+const dlBtn = document.getElementById("dlBtn");
+const status = document.getElementById("status");
+const logBox = document.getElementById("log");
+
+fileInput.addEventListener("change", ()=>{
+  runBtn.disabled = !fileInput.files.length;
+  dlBtn.disabled = true;
+  status.textContent = fileInput.files.length ? `선택됨: ${fileInput.files[0].name}` : "파일을 선택하세요.";
+  status.className = "status";
+});
+
+const logCard = document.getElementById("logCard");
+const logToggle = document.getElementById("logToggle");
+const logToggleLabel = document.getElementById("logToggleLabel");
+
+function log(msg){
+  logBox.textContent += msg + "\n";
+  logBox.scrollTop = logBox.scrollHeight;
+  logCard.style.display = "block"; // 로그 칸 자체(아래쪽)는 노출하되, 내용은 접어둔 채로 둔다
+}
+
+logToggle.addEventListener("click", ()=>{
+  const isHidden = logBox.style.display === "none" || !logBox.style.display;
+  logBox.style.display = isHidden ? "block" : "none";
+  logToggleLabel.textContent = isHidden ? "접기" : "펼치기";
+});
+
+runBtn.addEventListener("click", async ()=>{
+  const file = fileInput.files[0];
+  if(!file) return;
+  runBtn.disabled = true;
+  status.className = "status";
+  status.textContent = "처리 중...";
+  logBox.textContent = "";
+  logBox.style.display = "none";
+  logToggleLabel.textContent = "펼치기";
+  logCard.style.display = "none";
+  try{
+    let tables = [];
+    let customerName = "";
+    const isPdf = /\.pdf$/i.test(file.name);
+    if(isPdf){
+      log("PDF 텍스트 추출 중 (pdf.js)...");
+      const pages = await extractPdfPages(file);
+      customerName = extractCustomerNameFromPdfTop(pages[0]) || "";
+      pages.forEach((page, i)=>{
+        const parsed = parseReportPage(page);
+        if(!parsed){ log(`  - ${i+1}페이지: 상품 블록을 찾지 못해 건너뜀`); return; }
+        tables.push(parsed);
+        log(`  - ${i+1}페이지 -> ${parsed.header.insurer} / ${parsed.header.productName} (${parsed.dataLines.length}개 담보 라인)`);
+      });
+    } else {
+      log("엑셀(Table N 시트) 읽는 중 (ExcelJS)...");
+      const buf = await file.arrayBuffer();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      tables = await readTableSheetsFromWorkbook(wb);
+      tables.forEach((t,i)=> log(`  - Table ${i+1} -> ${t.header.insurer} / ${t.header.productName} (${t.dataLines.length}개 담보 라인)`));
+    }
+    if(!tables.length) throw new Error("상품 데이터를 하나도 찾지 못했습니다. 파일 형식을 확인해주세요.");
+
+    log(`동작1+2 통합 매칭 로직 실행 중... (${tables.length}개 상품)`);
+    const columns = tables.map(t=>{
+      const { amounts, textTags } = matchCoverageLines(t.dataLines);
+      return { header: t.header, amounts, textTags, kept: false };
+    });
+
+    lastResult = { columns, customerName, baseName: file.name.replace(/\.(pdf|xlsx|xlsm)$/i,"") };
+    renderPreview(lastResult);
+    syncAfterCarryoverFromBefore(); // 해지 안 한(유지 중인) 상품을 보장분석표(후)에 순차적으로 자동 반영
+    status.className = "status ok";
+    status.textContent = `완료: 상품 ${columns.length}건 처리됨.`;
+    dlBtn.disabled = false;
+  } catch(err){
+    console.error(err);
+    status.className = "status err";
+    status.textContent = "오류: " + err.message;
+  } finally{
+    runBtn.disabled = false;
+  }
+});
+
+// 원본 서식지 D7의 SUMPRODUCT(--IFERROR(VALUE(SUBSTITUTE(...,"원","")),0)) 수식과
+// 동일한 계산: 상품별 보험료 텍스트에서 "원"/","를 떼고 숫자로 바꿀 수 있는 것만 모두 더함
+// ("보험료미제공"처럼 숫자가 아닌 값은 0으로 취급).
+function sumPremiums(columns){
+  let sum = 0;
+  columns.forEach(c=>{
+    const n = parseFloat(String(c.header.premium||"").replace(/,/g,"").replace(/원/g,""));
+    if(!isNaN(n)) sum += n;
+  });
+  return sum;
+}
+
+// 상품별로 "유지" 버튼을 눌렀는지 여부에 따라 보장분석표(전)의 계약정보 6개 행
+// (보험회사/상품명/보험기간/납기·만기/보험료/계약자)에서 그 상품 열만 누런색으로
+// 표시하고, 유지를 누른(체크한) 상품만 보장분석표(후)로 순서대로 넘어간다.
+// (기본값은 "유지 안 함" -- 유지를 직접 눌러서 체크해야 후로 넘어간다.)
+function toggleKept(i){
+  if(!lastResult || !lastResult.columns[i]) return;
+  lastResult.columns[i].kept = !lastResult.columns[i].kept;
+  applyKeptUI();
+  syncAfterCarryoverFromBefore();
+}
+function applyKeptUI(){
+  if(!lastResult) return;
+  const table = document.getElementById("previewTable");
+  if(!table) return;
+  table.querySelectorAll(".meta-cell").forEach(td=>{
+    const i = Number(td.dataset.metacol);
+    const kept = !!(lastResult.columns[i] && lastResult.columns[i].kept);
+    td.classList.toggle("kept-cell", kept);
+  });
+  table.querySelectorAll(".keep-btn").forEach(btn=>{
+    const i = Number(btn.dataset.col);
+    const kept = !!(lastResult.columns[i] && lastResult.columns[i].kept);
+    btn.textContent = kept ? "유지 중 (해제하려면 클릭)" : "유지";
+    btn.classList.toggle("active-keep", kept);
+    btn.classList.toggle("secondary", !kept);
+  });
+}
+
+function renderPreview(result){
+  const card = document.getElementById("previewCard");
+  const table = document.getElementById("previewTable");
+  const countBadge = document.getElementById("countBadge");
+  card.style.display = "block";
+  countBadge.textContent = `상품 ${result.columns.length}건`;
+
+  let html = buildColgroupHtml([60,150,90], DATA_COL_WIDTH, result.columns.length);
+  html += "<thead><tr><th></th><th>구분</th><th>합계<br>(D열)</th>";
+  result.columns.forEach((c,i)=> html += `<th>${String.fromCharCode(69+i)}열<br>`+
+    `<button type="button" class="keep-btn ${c.kept?'active-keep':'secondary'}" data-col="${i}" style="margin-top:4px;padding:3px 8px;font-size:11px;">${c.kept?'유지 중 (해제하려면 클릭)':'유지'}</button></th>`);
+  html += "</tr></thead><tbody>";
+
+  // [라벨, header 필드명] -- 이제 값은 직접 수기로 고쳐 쓸 수 있는 입력창이다.
+  const metaFields = [
+    ["보험회사", "insurer"],
+    ["상품명", "productName"],
+    ["보험기간", "duration"],
+    ["납기/만기", "term"],
+    ["보험료", "premium"],
+    ["계약자", "holder"],
+  ];
+  metaFields.forEach(([label, field], mi)=>{
+    const isPremiumRow = field === "premium";
+    const totalCellAttr = isPremiumRow ? ' id="premiumTotalCell"' : "";
+    const totalText = isPremiumRow ? (()=>{ const t = sumPremiums(result.columns); return t ? t.toLocaleString()+"원" : ""; })() : "";
+    html += `<tr><td class="grouplabel" colspan="2">${label}</td><td class="label"${totalCellAttr}>${totalText}</td>`;
+    result.columns.forEach((c,i)=>{
+      const val = String(c.header[field]||"");
+      const inputHtml = field === "productName"
+        ? `<textarea rows="3" class="pv-meta-input" data-col="${i}" data-field="${field}" data-gridrow="${mi}" data-gridcol="${i}">${val.replace(/</g,"&lt;")}</textarea>`
+        : `<input type="text" class="pv-meta-input" data-col="${i}" data-field="${field}" data-gridrow="${mi}" data-gridcol="${i}" value="${val.replace(/"/g,"&quot;")}">`;
+      html += `<td class="meta-cell${c.kept?' kept-cell':''}" data-metacol="${i}">${inputHtml}</td>`;
+    });
+    html += "</tr>";
+  });
+
+  const numericRowDefs = ROW_DEFS.filter(([row])=>!TEXT_ROWS.has(row));
+  numericRowDefs.forEach(([row, group, item], ri)=>{
+    let sum = 0;
+    result.columns.forEach(c=> sum += (c.amounts[row]||0));
+    html += `<tr><td class="label">${group||""}</td><td class="label">${item}</td><td class="label pv-sum" data-row="${row}">${sum?sum.toLocaleString():""}</td>`;
+    result.columns.forEach((c,i)=>{
+      html += `<td><input type="number" class="pv-item-input" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${c.amounts[row]||""}" placeholder="0"></td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += `<tr><td class="grouplabel" colspan="3">기타(텍스트 태그, 쉼표로 구분)</td>`;
+  result.columns.forEach((c,i)=> html += `<td><input type="text" class="pv-etc-input" data-col="${i}" data-gridrow="${6+numericRowDefs.length}" data-gridcol="${i}" value="${(c.textTags||[]).join(", ").replace(/"/g,"&quot;")}"></td>`);
+  html += `</tr>`;
+
+  html += "</tbody>";
+  table.innerHTML = html;
+  wireExcelPaste(table);
+
+  table.querySelectorAll(".keep-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=> toggleKept(Number(btn.dataset.col)));
+  });
+  table.querySelectorAll(".pv-meta-input").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.dataset.col);
+      const c = lastResult && lastResult.columns[i];
+      if(!c) return;
+      c.header[inp.dataset.field] = inp.value;
+      if(inp.dataset.field === "premium"){
+        const totalEl = document.getElementById("premiumTotalCell");
+        const total = sumPremiums(lastResult.columns);
+        if(totalEl) totalEl.textContent = total ? total.toLocaleString()+"원" : "";
+      }
+    });
+  });
+  table.querySelectorAll(".pv-item-input").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.dataset.col), row = inp.dataset.row;
+      const c = lastResult && lastResult.columns[i];
+      if(!c) return;
+      const n = parseFloat(inp.value);
+      if(!isNaN(n) && n>0) c.amounts[row] = n; else delete c.amounts[row];
+      let sum = 0;
+      table.querySelectorAll(`.pv-item-input[data-row="${row}"]`).forEach(el2=> sum += (Number(el2.value)||0));
+      const sumTd = table.querySelector(`.pv-sum[data-row="${row}"]`);
+      if(sumTd) sumTd.textContent = sum ? sum.toLocaleString() : "";
+    });
+  });
+  table.querySelectorAll(".pv-etc-input").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.dataset.col);
+      const c = lastResult && lastResult.columns[i];
+      if(!c) return;
+      c.textTags = inp.value.split(",").map(s=>s.trim()).filter(Boolean);
+    });
+  });
+}
+
+dlBtn.addEventListener("click", async ()=>{
+  if(!lastResult) return;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("보장분석표(전)");
+  ws.getCell("D2").value = `${lastResult.customerName||""} 님 보장 분석표 - 심사전(필수담보)`;
+  ws.getCell("C2").value = lastResult.customerName || "";
+  ws.getCell("B3").value = "계약정보"; ws.getCell("C3").value = "보험회사"; ws.getCell("D3").value = "고객\n보장합산";
+  ws.getCell("C4").value = "상품명";
+  ws.getCell("C5").value = "보험기간";
+  ws.getCell("C6").value = "납기/만기";
+  ws.getCell("C7").value = "보험료";
+  ws.getCell("C8").value = "계약자";
+
+  const startCol = 5; // E열
+  lastResult.columns.forEach((c, i)=>{
+    const col = startCol + i;
+    ws.getCell(3, col).value = c.header.insurer;
+    ws.getCell(4, col).value = c.header.productName;
+    ws.getCell(8, col).value = c.header.holder;
+    ws.getCell(6, col).value = c.header.term;
+    ws.getCell(5, col).value = c.header.duration;
+    const premiumNum = parseFloat(String(c.header.premium||"").replace(/,/g,"").replace(/원/g,""));
+    const premiumCell = ws.getCell(7, col);
+    if(!isNaN(premiumNum)){
+      premiumCell.value = premiumNum;
+      premiumCell.numFmt = '#,##0"원"';
+    } else {
+      premiumCell.value = c.header.premium;
+    }
+  });
+  const lastColLetter = ws.getColumn(startCol + lastResult.columns.length - 1 || startCol).letter;
+
+  ws.getCell("D7").value = { formula: `SUM(E7:${lastColLetter}7)` };
+  ws.getCell("D7").numFmt = '#,##0"원"';
+
+  ROW_DEFS.forEach(([row, group, item])=>{
+    if(group) ws.getCell(row, 2).value = group;
+    ws.getCell(row, 3).value = item;
+    lastResult.columns.forEach((c, i)=>{
+      const v = c.amounts[row];
+      if(v) ws.getCell(row, startCol+i).value = v;
+    });
+    if(row <= 44){
+      ws.getCell(row, 4).value = { formula: `SUM(E${row}:${lastColLetter}${row})` };
+    }
+  });
+  lastResult.columns.forEach((c,i)=>{
+    if(c.textTags && c.textTags.length) ws.getCell(45, startCol+i).value = c.textTags.join(", ");
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${lastResult.baseName} 보장분석표(전).xlsx`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+/* =========================================================================
+   매칭 엔진 (원본 SEARCH/MATCH/VLOOKUP 수식 포트) -- 후/마스터 탭 공용
+   ========================================================================= */
+function findPlanByAlias(alias, plansArr){
+  const needle = String(alias||"").trim().toLowerCase();
+  if(!needle) return null;
+  return plansArr.find(p=> String(p.plan_name||"").toLowerCase().includes(needle)) || null;
+}
+function autofillColumnFromPlan(plan){
+  if(!plan) return { insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
+  const items = {};
+  for(const [row, amt] of Object.entries(plan.items||{})){
+    if(TEXT_ROWS.has(Number(row))){
+      const s = String(amt==null?"":amt).trim();
+      if(s) items[row] = s;
+    } else {
+      const n = Number(amt);
+      if(n) items[row] = n;
+    }
+  }
+  return { insurer: plan.insurer||"", duration: plan.duration||"", term: plan.term||"",
+           premium: plan.premium||"", holder: plan.holder||"", items };
+}
+
+/* =========================================================================
+   Supabase 연동 (실제 프로젝트 - 로그인 상태 필요)
+   supabaseClient는 assets/supabase-client.js(사이트 공용 로그인 스크립트)에서
+   전역으로 이미 만들어져 있으므로 여기서 다시 만들지 않는다.
+   테스트 하네스에서 window.__mockStore가 있으면 그것을 대신 사용한다
+   (Supabase 인증 없이 매칭/자동완성 UI 로직만 검증하기 위함).
+   ========================================================================= */
+const store = window.__mockStore || {
+  async requireLogin(){
+    const { data:{ session } } = await supabaseClient.auth.getSession();
+    return session;
+  },
+  async listPlans(userId){
+    const { data, error } = await supabaseClient
+      .from("coverage_master_plans")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending:true });
+    if(error) throw error;
+    return data;
+  },
+  async savePlan(userId, plan){
+    const fields = {
+      plan_name: plan.plan_name, insurer: plan.insurer,
+      duration: plan.duration||null, term: plan.term||null,
+      premium: plan.premium||null, holder: plan.holder||null,
+      items: plan.items,
+    };
+    if(plan.id){
+      const { error } = await supabaseClient
+        .from("coverage_master_plans")
+        .update(fields)
+        .eq("id", plan.id).eq("user_id", userId);
+      if(error) throw error;
+      return { id: plan.id };
+    } else {
+      const { data, error } = await supabaseClient
+        .from("coverage_master_plans")
+        .insert({ user_id:userId, ...fields })
+        .select().single();
+      if(error) throw error;
+      return { id: data.id };
+    }
+  },
+  async deletePlan(userId, id){
+    const { error } = await supabaseClient
+      .from("coverage_master_plans").delete().eq("id", id).eq("user_id", userId);
+    if(error) throw error;
+  }
+};
+
+/* =========================================================================
+   마스터 탭 -- 엑셀 "마스터" 시트처럼 표에 바로 기입 -> 자동 저장
+   ========================================================================= */
+let currentUserId = null;
+let plans = []; // [{id, plan_name, insurer, items:{...}}, ...] 마지막 열은 항상 id가 없는 빈 신규 작성용 열
+const planSaveTimers = {};
+
+function blankPlan(){
+  return { id:null, plan_name:"", insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
+}
+// 보장분석표(전)/(후)와 동일한 계약정보 필드. plan_name(상품명/별칭) 행은 별도로
+// 그리므로 여기서는 제외하고, 나머지 5개(보험회사 포함)를 순서대로 그린다.
+// gridrow 0=plan_name, 1~5=이 목록, 6~=담보 항목 (전/후와 같은 규칙).
+const MASTER_META_FIELDS = [
+  ["보험회사", "insurer"],
+  ["보험기간", "duration"],
+  ["납기/만기", "term"],
+  ["보험료", "premium"],
+  ["계약자", "holder"],
+];
+
+function ensureTrailingBlankColumn(){
+  if(!plans.length || plans[plans.length-1].id){
+    plans.push(blankPlan());
+  }
+}
+
+function renderMasterTable(){
+  ensureTrailingBlankColumn();
+  const table = document.getElementById("masterTable");
+  let html = buildColgroupHtml([60,170], 160, plans.length);
+  html += "<thead><tr><th></th><th>구분</th>";
+  plans.forEach((p,i)=>{
+    html += `<th>${p.id ? "" : `<span style="color:var(--ink-soft);font-weight:400;">(새 플랜)</span>`}`+
+            `${p.id ? `<button class="danger" data-delcol="${i}" style="padding:2px 6px;font-size:11px;margin-left:4px;">삭제</button>` : ""}</th>`;
+  });
+  html += "</tr></thead><tbody>";
+
+  html += `<tr><td class="grouplabel" colspan="2">상품명 / 별칭<br><span style="font-weight:400;font-size:11px;">(보장분석표(후)에서 이 안의 글자를 검색해 찾습니다)</span></td>`;
+  plans.forEach((p,i)=> html += `<td><textarea rows="3" style="resize:vertical;" data-col="${i}" data-field="plan_name" class="master-input" data-gridrow="0" data-gridcol="${i}" placeholder="예: 흥국3105&#10;(무)흥국생명다사랑...">${(p.plan_name||"").replace(/</g,"&lt;")}</textarea></td>`);
+  html += `</tr>`;
+
+  // 보장분석표(전)/(후)와 동일한 계약정보 필드 (보험회사/보험기간/납기·만기/보험료/계약자).
+  MASTER_META_FIELDS.forEach(([label, field], mi)=>{
+    html += `<tr><td class="grouplabel" colspan="2">${label}</td>`;
+    plans.forEach((p,i)=> html += `<td><input type="text" data-col="${i}" data-field="${field}" class="master-input" data-gridrow="${1+mi}" data-gridcol="${i}" value="${String(p[field]||"").replace(/"/g,"&quot;")}"></td>`);
+    html += `</tr>`;
+  });
+
+  ROW_DEFS.forEach(([row, group, item], ri)=>{
+    html += `<tr><td class="label">${group||""}</td><td class="label">${item}</td>`;
+    plans.forEach((p,i)=>{
+      const raw = (p.items && p.items[row]!=null) ? p.items[row] : "";
+      if(TEXT_ROWS.has(row)){
+        html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}" placeholder="텍스트 입력"></td>`;
+      } else {
+        html += `<td><input type="number" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${raw}" placeholder="0"></td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+  html += "</tbody>";
+  table.innerHTML = html;
+  wireExcelPaste(table);
+
+  table.querySelectorAll(".master-input, .master-item-input").forEach(el=>{
+    el.addEventListener("input", ()=>{
+      const col = Number(el.dataset.col);
+      const plan = plans[col];
+      if(!plan) return;
+      if(el.dataset.field){
+        plan[el.dataset.field] = el.value;
+      } else if(el.dataset.row){
+        const row = el.dataset.row;
+        if(TEXT_ROWS.has(Number(row))){
+          if(el.value.trim()) plan.items[row] = el.value; else delete plan.items[row];
+        } else {
+          const n = parseFloat(el.value);
+          if(!isNaN(n) && n>0) plan.items[row] = n; else delete plan.items[row];
+        }
+      }
+      renderAfterSheet(); // 마스터를 고치는 즉시 (후) 시트 자동완성도 따라오게 (표 구조는 안 건드림)
+      schedulePlanSave(col);
+    });
+  });
+
+  table.querySelectorAll("[data-delcol]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const i = Number(btn.dataset.delcol);
+      const plan = plans[i];
+      if(!plan || !plan.id) return;
+      if(!confirm("이 플랜을 삭제할까요?")) return;
+      await store.deletePlan(currentUserId, plan.id);
+      plans.splice(i,1);
+      renderMasterTable();
+      renderAfterSheet();
+    });
+  });
+}
+
+function schedulePlanSave(col){
+  clearTimeout(planSaveTimers[col]);
+  planSaveTimers[col] = setTimeout(()=> savePlanColumn(col), 700);
+}
+
+async function savePlanColumn(col){
+  const plan = plans[col];
+  const statusEl = document.getElementById("masterStatus");
+  if(!plan || !plan.plan_name || !plan.plan_name.trim()) return; // 상품명 없는 빈 열은 저장하지 않음
+  try{
+    const result = await store.savePlan(currentUserId, {
+      id: plan.id, plan_name: plan.plan_name, insurer: plan.insurer,
+      duration: plan.duration, term: plan.term, premium: plan.premium, holder: plan.holder,
+      items: plan.items,
+    });
+    let needsRerender = false;
+    if(!plan.id && result && result.id){ plan.id = result.id; needsRerender = true; }
+    statusEl.className = "status ok";
+    statusEl.textContent = "자동 저장됨 (" + new Date().toLocaleTimeString() + ")";
+    if(needsRerender) renderMasterTable(); // 새 빈 열을 하나 더 붙이고 삭제 버튼을 활성화
+    renderAfterSheet();
+  }catch(err){
+    statusEl.className = "status err";
+    statusEl.textContent = "저장 오류: " + err.message;
+  }
+}
+
+async function refreshPlans(){
+  plans = await store.listPlans(currentUserId);
+  renderMasterTable();
+  renderAfterSheet(); // 마스터가 바뀌면 (후) 시트 자동완성도 다시 계산
+}
+
+/* =========================================================================
+   보장분석표(후) 탭
+   - 열은 두 종류: "carryover"(보장분석표(전)에서 해지하지 않은 상품이 순서대로
+     자동 연동됨) / "manual"(마스터에서 별칭으로 불러오거나 직접 새로 적는 열).
+   - 어느 쪽이든 상품명/보험회사/각 담보 금액은 전부 직접 기입하고 고치수 있는
+     입력창이다. 별칭은 "불러오기 편의 기능"일 뿐 -- 매칭되면 그 순간의 값으로
+     한 번 채워주고, 그 다음부터는 자유롭게 수정 가능하고 다시 자동으로
+     덮어써지지 않는다(같은 별칭을 다시 매칭해도 마찬가지, 다른 플랜으로
+     바꿔야만 다시 불러온다).
+   - 표 구조(스켈레톤)는 열 개수가 바뀔 때만 다시 그리고, 그 외의 갱신은 값만
+     패치한다. 매 입력마다 <input>을 통째로 다시 만들면 한글 입력기(IME)
+     조합이 중간에 끊겨 "메리츠"가 "ㅁㅔㄹㅣㅊㅡ"처럼 자모로 풀려서 찍히는
+     문제가 생기기 때문이다.
+   ========================================================================= */
+// 보장분석표(전)과 동일한 계약정보 6개 필드 (보험회사/상품명/보험기간/납기·만기/보험료/계약자).
+// mi(순번)는 붙여넣기용 gridrow로도 그대로 쓰인다 -- (전) 표와 같은 규칙(0~5=계약정보, 6~=담보)이라
+// 두 표의 좌표 체계가 서로 일치한다.
+const AFTER_META_FIELDS = [
+  ["보험회사", "insurer"],
+  ["상품명", "productName"],
+  ["보험기간", "duration"],
+  ["납기/만기", "term"],
+  ["보험료", "premium"],
+  ["계약자", "holder"],
+];
+function sumAfterPremiums(list){
+  let sum = 0;
+  list.forEach(c=>{
+    const n = parseFloat(String(c.premium||"").replace(/,/g,"").replace(/원/g,""));
+    if(!isNaN(n)) sum += n;
+  });
+  return sum;
+}
+
+/* =========================================================================
+   종합비교 / 보장차이 시트 -- 보장분석표(전)/(후)에 이미 입력된 데이터만으로
+   자동 계산되는 "읽기 전용" 요약 화면. 별도 입력/저장 없음, 탭을 열 때마다
+   lastResult / afterColumns 최신값으로 다시 그린다. (원본 엑셀의
+   "종합 전.후 비교" / "3-1. 보장차이" 시트를 웹으로 옮긴 것)
+   ========================================================================= */
+function beforeRowSum(row){
+  if(!lastResult) return 0;
+  let sum = 0;
+  lastResult.columns.forEach(c=> sum += (c.amounts[row]||0));
+  return sum;
+}
+function afterRowSum(row){
+  let sum = 0;
+  afterColumns.forEach(c=> sum += ((c.items && c.items[row])||0));
+  return sum;
+}
+function rowLabel(row){
+  const def = ROW_DEFS.find(([r])=>r===row);
+  return def ? def[2] : "";
+}
+
+// 원본 "종합 전.후 비교" 시트의 3개 그룹 구성을 그대로 올김 (행 번호는 ROW_DEFS와 동일)
+const SUMMARY_GROUPS = [
+  { title: "3대진단", rows: [11,12,13,14,15,16,17,18,19,20] },
+  { title: "수술비/후유장해", rows: [21,22,23,24,25,26,27,34,35] },
+  { title: "기타", rows: [28,29,42,43,44,40,36,37,38,39] },
+];
+
+function renderSummarySheet(){
+  const custName = (lastResult && lastResult.customerName) || "";
+  document.getElementById("summaryTitle").textContent = custName ? `${custName}님 보장 분석표 — 종합 전·후 비교` : "종합 전·후 비교";
+
+  const beforeTotal = lastResult ? sumPremiums(lastResult.columns) : 0;
+  const afterTotal = sumAfterPremiums(afterColumns);
+  const diff = afterTotal - beforeTotal;
+  const diffClass = diff > 0 ? "up" : (diff < 0 ? "down" : "");
+  const diffSign = diff > 0 ? "+" : "";
+  document.getElementById("summaryPremiumRow").innerHTML = `
+    <div class="summary-premium-box"><div class="lbl">총 보험료 (전)</div><div class="val">${beforeTotal ? beforeTotal.toLocaleString()+"원" : "-"}</div></div>
+    <div class="summary-premium-box"><div class="lbl">총 보험료 (후)</div><div class="val">${afterTotal ? afterTotal.toLocaleString()+"원" : "-"}</div></div>
+    <div class="summary-premium-box diff"><div class="lbl">차이 (후-전)</div><div class="val ${diffClass}">${diff ? diffSign+diff.toLocaleString()+"원" : "-"}</div></div>
+  `;
+
+  let html = "";
+  SUMMARY_GROUPS.forEach(group=>{
+    html += `<div class="summary-group"><h3>${group.title}</h3><table class="summary-table"><thead><tr><td class="item">보장</td><td>전</td><td>후</td></tr></thead><tbody>`;
+    group.rows.forEach(row=>{
+      const b = beforeRowSum(row), a = afterRowSum(row);
+      html += `<tr><td class="item">${rowLabel(row)}</td><td>${b?b.toLocaleString():""}</td><td>${a?a.toLocaleString():""}</td></tr>`;
+    });
+    html += "</tbody></table></div>";
+  });
+  document.getElementById("summaryGroups").innerHTML = html;
+}
+
+function renderDiffSheet(){
+  const table = document.getElementById("diffTable");
+  const beforeTotal = lastResult ? sumPremiums(lastResult.columns) : 0;
+  const afterTotal = sumAfterPremiums(afterColumns);
+  const numericRowDefs = ROW_DEFS.filter(([row])=>!TEXT_ROWS.has(row));
+  let html = `<thead><tr><td>구분</td><td>보장</td><td>전</td><td>후</td><td>차이</td></tr></thead><tbody>`;
+  html += `<tr><td class="grouplabel">-</td><td class="item">보험료</td><td>${beforeTotal?beforeTotal.toLocaleString():""}</td><td>${afterTotal?afterTotal.toLocaleString():""}</td>`;
+  const premDiff = afterTotal - beforeTotal;
+  html += `<td class="${premDiff>0?'diff-up':premDiff<0?'diff-down':''}">${premDiff?premDiff.toLocaleString():""}</td></tr>`;
+  numericRowDefs.forEach(([row, group, item])=>{
+    const b = beforeRowSum(row), a = afterRowSum(row);
+    const d = a - b;
+    const dCell = d ? d.toLocaleString() : "";
+    const dClass = d > 0 ? "diff-up" : (d < 0 ? "diff-down" : "");
+    html += `<tr><td class="grouplabel">${group||""}</td><td class="item">${item}</td><td>${b?b.toLocaleString():""}</td><td>${a?a.toLocaleString():""}</td><td class="${dClass}">${dCell}</td></tr>`;
+  });
+  html += "</tbody>";
+  table.innerHTML = html;
+}
+
+function blankAfterColumn(){
+  return { source:"manual", sourceIndex:null, alias:"", lastMatchedPlanId:null,
+           productName:"", insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
+}
+let afterColumns = [blankAfterColumn(), blankAfterColumn()];
+
+// 보장분석표(전)에서 "유지"를 체크한 상품만 순서대로 (후) 시트 앞쪽에 자동
+// 연동한다 (유지를 누르지 않으면 후로 넘어가지 않는다). 이미 연동돼 있던 열은
+// 사용자가 손으로 고친 내용을 보존하기 위해 다시 덮어쓰지 않고, 유지 체크가
+// 해제되었거나 사라진 상품의 열만 제거한다.
+function syncAfterCarryoverFromBefore(){
+  if(!lastResult) return;
+  const keptIdx = lastResult.columns
+    .map((c,i)=>({c,i}))
+    .filter(x=>x.c.kept)
+    .map(x=>x.i);
+  const existingBySource = new Map(
+    afterColumns.filter(c=>c.source==="carryover").map(c=>[c.sourceIndex, c])
+  );
+  const newCarryover = keptIdx.map(i=>{
+    if(existingBySource.has(i)) return existingBySource.get(i);
+    const src = lastResult.columns[i];
+    const items = { ...src.amounts };
+    if(src.textTags && src.textTags.length) items["45"] = src.textTags.join(", ");
+    return {
+      source:"carryover", sourceIndex:i, alias:"", lastMatchedPlanId:null,
+      productName: src.header.productName||"", insurer: src.header.insurer||"",
+      duration: src.header.duration||"", term: src.header.term||"",
+      premium: src.header.premium||"", holder: src.header.holder||"",
+      items,
+    };
+  });
+  const manualColumns = afterColumns.filter(c=>c.source!=="carryover");
+  afterColumns = [...newCarryover, ...manualColumns];
+  if(!afterColumns.length) afterColumns = [blankAfterColumn(), blankAfterColumn()];
+  renderAfterSheet();
+}
+
+function buildAfterSheetSkeleton(){
+  const table = document.getElementById("afterTable");
+  let html = buildColgroupHtml([60,150,90], DATA_COL_WIDTH, afterColumns.length);
+  html += "<thead><tr><th></th><th>구분</th><th>합계</th>";
+  afterColumns.forEach((c,i)=>{
+    html += `<th>${String.fromCharCode(69+i)}열`;
+    if(c.source === "manual"){
+      html += ` <button type="button" class="danger" data-delaftercol="${i}" style="padding:2px 6px;font-size:11px;">삭제</button>`;
+    }
+    html += `</th>`;
+  });
+  html += "</tr></thead><tbody>";
+
+  html += `<tr><td class="grouplabel" colspan="3">플랜 별칭 / 출처</td>`;
+  afterColumns.forEach((c,i)=>{
+    if(c.source === "carryover"){
+      html += `<td style="font-size:11px;color:var(--ink-soft);">전 탭에서 유지 중인 상품<br>(자동 연동, 아래 값은 직접 수정 가능)</td>`;
+    } else {
+      html += `<td><input type="text" class="col-alias" data-col="${i}" value="${(c.alias||"").replace(/"/g,"&quot;")}" placeholder="별칭 입력 (마스터에서 불러오기)"></td>`;
+    }
+  });
+  html += `</tr>`;
+
+  // 보장분석표(전)과 같은 계약정보 6개 행. "보험료" 행에는 (전)과 동일한 방식의
+  // 총보험료 합계가 붙는다.
+  AFTER_META_FIELDS.forEach(([label, field], mi)=>{
+    const isPremiumRow = field === "premium";
+    const totalCellAttr = isPremiumRow ? ' id="afterPremiumTotalCell"' : "";
+    const totalText = isPremiumRow ? (()=>{ const t = sumAfterPremiums(afterColumns); return t ? t.toLocaleString()+"원" : ""; })() : "";
+    html += `<tr><td class="grouplabel" colspan="2">${label}</td><td class="label"${totalCellAttr}>${totalText}</td>`;
+    afterColumns.forEach((c,i)=>{
+      const val = String(c[field]||"");
+      if(field === "productName"){
+        html += `<td><textarea rows="3" class="af-productname" data-col="${i}" data-gridrow="${mi}" data-gridcol="${i}">${val.replace(/</g,"&lt;")}</textarea></td>`;
+      } else {
+        html += `<td><input type="text" class="af-meta-input" data-col="${i}" data-field="${field}" data-gridrow="${mi}" data-gridcol="${i}" value="${val.replace(/"/g,"&quot;")}"></td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+
+  ROW_DEFS.forEach(([row, group, item], ri)=>{
+    html += `<tr><td class="label">${group||""}</td><td class="label">${item}</td><td class="label af-sum" data-row="${row}"></td>`;
+    afterColumns.forEach((c,i)=>{
+      const raw = (c.items && c.items[row]!=null) ? c.items[row] : "";
+      const inputType = TEXT_ROWS.has(row) ? "text" : "number";
+      html += `<td><input type="${inputType}" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
+    });
+    html += `</tr>`;
+  });
+
+  html += "</tbody>";
+  table.innerHTML = html;
+  wireExcelPaste(table);
+
+  table.querySelectorAll(".col-alias").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.dataset.col);
+      const col = afterColumns[i];
+      if(!col) return;
+      col.alias = inp.value;
+      // 값만 다시 계산해서 채워 넣는다 -- 별칭 <input> 자체는 다시 만들지 않으므로
+      // 한글 조합(IME) 도중에 재생성돼서 끊기는 일이 없다.
+      const savedPlans = plans.filter(p=>p.id);
+      const match = findPlanByAlias(col.alias, savedPlans);
+      if(match && match.id !== col.lastMatchedPlanId){
+        const resolved = autofillColumnFromPlan(match);
+        col.productName = match.plan_name || "";
+        col.insurer = resolved.insurer || "";
+        col.duration = resolved.duration || "";
+        col.term = resolved.term || "";
+        col.premium = resolved.premium || "";
+        col.holder = resolved.holder || "";
+        col.items = { ...resolved.items };
+        col.lastMatchedPlanId = match.id;
+        applyColumnValuesToDom(i);
+      }
+    });
+  });
+  table.querySelectorAll(".af-productname").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const col = afterColumns[Number(inp.dataset.col)];
+      if(col) col.productName = inp.value;
+    });
+  });
+  table.querySelectorAll(".af-meta-input").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const col = afterColumns[Number(inp.dataset.col)];
+      if(!col) return;
+      col[inp.dataset.field] = inp.value;
+      if(inp.dataset.field === "premium"){
+        const totalEl = document.getElementById("afterPremiumTotalCell");
+        const total = sumAfterPremiums(afterColumns);
+        if(totalEl) totalEl.textContent = total ? total.toLocaleString()+"원" : "";
+      }
+    });
+  });
+  table.querySelectorAll(".af-item").forEach(inp=>{
+    inp.addEventListener("input", ()=>{
+      const i = Number(inp.dataset.col), row = inp.dataset.row;
+      const col = afterColumns[i];
+      if(!col) return;
+      if(TEXT_ROWS.has(Number(row))){
+        if(inp.value.trim()) col.items[row] = inp.value; else delete col.items[row];
+      } else {
+        const n = parseFloat(inp.value);
+        if(!isNaN(n) && n>0) col.items[row] = n; else delete col.items[row];
+      }
+      recomputeAfterRowSum(row);
+    });
+  });
+  table.querySelectorAll("[data-delaftercol]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const i = Number(btn.dataset.delaftercol);
+      afterColumns.splice(i,1);
+      if(!afterColumns.length) afterColumns = [blankAfterColumn(), blankAfterColumn()];
+      renderAfterSheet();
+    });
+  });
+
+  ROW_DEFS.forEach(([row])=> recomputeAfterRowSum(row));
+}
+
+// 열 개수는 그대로인 채로 값만 갱신할 때 쓴다 (별칭 매칭으로 자동완성됐을 때 등).
+// 이미 입력창에 표시된 값과 같으면 건드리지 않아서, 지금 타이핑 중인 다른
+// 입력창의 커서 위치에는 영향이 없다.
+function applyColumnValuesToDom(i){
+  const table = document.getElementById("afterTable");
+  if(!table) return;
+  const col = afterColumns[i];
+  if(!col) return;
+  const pn = table.querySelector(`.af-productname[data-col="${i}"]`);
+  if(pn && pn.value !== (col.productName||"")) pn.value = col.productName||"";
+  table.querySelectorAll(`.af-meta-input[data-col="${i}"]`).forEach(inp=>{
+    const field = inp.dataset.field;
+    const v = col[field] || "";
+    if(inp.value !== v) inp.value = v;
+  });
+  const totalEl = document.getElementById("afterPremiumTotalCell");
+  if(totalEl){ const t = sumAfterPremiums(afterColumns); totalEl.textContent = t ? t.toLocaleString()+"원" : ""; }
+  table.querySelectorAll(`.af-item[data-col="${i}"]`).forEach(inp=>{
+    const row = inp.dataset.row;
+    const v = (col.items && col.items[row]!=null) ? col.items[row] : "";
+    if(String(inp.value) !== String(v)) inp.value = v;
+    recomputeAfterRowSum(row);
+  });
+}
+
+function recomputeAfterRowSum(row){
+  const table = document.getElementById("afterTable");
+  if(!table) return;
+  const sumTd = table.querySelector(`.af-sum[data-row="${row}"]`);
+  if(!sumTd) return;
+  if(TEXT_ROWS.has(Number(row))){ sumTd.textContent = ""; return; }
+  let sum = 0;
+  table.querySelectorAll(`.af-item[data-row="${row}"]`).forEach(inp=> sum += (Number(inp.value)||0));
+  sumTd.textContent = sum ? sum.toLocaleString() : "";
+}
+
+function renderAfterSheet(){
+  const table = document.getElementById("afterTable");
+  if(!table) return;
+  // 열 개수가 바뀌었을 때(추가/삭제/전 탭과 동기화)만 표 구조를 다시 그린다.
+  // 그 외의 호출은 각 열의 상태를 DOM에 patch만 해서 <input> 재생성/포커스
+  // 유실을 피한다.
+  const currentCols = table.querySelectorAll(".af-productname").length;
+  if(currentCols !== afterColumns.length){
+    buildAfterSheetSkeleton();
+  } else {
+    afterColumns.forEach((c,i)=> applyColumnValuesToDom(i));
+  }
+}
+
+document.getElementById("addColBtn").addEventListener("click", ()=>{
+  afterColumns.push(blankAfterColumn());
+  renderAfterSheet();
+});
+
+/* =========================================================================
+   시트 탭 전환 (엑셀 시트 탭처럼 보장분석표(전)/(후)/마스터를 선택해서 봄)
+   ========================================================================= */
+document.querySelectorAll(".sheettab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".sheettab").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll(".sheetpanel").forEach(p=>p.style.display="none");
+    btn.classList.add("active");
+    document.getElementById("sheet-"+btn.dataset.sheet).style.display = "block";
+    // 종합비교/보장차이는 입력이 없는 읽기전용 요약이라, 탭을 열 때마다
+    // 보장분석표(전)/(후)의 최신 데이터로 다시 계산해서 그린다.
+    if(btn.dataset.sheet === "summary") renderSummarySheet();
+    if(btn.dataset.sheet === "diff") renderDiffSheet();
+  });
+});
+
+/* =========================================================================
+   로그인 -- 사이트 공용 로그인(assets/supabase-client.js)을 그대로 사용한다.
+   세션이 없으면 requireLogin()이 자동으로 login.html로 이동시키므로,
+   이 페이지 자체에는 별도의 로그인 폼이 필요 없다.
+   ========================================================================= */
+(async ()=>{
+  const session = await requireLogin(); // 세션 없으면 여기서 login.html로 리다이렉트되고 아래 코드는 실행되지 않음
+  if(!session) return;
+  currentUserId = session.user.id;
+  await refreshPlans();
+})();
+
+document.getElementById("logoutLink").addEventListener("click", async (e)=>{
+  e.preventDefault();
+  await logout();
+});
 </script>
 </body>
 </html>
