@@ -73,6 +73,10 @@ td.surg-hit{background:var(--pink);}
 .legend span{display:inline-flex; align-items:center; gap:6px;}
 .swatch{width:12px;height:12px;border-radius:3px; display:inline-block;}
 .textbox{white-space:pre-wrap; background:#fff; border:1px solid var(--line); border-radius:10px;padding:18px; font-size:13px; max-height:520px; overflow:auto; font-family:var(--mono); line-height:1.6;}
+.copy-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+button.copybtn.copied{background:#dff0d8; border-color:#b9dcae; color:#2f7d4d;}
+.copied-msg{font-size:12.5px; color:#2f7d4d; font-weight:600; opacity:0; transition:opacity .15s;}
+.copied-msg.show{opacity:1;}
 .dl-row{display:flex; align-items:center; gap:12px; margin-top:18px;}
 .meta{font-size:12px; color:var(--ink-soft); margin-top:6px;}
 .note{font-size:12px; color:#9a927e; margin-top:24px; line-height:1.7;}
@@ -152,9 +156,11 @@ button.secondary:hover{background:#e2eee2;}
       <div class="meta" id="rowMeta"></div>
     </div>
     <div class="panel" id="p-a">
+      <div class="copy-row"><button class="secondary copybtn" id="copyBtnA" type="button">📋 간편 고지사항 복사</button><span class="copied-msg" id="copyMsgA"></span></div>
       <div class="textbox" id="textA"></div>
     </div>
     <div class="panel" id="p-b">
+      <div class="copy-row"><button class="secondary copybtn" id="copyBtnB" type="button">📋 표준체 고지사항 복사</button><span class="copied-msg" id="copyMsgB"></span></div>
       <div class="textbox" id="textB"></div>
     </div>
     <div class="dl-row">
@@ -190,9 +196,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs
 const REF_WIDTH = 595.28;
 const WORD_GAP = 3.0;
 const LINE_TOL = 1.5;
+// anchors: 열 "중심" 추정 좌표(예전 방식, 지금은 자동 서식 인식 실패 시 대비용으로만 사용).
+// borders: 실제 PDF 안에 그려진 표 경계선(테두리)의 진짜 x좌표 — pdfplumber로 원본 PDF의
+// 벡터 선(page.lines)을 직접 읽어서 확인한 값이라 앵커 추정보다 훨씬 정확하다. 열이 N개면
+// 경계선은 N+1개(맨 왼쪽 끝~맨 오른쪽 끝 포함).
 const PDF_TEMPLATES = {
-  base:   { marker: "주상병명", anchors: [36.6, 55.6, 119.1, 181.4, 217.7, 242.9, 283.8, 337.0, 374.2, 449.6, 516.2] },
-  detail: { marker: "코드명",   anchors: [36.6, 64.5, 145.5, 249.9, 356.0, 456.3, 499.6, 542.4] }
+  base:   { marker: "주상병명", anchors: [36.6, 55.6, 119.1, 181.4, 217.7, 242.9, 283.8, 337.0, 374.2, 449.6, 516.2],
+            borders: [28.4, 51.0, 116.2, 178.6, 212.6, 241.8, 282.3, 326.0, 354.3, 433.7, 498.9, 566.9] },
+  detail: { marker: "코드명",   anchors: [36.6, 64.5, 145.5, 249.9, 356.0, 456.3, 499.6, 542.4],
+            borders: [28.4, 56.7, 127.6, 226.8, 333.1, 439.4, 481.9, 524.4, 566.9] }
 };
 async function extractPdfPages(file){
   const buf = await file.arrayBuffer();
@@ -210,17 +222,31 @@ async function extractPdfPages(file){
   }
   return pages;
 }
-function mergeWordsPdf(chars, scale){
+// 글자의 "중심 x좌표"가 실제 표 경계선(borders) 중 어느 두 선 사이에 있는지로 열을 정한다.
+// 좌표 임계값(간격)으로 추측하는 것보다, PDF에 실제로 그려진 선을 기준으로 하는 게 훨씬 정확하다.
+function colOfX(x0, width, borders){
+  const cx = x0 + (width||0)/2;
+  for(let i=0;i<borders.length-1;i++){ if(cx >= borders[i] && cx < borders[i+1]) return i; }
+  if(cx < borders[0]) return 0;
+  return borders.length-2;
+}
+// 좌표(간격)만 보고 병합한다. borders(실제 표 경계선 x좌표)가 주어지면, 간격 조건을 만족해도
+// 두 글자가 서로 다른 칸(경계선 건너편)에 있으면 절대 하나로 합치지 않는다 — 이렇게 하면
+// "병원명과 바로 다음 칸 내용이 원본 PDF 텍스트 안에서부터 붙어있는" 근본 원인 자체를 막을 수 있다.
+// borders가 없으면(서식을 아직 모르는 자동 판별 단계) 기존처럼 간격 기준으로만 병합한다.
+function mergeWordsPdf(chars, scale, borders){
   chars = chars.slice().sort((a,b)=> a.top-b.top || a.x0-b.x0);
+  const sb = borders ? borders.map(b=>b*scale) : null;
   const words = []; let cur=null;
   for(const c of chars){
     if(c.text.trim().length===0){
       if(cur){ words.push(cur); cur=null; }
       continue;
     }
-    if(cur && Math.abs(c.top-cur.top) < LINE_TOL*scale && (c.x0-cur.endX) <= WORD_GAP*scale){
+    const ccol = sb ? colOfX(c.x0, c.width, sb) : null;
+    if(cur && Math.abs(c.top-cur.top) < LINE_TOL*scale && (c.x0-cur.endX) <= WORD_GAP*scale && (!sb || ccol===cur.col)){
       cur.text += c.text; cur.endX = c.x0+c.width;
-    } else { if(cur) words.push(cur); cur = {text:c.text, x0:c.x0, top:c.top, endX:c.x0+c.width}; }
+    } else { if(cur) words.push(cur); cur = {text:c.text, x0:c.x0, top:c.top, endX:c.x0+c.width, col:ccol}; }
   }
   if(cur) words.push(cur);
   return words;
@@ -255,30 +281,146 @@ function detectColumnsDynamic(perPageWords){
   const allClusters = [{xs:digitWords.map(w=>w.x0)}, ...kept].sort((a,b)=>a.xs[0]-b.xs[0]);
   return allClusters.map(c=> c.xs.reduce((a,b)=>a+b,0)/c.xs.length);
 }
+/* 열별로 "이 열엔 숫자만 들어와야 한다"는 규칙. 조건에 안 맞는 조각(글자)이 배정되면
+   앞 열(왼쪽, 보통 텍스트 열)로 되돌려 붙여서 진단명 등이 옆 칸으로 새는 걸 막는다. */
+const NUMERIC_ONLY_COLS = { base: [7], detail: [5] }; // base: 7번(H)=내원일수 / detail: 5번(F)=1회 투약량
+/* 반대로 "이 열엔 코드(영문+숫자)만 들어와야 한다"는 규칙. 한글이 섞여 배정되면
+   오른쪽(보통 진단명 등 텍스트 열)으로 돌려보내서 코드 뒤에 글자가 붙는 걸 막는다. */
+const CODE_ONLY_COLS = { base: [5], detail: [] }; // base: 5번(F)=주상병코드
+/* 위 두 보정은 "데이터 행"에만 적용해야 한다 — 헤더 라벨("내원일수" 등)은 원래 텍스트라
+   그대로 적용하면 헤더 자체가 옆 칸으로 밀려버리는 부작용이 생긴다. */
+function correctBodyCol(col, text, numericOnlyCols, codeOnlyCols, NCOLS){
+  const t = text.trim();
+  if(numericOnlyCols.includes(col) && !/^[0-9]+(\.[0-9]+)?$/.test(t)){
+    return Math.max(0, col-1);
+  }
+  if(codeOnlyCols.includes(col) && /[가-힣]/.test(t)){
+    return Math.min(NCOLS-1, col+1);
+  }
+  // 반대 방향: 코드 전용 칸(F) 바로 오른쪽 칸(G, 진단명)에 한글이 전혀 없는 순수 코드
+  // 형태(영문으로 시작 + 영문/숫자만)가 배정되면 원래 코드 칸으로 되돌린다.
+  // 진단명은 항상 한글이 섞여 있으므로 이 기준으로 구분해도 안전하다.
+  if(codeOnlyCols.includes(col-1) && /^[A-Za-z][A-Za-z0-9]*$/.test(t)){
+    return col-1;
+  }
+  return col;
+}
+
+/* ===== 실제 PDF를 직접 분석해서 찾아낸 진짜 원인에 대한 보정 =====
+   기본진료정보 서식에서 "입원"/"외래" 글자와 바로 뒤 주상병코드가 PDF 안에서부터
+   이미 하나의 텍스트로 합쳐져 있는 경우가 있다(예: "외래AL0291", "입원AH8138").
+   이건 좌표 병합 이전에 원본 PDF 자체에 그렇게 저장돼 있어서 좌표 임계값을 조정해도
+   못 잡는다 — 대신 "입원/외래는 이 두 값만 가능하다"는 걸 알고 있으므로, 행을 최종
+   조립한 뒤 텍스트 패턴으로 정확히 분리한다. */
+// col2(병·의원&약국) 안에 진료내역 글자가 섞여 들어오는 두 가지 패턴을 모두 처리한다.
+//  A) 같은 줄에서 바로 붙어버린 경우: "서울특별시보라매병원검사료/자체검사(양방)"
+//     → 기관명 접미사(의원/병원/약국 등)가 나오는 지점까지만 기관명으로 자른다.
+//  B) 기관명이 칸 너비 때문에 줄바꿈되면서 마지막 한두 글자가 그 줄의 맨 끝(다른 칸 내용 뒤)으로
+//     밀려난 경우: "한림대학교강남성심병진찰료/응급...관리료-1 원" (마지막 글자 "원"이 문장 맨 끝에 떨어져 있음)
+//     → 문장 맨 끝의 짧은 토큰을 기관명 접미사를 완성하는 조각으로 되돌려 붙인다.
+function fixDetailInstitution(raw2){
+  const s = String(raw2||"");
+  const SUFFIXES = ["한의원","병원","약국","클리닉","센터","의원"];
+  for(const suf of SUFFIXES){
+    const idx = s.indexOf(suf);
+    if(idx>=0 && idx+suf.length < s.length){
+      return { inst: s.slice(0, idx+suf.length), rest: s.slice(idx+suf.length) };
+    }
+  }
+  const tailM = s.match(/^(.*)\s([가-힣]{1,3})$/);
+  if(tailM){
+    const body = tailM[1], tail = tailM[2];
+    for(const suf of SUFFIXES){
+      if(tail.length >= suf.length) continue;
+      const head = suf.slice(0, suf.length - tail.length);
+      const idx = body.indexOf(head);
+      if(idx>=0 && body.slice(idx, idx+head.length)+tail === suf){
+        return { inst: body.slice(0, idx+head.length)+tail, rest: body.slice(idx+head.length) };
+      }
+    }
+  }
+  return null;
+}
+function correctRowValues(rowVals, templateKey){
+  const v = rowVals.slice();
+  // col0(순번): 페이지 맨 아래 각주("· 본 자료는 ...")가 그 페이지 마지막 행의 순번 칸에
+  // 붙어버리는 경우가 있다 — 순번은 항상 순수 숫자이므로 맨 앞 숫자만 남기고 나머지는 버린다.
+  const m0 = String(v[0]||"").match(/^([0-9]+)/);
+  if(m0) v[0] = m0[1];
+  if(templateKey === "detail"){
+    const fixed = fixDetailInstitution(v[2]);
+    if(fixed){
+      v[2] = fixed.inst;
+      v[3] = fixed.rest + String(v[3]||"");
+    }
+    // 병원명 칸이 셀 너비 때문에 물리적으로 두 줄로 나뉘어 있다가 다시 합쳐질 때, 줄 사이에
+    // 없어야 할 공백이 하나 끼는 경우가 있다(예: "한림대학교 강남성심병원"). 병원명에는 원래
+    // 띄어쓰기가 없으므로 공백을 전부 제거해서 원래 이름 그대로 복원한다.
+    v[2] = String(v[2]||"").replace(/\s+/g,"");
+    return v;
+  }
+  if(templateKey !== "base") return v;
+  // col2(병·의원&약국) · col3(진단과)도 위와 같은 이유(줄바꿈)로 낀 공백을 제거한다 —
+  // 병원명과 마찬가지로 진료과목명(정형외과, 응급의학과 등)도 원래 띄어쓰기가 없는 한 단어다.
+  v[2] = String(v[2]||"").replace(/\s+/g,"");
+  v[3] = String(v[3]||"").replace(/\s+/g,"");
+  // col4(입원/외래) · col5(주상병코드) · col6(주상병명)은 PDF 자체의 텍스트 조각 병합 순서에 따라
+  // 코드가 진단명 "한가운데"에 끼어들거나(예: "기 AH8138타 말초성 현기증") 입원/외래에 들러붙는 등
+  // 다양한 형태로 섞여 들어온다 — 앞쪽만 보는 방식으로는 부족해서, 세 칸을 통째로 합친 뒤
+  // "입원/외래"와 "코드 패턴"을 어디 붙어있든 찾아서 뽑아내고 남은 텍스트를 진단명으로 재구성한다.
+  let combined = [v[4], v[5], v[6]].map(x=>String(x||"")).join("");
+  let admitType = "";
+  combined = combined.replace(/(입원|외래)/, (m)=>{ admitType = m; return ""; });
+  let code = "";
+  combined = combined.replace(/(\$|[A-Za-z]{1,3}[0-9]{2,6})/, (m)=>{ code = m; return ""; });
+  v[4] = admitType;
+  v[5] = code;
+  v[6] = combined.replace(/\s+/g," ").trim();
+  return v;
+}
+
 function processPdfPages(pages){
   const scale = pages[0].width / REF_WIDTH;
-  const perPageWords = pages.map(p=>{
+  // 1단계: 서식(기본/세부)이 뭔지 아직 모르니, 일단 좌표 간격만으로 대충 병합해서 마커 텍스트를 찾는다.
+  const roughPerPageWords = pages.map(p=>{
     const filtered = p.items.filter(it=> it.top>90*scale && it.top<p.height-70*scale);
     return mergeWordsPdf(filtered, scale);
   });
-  const page1Text = perPageWords[0].map(w=>w.text).join(" ");
-  let anchors;
-  if(page1Text.includes(PDF_TEMPLATES.base.marker)) anchors = PDF_TEMPLATES.base.anchors.map(a=>a*scale);
-  else if(page1Text.includes(PDF_TEMPLATES.detail.marker)) anchors = PDF_TEMPLATES.detail.anchors.map(a=>a*scale);
-  else anchors = detectColumnsDynamic(perPageWords);
+  // 폰트 간격이 불규칙한 PDF는 "주상병명"처럼 붙어있어야 할 글자 사이에 공백이 끼는 경우가 있어
+  // 공백을 다 제거한 텍스트로도 마커를 한 번 더 확인해서 서식 인식이 불안정해지는 걸 줄인다.
+  const page1Text = roughPerPageWords[0].map(w=>w.text).join(" ");
+  const page1TextNoSpace = page1Text.replace(/\s+/g,"");
+  let anchors, borders, templateKey = "auto";
+  if(page1Text.includes(PDF_TEMPLATES.base.marker) || page1TextNoSpace.includes(PDF_TEMPLATES.base.marker)){
+    anchors = PDF_TEMPLATES.base.anchors.map(a=>a*scale); borders = PDF_TEMPLATES.base.borders; templateKey = "base";
+  } else if(page1Text.includes(PDF_TEMPLATES.detail.marker) || page1TextNoSpace.includes(PDF_TEMPLATES.detail.marker)){
+    anchors = PDF_TEMPLATES.detail.anchors.map(a=>a*scale); borders = PDF_TEMPLATES.detail.borders; templateKey = "detail";
+  } else anchors = detectColumnsDynamic(roughPerPageWords);
   if(!anchors) return { header: [], rows: [] };
   const NCOLS = anchors.length;
+  const numericOnlyCols = NUMERIC_ONLY_COLS[templateKey] || [];
+  const codeOnlyCols = CODE_ONLY_COLS[templateKey] || [];
+  // 2단계: 서식을 알아냈고 실제 표 경계선 좌표(borders)도 있으면, 그 선을 기준으로 다시 병합한다 —
+  // 간격만으로는 절대 구분 못 하는 "글자가 원본 PDF 안에서부터 옆 칸과 붙어있는" 경우를,
+  // 실제로 그어진 선을 기준 삼아 원천적으로 막는다. 서식을 못 알아냈으면(자동 인식) 기존처럼
+  // 간격 기준 병합 결과를 그대로 쓴다.
+  const perPageWords = borders
+    ? pages.map(p=>{
+        const filtered = p.items.filter(it=> it.top>90*scale && it.top<p.height-70*scale);
+        return mergeWordsPdf(filtered, scale, borders);
+      })
+    : roughPerPageWords;
   let headerCols = null;
   const allRows = [];
   for(let pageIdx=0; pageIdx<pages.length; pageIdx++){
-    const words = perPageWords[pageIdx].map(w=>({...w, col: nearestColPdf(w.x0, anchors)}));
-    const rowAnchorWords = words.filter(w=> w.col===0 && /^[0-9]{1,4}$/.test(w.text));
+    const rawWords = perPageWords[pageIdx].map(w=> ({...w, col: (w.col!=null ? w.col : nearestColPdf(w.x0, anchors))}));
+    const rowAnchorWords = rawWords.filter(w=> w.col===0 && /^[0-9]{1,4}$/.test(w.text));
     const rowTops = rowAnchorWords.map(w=>w.top).sort((a,b)=>a-b);
     if(rowTops.length===0) continue;
     const rowSpacing = rowTops.length>1 ? (rowTops[1]-rowTops[0]) : 50*scale;
     const headerCutoff = rowTops[0] - rowSpacing/2;
     if(!headerCols){
-      const headerWords = words.filter(w=> w.top < headerCutoff);
+      const headerWords = rawWords.filter(w=> w.top < headerCutoff); // 헤더는 보정 없이 원래 배정 그대로 사용
       const hBuckets = Array.from({length:NCOLS},()=>[]);
       headerWords.forEach(w=>hBuckets[w.col].push(w));
       const hCols = hBuckets.map(list=>{
@@ -287,7 +429,10 @@ function processPdfPages(pages){
       });
       if(!hCols.every(h=>!h)) headerCols = hCols;
     }
-    const bodyWords = words.filter(w=> w.top >= headerCutoff);
+    // 3단계: 실제 데이터 행에만 열 타입 보정(숫자 전용/코드 전용) 적용
+    const bodyWords = rawWords.filter(w=> w.top >= headerCutoff).map(w=>
+      ({...w, col: correctBodyCol(w.col, w.text, numericOnlyCols, codeOnlyCols, NCOLS)})
+    );
     const pageRows = rowTops.map(()=> Array.from({length:NCOLS}, ()=>[]));
     for(const w of bodyWords){
       let bestIdx=0, bd=Infinity;
@@ -295,10 +440,11 @@ function processPdfPages(pages){
       pageRows[bestIdx][w.col].push(w);
     }
     for(const rowBuckets of pageRows){
-      const rowVals = rowBuckets.map(list=>{
+      let rowVals = rowBuckets.map(list=>{
         list.sort((a,b)=>a.top-b.top || a.x0-b.x0);
         return list.map(w=>w.text).join(" ").trim().replace(/\s+/g," ");
       });
+      rowVals = correctRowValues(rowVals, templateKey);
       allRows.push(rowVals);
     }
   }
@@ -645,6 +791,44 @@ document.querySelectorAll(".tabbtn").forEach(btn=>{
     document.getElementById(btn.dataset.panel).classList.add("active");
   });
 });
+// 클립보드 복사: navigator.clipboard가 막혀있는 환경(구형 브라우저, 비 HTTPS 등)을 대비해
+// 임시 textarea + execCommand("copy")로 되돌아가는 방식도 같이 넣어둔다.
+async function copyPlainText(text){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    try{ await navigator.clipboard.writeText(text); return true; }catch(e){ /* 아래 폴백으로 진행 */ }
+  }
+  try{
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){ return false; }
+}
+function wireCopyButton(btnId, msgId, getText){
+  const btn = document.getElementById(btnId);
+  const msg = document.getElementById(msgId);
+  btn.addEventListener("click", async ()=>{
+    const text = getText();
+    if(!text){ return; }
+    const ok = await copyPlainText(text);
+    if(ok){
+      btn.classList.add("copied");
+      msg.textContent = "복사됨!";
+      msg.classList.add("show");
+      setTimeout(()=>{ btn.classList.remove("copied"); msg.classList.remove("show"); }, 1800);
+    } else {
+      msg.textContent = "복사 실패 — 직접 선택해서 복사해주세요.";
+      msg.classList.add("show");
+    }
+  });
+}
+wireCopyButton("copyBtnA", "copyMsgA", ()=> document.getElementById("textA").textContent);
+wireCopyButton("copyBtnB", "copyMsgB", ()=> document.getElementById("textB").textContent);
 document.getElementById("runBtn").addEventListener("click", async ()=>{
         const status = document.getElementById("status");
         const runBtn = document.getElementById("runBtn");
