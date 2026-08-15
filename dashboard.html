@@ -47,11 +47,17 @@
       if(profile.role === 'admin' || profile.role === 'gold'){
         // 관리자/골드 회원: 무제한 무료 이용
       } else {
+        // 기능별 차감 포인트는 관리자가 admin.html에서 수정할 수 있으므로,
+        // 화면에 고정된 숫자를 쓰지 않고 매번 최신 설정값을 읽어와 표시한다.
+        const costs = await getPointCosts();
+
         const pointsLine = document.getElementById('pointsLine');
         pointsLine.textContent = '보유 포인트: ' + (profile.points || 0) + 'P';
         pointsLine.style.display = 'block';
 
-        document.getElementById('coverageBadge').style.display = 'inline-block';
+        const coverageBadge = document.getElementById('coverageBadge');
+        coverageBadge.textContent = '1회 ' + costs.coverage.toLocaleString() + 'P';
+        coverageBadge.style.display = 'inline-block';
 
         const card = document.getElementById('historyCard');
         const badge = document.getElementById('historyBadge');
@@ -66,12 +72,12 @@
             alert('관리자 승인 후 이용할 수 있습니다.');
           });
         } else {
-                  badge.textContent = '1회 1,000P';
+                  badge.textContent = '1회 ' + costs.history.toLocaleString() + 'P';
                   badge.style.display = 'inline-block';
                   card.addEventListener('click', function(e){
                               e.preventDefault();
-                              if((profile.points || 0) < 1000){
-                                            alert('포인트가 부족합니다. (병력정리 이용에 1,000P가 필요합니다. 보유 포인트: ' + (profile.points || 0) + 'P)\n관리자에게 포인트 충전을 요청해주세요.');
+                              if((profile.points || 0) < costs.history){
+                                            alert('포인트가 부족합니다. (병력정리 이용에 ' + costs.history.toLocaleString() + 'P가 필요합니다. 보유 포인트: ' + (profile.points || 0) + 'P)\n관리자에게 포인트 충전을 요청해주세요.');
                                             return;
                               }
                               // 포인트 차감은 병력정리 페이지에서 매칭을 실제로 실행해 성공했을 때 이루어집니다.
