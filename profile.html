@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>프로필 | With Partners</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="navbar">
+<a href="dashboard.html" class="brand">With <span>Partners</span></a>
+<nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="admin-limits.html" id="adminLimitsLink" style="display:none">당타사한도</a><a href="dashboard.html">대시보드</a><a href="#" id="logoutLink">로그아웃</a></nav>
+</div>
+<div class="dash-wrap" style="max-width:640px;">
+<h1>프로필</h1>
+<p class="sub">별명을 설정하면 대시보드 등 화면에 이메일 대신 별명으로 표시됩니다.</p>
+
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <h2 style="font-size:16px;margin:0 0 16px;color:var(--navy-950);">기본 정보</h2>
+  <div class="field"><label>이메일</label><input type="text" id="infoEmail" readonly style="background:var(--paper);color:var(--muted);"></div>
+  <div class="field"><label>등급</label><input type="text" id="infoRole" readonly style="background:var(--paper);color:var(--muted);"></div>
+  <div class="field" style="margin-bottom:0;"><label>가입일</label><input type="text" id="infoJoined" readonly style="background:var(--paper);color:var(--muted);"></div>
+</div>
+
+<div class="auth-card" style="max-width:100%;">
+  <h2 style="font-size:16px;margin:0 0 16px;color:var(--navy-950);">별명 설정</h2>
+  <form id="nicknameForm">
+    <div class="field">
+      <label>별명</label>
+      <input type="text" id="nicknameInput" maxlength="20" placeholder="예: 김대박 설계사">
+    </div>
+    <button type="submit" class="btn-primary" id="saveBtn">저장</button>
+  </form>
+  <div class="msg" id="msg"></div>
+</div>
+<!-- 앞으로 프로필에 더 적고 싶은 내용이 생기면 위 "별명 설정" 카드처럼 새 <div class="auth-card"> 섹션을 추가하면 됩니다. -->
+</div>
+<script src="assets/supabase-client.js"></script>
+<script>
+(async ()=>{
+  const session = await requireLogin();
+  if(!session) return;
+  const profile = await getMyProfile();
+  if(profile){
+    if(profile.role === 'admin'){
+      document.getElementById('adminLink').style.display = 'inline';
+      document.getElementById('adminLimitsLink').style.display = 'inline';
+    }
+    var roleLabels = { admin:'관리자', silver:'실버', gold:'골드' };
+    document.getElementById('infoEmail').value = profile.email || session.user.email || '-';
+    document.getElementById('infoRole').value = roleLabels[profile.role] || profile.role || '-';
+    document.getElementById('infoJoined').value = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ko-KR') : '-';
+    document.getElementById('nicknameInput').value = profile.nickname || '';
+  }
+})();
+
+document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const btn = document.getElementById('saveBtn');
+  const msg = document.getElementById('msg');
+  msg.className = 'msg'; msg.textContent = '';
+  const val = document.getElementById('nicknameInput').value.trim();
+  if(val.length > 20){
+    msg.className = 'msg err show';
+    msg.textContent = '별명은 20자 이내로 입력해주세요.';
+    return;
+  }
+  btn.disabled = true; btn.textContent = '저장 중...';
+  const result = await updateMyNickname(val);
+  btn.disabled = false; btn.textContent = '저장';
+  if(!result.ok){
+    msg.className = 'msg err show';
+    msg.textContent = '저장 실패: ' + result.message;
+    return;
+  }
+  msg.className = 'msg ok show';
+  msg.textContent = '저장되었습니다.';
+});
+
+document.getElementById('logoutLink').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  await logout();
+});
+</script>
+</body>
+</html>
