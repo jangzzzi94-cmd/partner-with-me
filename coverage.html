@@ -1358,10 +1358,12 @@ function renderDiffSheet(){
    당타사한도 체크 -- 관리자가 입력해둔 other_company_limits 데이터를 기준으로
    (후) 표에 새로 추가한 상품(source:"manual", 신규가입)만 대상으로 한도 초과
    가능성을 화면에 빨간 테두리/툴팁으로만 표시한다 (참고용, 저장/엑셀에는 영향 없음).
-   - 합산한도: (기존 유지 중인 금액 전체 + 신규가입 합계) > max_total_limit
-   - N개월이내 건수초과: 신규가입 건수(같은 보험사, 같은 담보) > count_limit_count
-     (신규가입은 모두 "오늘" 가입하는 것으로 계산하므로 N개월 조건은 항상 충족된다)
-   - N개월이내 합산한도초과: 신규가입 합계 > amount_limit_amount (위와 같은 이유로 계산)
+   - 합산한도: 기존 유지 중인 금액 전체 + "이번에 새로 가입하는 모든 상품"(보험사 무관, 여러 건이면
+     전부 합산)을 더해서, 그 담보에 한도가 걸려있는 각 보험사의 max_total_limit과 비교한다.
+   - N개월이내 건수초과 / N개월이내 합산한도초과: 기본은 신규가입 건수/금액만으로 계산하되,
+     기존 유지 중인 상품 중에서도 실제 가입일(보험기간 필드의 첫 번째 날짜)이 그 한도의
+     N개월 이내인 것이 있으면 그것도 함께 포함해서 계산한다 (가입일을 알 수 없는 기존 상품은
+     제외-- 확인할 수 없는 것을 포함시키지 않는다).
    ========================================================================= */
 let otherCompanyLimitsMap = {}; // { [보험사]: { [row]: {max_total_limit, count_limit_months, count_limit_count, amount_limit_months, amount_limit_amount} } }
 
@@ -1388,58 +1390,114 @@ async function loadOtherCompanyLimits(){
   }
 }
 
-// (후) 표에서 신규가입(manual) 열들만 대상으로, 보험사+담보별로 위반 여부를 계산한다.
-// 반환값: { "열인덱스|행번호": ["사유 설명", ...] }
+// "보험기간" 필드(예: "2024.01.01~2054.01.01")에서 맨 앞에 적힌 날짜(=가입일)를 최대한
+// 관대하게 추출한다. 점/하이픈/슬래시 구분자와 2~4자리 연도를 모두 허용하고, 날짜를 전혀
+// 찾을 수 없으면(예: "20년납 100세만기"처럼 순수 텍스트인 경우) null을 반환한다.
+function parseKoreanDurationStartDate(duration){
+  if(!duration) return null;
+  const s = String(duration);
+  const head = s.includes("~") ? s.split("~")[0] : s;
+  const re = /(\d{2,4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/;
+  const m = head.match(re) || s.match(re);
+  if(!m) return null;
+  let y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  if(y < 100) y += (y < 70 ? 2000 : 1900);
+  if(mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, mo - 1, d);
+  if(isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+// 기준일(오늘)로부터 date까지 지난 개월 수(내림, 최소 0). date가 없으면 null.
+function monthsSinceDate(date){
+  if(!date) return null;
+  const now = new Date();
+  let months = (now.getFullYear() - date.getFullYear()) * 12 + (now.getMonth() - date.getMonth());
+  if(now.getDate() < date.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+// (후) 표 전체를 대상으로, 담보(row)별로 위반 여부를 계산한다.
+// 반환값: { "열인덱스|행번호": ["사유 설명", ...] } (열인덱스는 항상 신규가입(manual) 열)
 function computeLimitWarnings(){
   const warnings = {};
   if(!otherCompanyLimitsMap || !Object.keys(otherCompanyLimitsMap).length) return warnings;
 
-  const manualByInsurer = {};
-  afterColumns.forEach((c,i)=>{
-    if(c.source !== "manual") return;
-    const insurer = (c.insurer||"").trim();
-    if(!insurer) return;
-    (manualByInsurer[insurer] || (manualByInsurer[insurer]=[])).push(i);
+  const manualIdxs = [];
+  afterColumns.forEach((c,i)=>{ if(c.source === "manual") manualIdxs.push(i); });
+  const insurersWithNew = new Set();
+  manualIdxs.forEach(i=>{
+    const ins = (afterColumns[i].insurer||"").trim();
+    if(ins) insurersWithNew.add(ins);
   });
+  if(!insurersWithNew.size) return warnings;
 
-  const existingSumByRow = {};
-  function existingSum(row){
-    if(existingSumByRow[row] != null) return existingSumByRow[row];
-    let sum = 0;
-    afterColumns.forEach(c=>{ if(c.source === "carryover") sum += ((c.items && c.items[row]) || 0); });
-    return existingSumByRow[row] = sum;
-  }
+  ROW_DEFS.forEach(([row])=>{
+    if(TEXT_ROWS.has(row)) return;
 
-  Object.keys(manualByInsurer).forEach(insurer=>{
-    const rowLimits = otherCompanyLimitsMap[insurer];
-    if(!rowLimits) return;
-    const colIdxs = manualByInsurer[insurer];
-    ROW_DEFS.forEach(([row])=>{
-      if(TEXT_ROWS.has(row)) return;
+    // 이 담보에 금액이 있는 신규가입 열 전체 (보험사 무관 -- 여러 보험사에 동시에
+    // 새로 가입하더라도 전부 "이번에 새로 늘어나는 총량"으로 함께 계산한다)
+    const newColsAtRow = manualIdxs.filter(i=> (afterColumns[i].items && afterColumns[i].items[row] > 0));
+    if(!newColsAtRow.length) return;
+    const newSumAll = newColsAtRow.reduce((s,i)=> s + afterColumns[i].items[row], 0);
+    const newCountAll = newColsAtRow.length;
+
+    // 이 담보에 금액이 있는 기존 유지(carryover) 열 전체 (보험사 무관, 합산한도 계산용)
+    const keptColsAtRow = afterColumns.filter(c=> c.source === "carryover" && c.items && c.items[row] > 0);
+    const existingTotal = keptColsAtRow.reduce((s,c)=> s + c.items[row], 0);
+
+    insurersWithNew.forEach(insurer=>{
+      const rowLimits = otherCompanyLimitsMap[insurer];
+      if(!rowLimits) return;
       const limit = rowLimits[row];
       if(!limit) return;
-      const withValue = colIdxs.filter(i=> (afterColumns[i].items && afterColumns[i].items[row] > 0));
-      if(!withValue.length) return;
-      const newSum = withValue.reduce((s,i)=> s + (afterColumns[i].items[row]||0), 0);
-      const newCount = withValue.length;
-      const existing = existingSum(row);
+      // 실제로 이 보험사로 새로 가입하는 열들만 화면에 표시(빨간 테두리) 대상이 된다.
+      const ownNewCols = newColsAtRow.filter(i=> (afterColumns[i].insurer||"").trim() === insurer);
+      if(!ownNewCols.length) return;
+
       const reasons = [];
-      if(limit.max_total_limit != null && (existing + newSum) > limit.max_total_limit){
-        reasons.push(`합산한도 초과 (기존 ${existing.toLocaleString()}만원 + 신규 ${newSum.toLocaleString()}만원 = ${(existing+newSum).toLocaleString()}만원 > 한도 ${Number(limit.max_total_limit).toLocaleString()}만원)`);
+
+      if(limit.max_total_limit != null && (existingTotal + newSumAll) > limit.max_total_limit){
+        reasons.push(`합산한도 초과 (기존 유지 ${existingTotal.toLocaleString()}만원 + 신규가입 전체 ${newSumAll.toLocaleString()}만원 = ${(existingTotal+newSumAll).toLocaleString()}만원 > 한도 ${Number(limit.max_total_limit).toLocaleString()}만원)`);
       }
-      if(limit.count_limit_count != null && newCount > limit.count_limit_count){
-        const monthTxt = limit.count_limit_months ? `${limit.count_limit_months}개월 이내 ` : "";
-        reasons.push(`${monthTxt}건수초과 (신규 ${newCount}건 > 한도 ${limit.count_limit_count}건)`);
+
+      if(limit.count_limit_count != null){
+        const recentKept = limit.count_limit_months != null
+          ? keptColsAtRow.filter(c=>{
+              const months = monthsSinceDate(parseKoreanDurationStartDate(c.duration));
+              return months != null && months <= limit.count_limit_months;
+            })
+          : [];
+        const totalCount = newCountAll + recentKept.length;
+        if(totalCount > limit.count_limit_count){
+          const monthTxt = limit.count_limit_months ? `${limit.count_limit_months}개월 이내 ` : "";
+          const keptTxt = recentKept.length ? ` + 최근 가입한 기존 ${recentKept.length}건` : "";
+          reasons.push(`${monthTxt}건수초과 (신규 ${newCountAll}건${keptTxt} = ${totalCount}건 > 한도 ${limit.count_limit_count}건)`);
+        }
       }
-      if(limit.amount_limit_amount != null && newSum > limit.amount_limit_amount){
-        const monthTxt = limit.amount_limit_months ? `${limit.amount_limit_months}개월 이내 ` : "";
-        reasons.push(`${monthTxt}합산한도초과 (신규 ${newSum.toLocaleString()}만원 > 한도 ${Number(limit.amount_limit_amount).toLocaleString()}만원)`);
+
+      if(limit.amount_limit_amount != null){
+        const recentKept = limit.amount_limit_months != null
+          ? keptColsAtRow.filter(c=>{
+              const months = monthsSinceDate(parseKoreanDurationStartDate(c.duration));
+              return months != null && months <= limit.amount_limit_months;
+            })
+          : [];
+        const recentKeptSum = recentKept.reduce((s,c)=> s + c.items[row], 0);
+        const totalAmount = newSumAll + recentKeptSum;
+        if(totalAmount > limit.amount_limit_amount){
+          const monthTxt = limit.amount_limit_months ? `${limit.amount_limit_months}개월 이내 ` : "";
+          const keptTxt = recentKeptSum ? ` + 최근 가입한 기존 ${recentKeptSum.toLocaleString()}만원` : "";
+          reasons.push(`${monthTxt}합산한도초과 (신규 ${newSumAll.toLocaleString()}만원${keptTxt} = ${totalAmount.toLocaleString()}만원 > 한도 ${Number(limit.amount_limit_amount).toLocaleString()}만원)`);
+        }
       }
+
       if(reasons.length){
-        withValue.forEach(i=>{ warnings[i+"|"+row] = reasons; });
+        ownNewCols.forEach(i=>{ warnings[i+"|"+row] = reasons; });
       }
     });
   });
+
   return warnings;
 }
 
