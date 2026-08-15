@@ -1011,9 +1011,10 @@ dlBtn.addEventListener("click", async ()=>{
 
     // 실제로 채워진 상품 개수만큼만 인쇄 영역을 잡아서, 인쇄 미리보기 시
     // 빈 칸이 함께 인쇄되거나 반대로 상품이 많아 잘리는 일이 없게 한다.
-    // 단, 보장분석표(후)는 상품 수가 적어도 기본으로 L열(상품 8개 칸)까지는 인쇄 영역을
-    // 확보해 둔다(상품이 8개보다 많으면 그만큼 더 넓게 잡힌다).
-    setPrintAreaForColumns(wsBefore, lastResult.columns.length);
+    // 단, 보장분석표(전)/(후) 모두 상품 수가 적어도 엑셀의 "보기 > 페이지 나누기 미리보기"에서
+    // 기본으로 L열(상품 8개 칸)까지는 인쇄 영역으로 잡혀 있도록 최소값을 둔다
+    // (상품이 8개보다 많으면 그만큼 더 넓게 잡힌다).
+    setPrintAreaForColumns(wsBefore, Math.max(lastResult.columns.length, 8));
     setPrintAreaForColumns(wsAfter, Math.max(afterColumns.length, 8));
 
     // 관리자/골드 회원이 아니면 엑셀 다운로드 1회당 3,000P를 차감한다.
