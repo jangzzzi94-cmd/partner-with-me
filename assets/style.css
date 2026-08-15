@@ -62,3 +62,17 @@ button.btn-primary:disabled{background:#a9b6c6;cursor:not-allowed;}
 .status-badge.status-pending{background:var(--navy-100);color:var(--navy-700)}
 .status-badge.status-rejected{background:#fdecea;color:var(--danger)}
 .admin-table select{padding:4px 8px;border:1px solid var(--line);border-radius:6px}
+.member-name-link{color:var(--navy-700);font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.member-name-link:hover{color:var(--navy-950);}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(10,26,48,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100;}
+.modal-card{background:#fff;border-radius:14px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 50px rgba(15,37,69,.25);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line);}
+.modal-header h2{margin:0;font-size:16px;color:var(--navy-950);}
+.modal-close{background:transparent;border:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:0;}
+.modal-close:hover{color:var(--navy-950);}
+.modal-body{padding:18px 22px 22px;}
+.modal-info-row{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+.modal-info-row:last-child{border-bottom:none;}
+.modal-info-label{color:var(--muted);font-weight:600;}
+.modal-info-value{color:var(--ink);text-align:right;}
