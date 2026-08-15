@@ -34,6 +34,7 @@ table.preview th{background:#eef2f8;position:sticky;top:0;}
 table.preview td.label{background:#fafbfd;font-weight:600;}
 table.preview td.grouplabel{background:#eef2f8;font-weight:700;}
 table.preview td.meta-cell.kept-cell{background:#e8c547;}
+table.grid td.meta-cell.kept-cell{background:#e8c547;}
 button.keep-btn.active-keep{background:#e8c547;color:#132a4c;border-color:#c9a227;}
 table.grid{border-collapse:collapse;width:100%;font-size:12px;margin-top:10px;table-layout:fixed;}
 table.grid th,table.grid td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:normal;word-break:break-word;overflow-wrap:break-word;vertical-align:middle;}
@@ -923,6 +924,21 @@ function fillSheetColumns(ws, columns, getField){
   });
 }
 
+// 화면에서 "유지" 표시(누런색, #e8c547)된 상품 열의 계약정보 6개 행(3~8행:
+// 보험회사/상품명/보험기간/납기·만기/보험료/계약자)에 엑셀에서도 똑같은 색을 입힌다.
+// (전) 시트는 kept 체크된 컬럼, (후) 시트는 전에서 유지되어 자동 연동된(carryover) 컬럼에 적용된다.
+const KEPT_CELL_FILL = { type:"pattern", pattern:"solid", fgColor:{ argb:"FFE8C547" } };
+function applyKeptFillToMetaCells(ws, columns, isKeptFn){
+  const startCol = 5; // E열
+  columns.forEach((c, i)=>{
+    if(!isKeptFn(c)) return;
+    const col = startCol + i;
+    for(let row=3; row<=8; row++){
+      ws.getCell(row, col).fill = KEPT_CELL_FILL;
+    }
+  });
+}
+
 // 열 번호(1=A, 2=B, ...)를 엑셀 열 문자로 변환. 인쇄 영역 계산에 사용.
 function colLetterFromIndex(n){
   let s = "";
@@ -975,6 +991,7 @@ dlBtn.addEventListener("click", async ()=>{
       if(field === "text45") return (c.textTags && c.textTags.length) ? c.textTags.join(", ") : "";
       return c.header[field];
     });
+    applyKeptFillToMetaCells(wsBefore, lastResult.columns, c=>!!c.kept);
 
     const wsAfter = wb.getWorksheet("보장분석표(후)");
     // 보장분석표(후)의 C2는 원본 서식상 '보장분석표(전)'!C2를 그대로 참조하는 수식이라 별도로 채울 필요 없음.
@@ -983,6 +1000,7 @@ dlBtn.addEventListener("click", async ()=>{
       if(field === "text45") return (c.items && c.items["45"]) ? c.items["45"] : "";
       return c[field];
     });
+    applyKeptFillToMetaCells(wsAfter, afterColumns, c=>c.source==="carryover");
 
     // 실제로 채워진 상품 개수만큼만 인쇄 영역을 잡아서, 인쇄 미리보기 시
     // 빈 칸이 함께 인쇄되거나 반대로 상품이 많아 잘리는 일이 없게 한다.
@@ -1399,10 +1417,11 @@ function buildAfterSheetSkeleton(){
     html += `<tr><td class="grouplabel" colspan="2">${label}</td><td class="label"${totalCellAttr}>${totalText}</td>`;
     afterColumns.forEach((c,i)=>{
       const val = String(c[field]||"");
+      const metaCellClass = `meta-cell${c.source==='carryover'?' kept-cell':''}`;
       if(field === "productName"){
-        html += `<td><textarea rows="3" class="af-productname" data-col="${i}" data-gridrow="${mi}" data-gridcol="${i}">${val.replace(/</g,"&lt;")}</textarea></td>`;
+        html += `<td class="${metaCellClass}" data-metacol="${i}"><textarea rows="3" class="af-productname" data-col="${i}" data-gridrow="${mi}" data-gridcol="${i}">${val.replace(/</g,"&lt;")}</textarea></td>`;
       } else {
-        html += `<td><input type="text" class="af-meta-input" data-col="${i}" data-field="${field}" data-gridrow="${mi}" data-gridcol="${i}" value="${val.replace(/"/g,"&quot;")}"></td>`;
+        html += `<td class="${metaCellClass}" data-metacol="${i}"><input type="text" class="af-meta-input" data-col="${i}" data-field="${field}" data-gridrow="${mi}" data-gridcol="${i}" value="${val.replace(/"/g,"&quot;")}"></td>`;
       }
     });
     html += `</tr>`;
