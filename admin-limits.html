@@ -32,11 +32,11 @@ table.sheet tbody tr.empty-row td{padding:16px 14px;color:var(--muted);font-size
 table.sheet td input{width:100%;border:none;background:transparent;padding:10px 12px;font-size:13.5px;font-family:inherit;color:var(--ink);}
 table.sheet td input:focus{outline:2px solid var(--navy-600);outline-offset:-2px;background:#f4f8ff;border-radius:4px;}
 table.sheet td input::placeholder{color:#b7c0cc;}
-.col-name{width:190px;}
-.name-cell{position:relative;}
-.name-suggest{position:absolute;top:100%;left:4px;right:4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 24px rgba(15,37,69,.14);z-index:30;max-height:220px;overflow-y:auto;}
-.name-suggest-item{padding:9px 12px;font-size:13px;cursor:pointer;color:var(--ink);}
-.name-suggest-item:hover{background:var(--navy-100);}
+.col-name{width:210px;}
+table.sheet td select.coverage-select{width:100%;border:none;background:transparent;padding:10px 12px;font-size:13.5px;font-family:inherit;color:var(--ink);appearance:none;-webkit-appearance:none;cursor:pointer;}
+table.sheet td select.coverage-select:focus{outline:2px solid var(--navy-600);outline-offset:-2px;background:#f4f8ff;border-radius:4px;}
+table.sheet td select.coverage-select:invalid{color:#b7c0cc;}
+.legacy-name-hint{padding:0 12px 8px;font-size:11px;color:#c0392b;}
 .col-num{width:150px;}
 .col-num input{text-align:right;}
 .col-pair{width:190px;}
@@ -87,7 +87,7 @@ table.sheet td input::placeholder{color:#b7c0cc;}
 
 <p class="hint">
 · 금액은 만원 단위로 입력합니다. (예: 1억원 → 10000, 5천만원 → 5000)<br>
-· 담보명 입력 시 이미 등록된 담보명이 검색되어 아래에 표시됩니다. 클릭해서 선택하면 이름을 통일할 수 있고, 목록에 없으면 새로 입력해도 됩니다.<br>
+· 담보명은 보장분석표와 동일한 표준 담보 목록 중에서 선택합니다. (자유 입력 불가 — 회원 데이터와 정확히 매칭되도록 하기 위함입니다)<br>
 · 빈 칸으로 두면 해당 기준은 적용하지 않는 것으로 저장됩니다.<br>
 · 보험사 탭을 눌러 다른 보험사의 담보 목록으로 전환할 수 있고, "+ 보험사 추가"로 새 보험사를 등록할 수 있습니다.<br>
 · 표 아래 "+ 담보 추가"를 누르면 새 담보 행이 생기고, 각 행 오른쪽 ✕ 버튼으로 담보를 삭제 예약할 수 있습니다.<br>
@@ -142,6 +142,7 @@ async function loadLimits(){
       id: r.id,
       insurer: r.insurer,
       coverage_name: r.coverage_name,
+      coverage_row: r.coverage_row,
       max_total_limit: r.max_total_limit,
       count_limit_months: r.count_limit_months,
       count_limit_count: r.count_limit_count,
@@ -219,14 +220,43 @@ function addInsurer(){
   renderTable();
 }
 
-function getAllCoverageNames(){
-  const set = [];
-  limits.forEach(function(r){
-    const n = (r.coverage_name || "").trim();
-    if(!r._deleted && n && set.indexOf(n) === -1) set.push(n);
+// 보장분석표(전/후)에서 쓰는 표준 담보 36종과 동일한 목록/그룹이다.
+// (coverage.html의 ROW_DEFS와 반드시 같은 값으로 유지해야, 회원의 실제 담보 데이터와
+// 정확히 매칭되어 한도 초과 여부를 판단할 수 있다. "기타"(45번, 텍스트 태그)는 금액이
+// 아니라서 한도 체크 대상이 아니므로 제외한다.)
+const STANDARD_COVERAGES = [
+  [9,"실비","실손의료비 입원"],[10,"실비","실손의료비 통원"],
+  [11,"암","일반암 진단비"],[12,"암","유사암 진단비"],[13,"암","항암방사선약물"],[14,"암","표적항암치료비"],
+  [15,"뇌혈관 질환","뇌혈관 진단비"],[16,"뇌혈관 질환","뇌졸중 진단비"],[17,"뇌혈관 질환","뇌출혈 진단비"],
+  [18,"심장 질환","부정맥 진단비"],[19,"심장 질환","허혈성 진단비"],[20,"심장 질환","급성심근경색증 진단비"],
+  [21,"수술비","질병수술비"],[22,"수술비","상해수술비"],[23,"수술비","1종수술비"],[24,"수술비","2종수술비"],[25,"수술비","3종수술비"],[26,"수술비","4종수술비"],[27,"수술비","5종수술비"],
+  [28,"입원비(일당)","질병일당"],[29,"입원비(일당)","상해일당"],[30,"입원비(일당)","질병 간병인사용 입원일당"],[31,"입원비(일당)","상해 간병인사용 입원일당"],
+  [32,"사망","질병사망"],[33,"사망","상해사망"],
+  [34,"후유장해","질병후유장해 3%"],[35,"후유장해","상해후유장해 3%"],
+  [36,"운전자","교통사고처리 지원금"],[37,"운전자","변호사 선임비용"],[38,"운전자","벌금"],[39,"운전자","자동차사고 부상치료비"],
+  [40,"배상책임","일상생활 배상책임"],[41,"배상책임","화재벌금"],
+  [42,"화상/골절/깁스","화상 진단비"],[43,"화상/골절/깁스","골절 진단비"],[44,"화상/골절/깁스","깁스 치료비"],
+];
+
+function buildCoverageOptionsHtml(selectedRow){
+  const groups = [];
+  const byGroup = {};
+  STANDARD_COVERAGES.forEach(function(def){
+    const row = def[0], group = def[1], label = def[2];
+    if(!byGroup[group]){ byGroup[group] = []; groups.push(group); }
+    byGroup[group].push([row, label]);
   });
-  set.sort(function(a,b){ return a.localeCompare(b, "ko"); });
-  return set;
+  let html = '<option value="">담보 선택...</option>';
+  groups.forEach(function(group){
+    html += `<optgroup label="${group}">`;
+    byGroup[group].forEach(function(pair){
+      const row = pair[0], label = pair[1];
+      const sel = String(row) === String(selectedRow) ? " selected" : "";
+      html += `<option value="${row}"${sel}>${label}</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  return html;
 }
 
 function visibleRowsForSelected(){
@@ -262,57 +292,26 @@ function buildRow(row){
   const tr = document.createElement("tr");
 
   const tdName = document.createElement("td");
-  const nameCell = document.createElement("div");
-  nameCell.className = "name-cell";
-  const nameInput = document.createElement("input");
-  nameInput.value = row.coverage_name || "";
-  nameInput.placeholder = "담보명 검색 또는 입력";
-  nameInput.autocomplete = "off";
-  const suggestBox = document.createElement("div");
-  suggestBox.className = "name-suggest";
-  suggestBox.style.display = "none";
-
-  function renderNameSuggestions(){
-    const q = nameInput.value.trim().toLowerCase();
-    const names = getAllCoverageNames().filter(function(n){ return n !== row.coverage_name; });
-    const matches = q ? names.filter(function(n){ return n.toLowerCase().indexOf(q) !== -1; }) : names;
-    const top = matches.slice(0, 8);
-    suggestBox.innerHTML = "";
-    if(!top.length){
-      suggestBox.style.display = "none";
-      return;
-    }
-    top.forEach(function(n){
-      const item = document.createElement("div");
-      item.className = "name-suggest-item";
-      item.textContent = n;
-      item.addEventListener("mousedown", function(e){
-        e.preventDefault();
-        nameInput.value = n;
-        row.coverage_name = n;
-        row._dirty = true;
-        setDirty(true);
-        suggestBox.style.display = "none";
-      });
-      suggestBox.appendChild(item);
-    });
-    suggestBox.style.display = "block";
-  }
-
-  nameInput.addEventListener("input", function(){
-    row.coverage_name = nameInput.value;
+  const nameSelect = document.createElement("select");
+  nameSelect.className = "coverage-select";
+  nameSelect.innerHTML = buildCoverageOptionsHtml(row.coverage_row);
+  nameSelect.addEventListener("change", function(){
+    const rowNum = nameSelect.value ? Number(nameSelect.value) : null;
+    row.coverage_row = rowNum;
+    const found = STANDARD_COVERAGES.find(function(def){ return def[0] === rowNum; });
+    row.coverage_name = found ? found[2] : "";
     row._dirty = true;
     setDirty(true);
-    renderNameSuggestions();
+    if(legacyHint) legacyHint.remove();
   });
-  nameInput.addEventListener("focus", renderNameSuggestions);
-  nameInput.addEventListener("blur", function(){
-    setTimeout(function(){ suggestBox.style.display = "none"; }, 150);
-  });
-
-  nameCell.appendChild(nameInput);
-  nameCell.appendChild(suggestBox);
-  tdName.appendChild(nameCell);
+  tdName.appendChild(nameSelect);
+  let legacyHint = null;
+  if(!row.coverage_row && row.coverage_name){
+    legacyHint = document.createElement("div");
+    legacyHint.className = "legacy-name-hint";
+    legacyHint.textContent = `기존 값: ${row.coverage_name} (목록에서 다시 선택해주세요)`;
+    tdName.appendChild(legacyHint);
+  }
   tr.appendChild(tdName);
 
   const tdMax = document.createElement("td");
@@ -442,6 +441,7 @@ function addCoverageRow(){
     id: null,
     insurer: selectedInsurer,
     coverage_name: "",
+    coverage_row: null,
     max_total_limit: null,
     count_limit_months: null,
     count_limit_count: null,
@@ -454,8 +454,10 @@ function addCoverageRow(){
   limits.push(row);
   setDirty(true);
   renderTable();
-  const inputs = document.querySelectorAll("#sheetBody tr td input");
-  if(inputs.length) inputs[inputs.length - 5] && inputs[inputs.length - 5].focus();
+  const rowTrs = document.querySelectorAll("#sheetBody tr");
+  const newRowTr = rowTrs[rowTrs.length - 2];
+  const sel = newRowTr && newRowTr.querySelector("select.coverage-select");
+  if(sel) sel.focus();
 }
 
 function setDirty(v){
@@ -477,10 +479,13 @@ async function saveAll(){
   msg.className = "msg";
   msg.textContent = "";
 
-  const activeRows = limits.filter(function(r){ return !r._deleted; });
-  for(const r of activeRows){
-    if(!(r.coverage_name || "").trim()){
-      showMsg("담보명이 비어 있는 행이 있습니다. (" + r.insurer + ")", "err");
+  // 저장 대상(신규/수정된 행)만 검증한다. 예전에 자유 텍스트로 입력해 아직
+  // 표준 담보로 다시 선택하지 않은 기존 행이 있어도, 그 행을 건드리지 않았다면
+  // 다른 변경사항 저장을 막지 않는다.
+  const rowsToValidate = limits.filter(function(r){ return !r._deleted && (r._isNew || r._dirty); });
+  for(const r of rowsToValidate){
+    if(!r.coverage_row){
+      showMsg("담보를 선택하지 않은 행이 있습니다. (" + r.insurer + ")", "err");
       return;
     }
   }
@@ -498,7 +503,8 @@ async function saveAll(){
       const payload = inserts.map(function(r){
         return {
           insurer: r.insurer,
-          coverage_name: r.coverage_name.trim(),
+          coverage_name: r.coverage_name,
+          coverage_row: r.coverage_row,
           max_total_limit: r.max_total_limit,
           count_limit_months: r.count_limit_months,
           count_limit_count: r.count_limit_count,
@@ -514,7 +520,8 @@ async function saveAll(){
     for(const r of updates){
       const payload = {
         insurer: r.insurer,
-        coverage_name: r.coverage_name.trim(),
+        coverage_name: r.coverage_name,
+        coverage_row: r.coverage_row,
         max_total_limit: r.max_total_limit,
         count_limit_months: r.count_limit_months,
         count_limit_count: r.count_limit_count,
