@@ -15,6 +15,13 @@
 <div class="dash-wrap">
 <h1>회원 관리</h1>
 <p class="sub">회원을 승인/거절하고 등급과 포인트를 변경할 수 있습니다.</p>
+
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">기능별 포인트 차감 설정</h2>
+  <p class="sub" style="margin:0 0 16px;">실버 회원이 병력정리/보장분석표 기능을 1회 이용할 때 차감되는 포인트입니다. (관리자/골드 회원은 항상 무료로 이용합니다)</p>
+  <div id="pointCostRows">불러오는 중...</div>
+</div>
+
 <table class="admin-table" id="memberTable">
 <thead>
 <tr>
@@ -47,8 +54,92 @@
 (async ()=>{
   const profile = await requireAdmin();
   if(!profile) return;
+  await loadPointCosts();
   await loadMembers();
 })();
+
+// 기능별 포인트 차감 설정 (병력정리/보장분석표 등) -- point_costs 테이블을 직접 읽고 쓴다.
+// RLS 정책상 조회는 로그인한 회원 누구나, 수정은 관리자만 가능하다.
+var pointCostFeatureLabels = { history: "병력정리", coverage: "보장분석표" };
+async function loadPointCosts(){
+  const wrap = document.getElementById("pointCostRows");
+  const { data, error } = await supabaseClient
+    .from("point_costs")
+    .select("feature, cost, label")
+    .order("feature", { ascending: true });
+  if(error){
+    wrap.textContent = "불러오기 실패: " + error.message;
+    return;
+  }
+  if(!data || data.length === 0){
+    wrap.textContent = "설정된 항목이 없습니다.";
+    return;
+  }
+  wrap.innerHTML = "";
+  data.forEach(function(row){
+    const line = document.createElement("div");
+    line.style.display = "flex";
+    line.style.alignItems = "center";
+    line.style.gap = "10px";
+    line.style.marginBottom = "10px";
+
+    const label = document.createElement("span");
+    label.style.minWidth = "110px";
+    label.style.fontWeight = "600";
+    label.style.color = "var(--navy-900)";
+    label.textContent = row.label || pointCostFeatureLabels[row.feature] || row.feature;
+    line.appendChild(label);
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "100";
+    input.value = row.cost;
+    input.style.width = "120px";
+    input.style.padding = "9px 11px";
+    input.style.border = "1px solid var(--line)";
+    input.style.borderRadius = "8px";
+    input.style.fontSize = "14px";
+    line.appendChild(input);
+
+    const unit = document.createElement("span");
+    unit.style.color = "var(--muted)";
+    unit.style.fontSize = "13px";
+    unit.textContent = "P (1회당)";
+    line.appendChild(unit);
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "btn-ghost";
+    saveBtn.textContent = "저장";
+    saveBtn.addEventListener("click", async function(){
+      const val = parseInt(input.value, 10);
+      if(isNaN(val) || val < 0){
+        alert("올바른 포인트 값을 입력해주세요.");
+        return;
+      }
+      saveBtn.disabled = true;
+      const { error: updateError } = await supabaseClient
+        .from("point_costs")
+        .update({ cost: val })
+        .eq("feature", row.feature);
+      saveBtn.disabled = false;
+      if(updateError){
+        alert("저장 실패: " + updateError.message);
+        return;
+      }
+      const savedMsg = document.createElement("span");
+      savedMsg.style.color = "var(--navy-600)";
+      savedMsg.style.fontSize = "13px";
+      savedMsg.textContent = "저장됨";
+      line.appendChild(savedMsg);
+      setTimeout(function(){ savedMsg.remove(); }, 2000);
+    });
+    line.appendChild(saveBtn);
+
+    wrap.appendChild(line);
+  });
+}
 
 async function loadMembers(){
   const { data, error } = await supabaseClient
