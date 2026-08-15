@@ -21,7 +21,7 @@ async function getMyProfile(){
     if(!session) return null;
     const { data, error } = await supabaseClient
         .from("profiles")
-        .select("id, email, role, approval_status, points")
+        .select("id, email, role, approval_status, points, nickname, created_at")
         .eq("id", session.user.id)
         .single();
     if(error){
@@ -49,4 +49,14 @@ async function spendPoints(feature){
         return false;
     }
     return data === true;
+}
+
+// 내 별명(닉네임)만 안전하게 저장한다 (등급/포인트 등 다른 항목은 이 함수로 바꿀 수 없음).
+async function updateMyNickname(nickname){
+    const { error } = await supabaseClient.rpc("update_my_nickname", { p_nickname: nickname });
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
 }
