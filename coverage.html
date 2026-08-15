@@ -925,8 +925,9 @@ function fillSheetColumns(ws, columns, getField){
   });
 }
 
-// 화면에서 "유지" 표시된 상품 열의 계약정보 6개 행(3~8행: 보험회사/상품명/보험기간/
+// 화면에서 "유지" 표시된 상품 열의 계약정보 5개 행(4~8행: 상품명/보험기간/
 // 납기·만기/보험료/계약자)에 엑셀에서도 연한 색으로 구분해 입힌다.
+// 3행(보험사)은 원본 서식의 헤더 색을 그대로 유지하도록 건드리지 않는다.
 // (전) 시트는 kept 체크된 컬럼, (후) 시트는 전에서 유지되어 자동 연동된(carryover) 컬럼에만 적용된다.
 // 주의: ws.getCell(...).fill = X 로 바로 대입하면, 아직 서식이 손대지지 않은 셀들이 내부적으로
 // 같은 style 객체를 공유하고 있어서 의도한 셀 하나만이 아니라 같은 서식을 쓰는 다른 상품 열까지
@@ -938,7 +939,7 @@ function applyKeptFillToMetaCells(ws, columns, isKeptFn){
   columns.forEach((c, i)=>{
     if(!isKeptFn(c)) return;
     const col = startCol + i;
-    for(let row=3; row<=8; row++){
+    for(let row=4; row<=8; row++){
       const cell = ws.getCell(row, col);
       cell.style = Object.assign({}, cell.style, { fill: KEPT_CELL_FILL });
     }
