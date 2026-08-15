@@ -7,21 +7,51 @@
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-.limit-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px 26px;margin-bottom:28px;}
-.limit-card h2{margin:0 0 4px;font-size:17px;color:var(--navy-950);}
-.limit-card p.sub{margin:0 0 20px;color:var(--muted);font-size:13px;}
-.limit-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px;}
-.limit-form-grid .field{margin-bottom:0;}
-.limit-form-grid .field-full{grid-column:1 / -1;}
-.field-hint{margin:4px 0 0;font-size:12px;color:var(--muted);}
-.form-actions{display:flex;gap:10px;margin-top:18px;}
-.form-actions button{width:auto;padding:11px 22px;}
-#cancelEditBtn{display:none;}
-.limit-filter{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-.limit-filter input{flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;}
-.admin-table td.num{text-align:right;font-variant-numeric:tabular-nums;}
-.admin-table .row-actions{white-space:nowrap;}
-.admin-table .row-actions button{margin-right:6px;}
+.dash-wrap{max-width:1100px;}
+.insurer-tabs{display:flex;align-items:center;gap:8px;margin-bottom:0;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+.insurer-tab{padding:11px 18px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.insurer-tab.active{color:var(--navy-950);border-bottom-color:var(--navy-800);}
+.insurer-tab-add{padding:11px 14px;font-size:13px;color:var(--navy-600);cursor:pointer;font-weight:600;}
+.sheet-toolbar{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;min-height:36px;}
+.sheet-toolbar .left{font-size:13px;color:var(--muted);}
+.unsaved-dot{width:7px;height:7px;border-radius:50%;background:#d99a2b;display:inline-block;margin-right:6px;}
+.btn-save{background:var(--navy-900);color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:13.5px;font-weight:700;cursor:pointer;}
+.btn-save:disabled{background:#a9b6c6;cursor:not-allowed;}
+.sheet-wrap{border:1px solid var(--line);border-radius:12px;background:#fff;}
+table.sheet{width:100%;border-collapse:separate;border-spacing:0;}
+table.sheet thead th{background:var(--navy-950);color:#fff;font-size:12.5px;font-weight:700;padding:10px 12px;text-align:left;white-space:nowrap;}
+table.sheet thead th:first-child{border-top-left-radius:11px;}
+table.sheet thead th:last-child{border-top-right-radius:11px;}
+table.sheet thead th .th-sub{display:block;font-weight:500;opacity:.85;font-size:11px;}
+table.sheet tbody td{border-bottom:1px solid var(--line);border-right:1px solid #eef1f5;padding:0;}
+table.sheet tbody tr:last-child td{border-bottom:none;}
+table.sheet tbody td:last-child{border-right:none;}
+table.sheet tbody tr:last-child td:first-child{border-bottom-left-radius:11px;}
+table.sheet tbody tr:last-child td:last-child{border-bottom-right-radius:11px;}
+table.sheet tbody tr.empty-row td{padding:16px 14px;color:var(--muted);font-size:13.5px;border-right:none;}
+table.sheet td input{width:100%;border:none;background:transparent;padding:10px 12px;font-size:13.5px;font-family:inherit;color:var(--ink);}
+table.sheet td input:focus{outline:2px solid var(--navy-600);outline-offset:-2px;background:#f4f8ff;border-radius:4px;}
+table.sheet td input::placeholder{color:#b7c0cc;}
+.col-name{width:190px;}
+.name-cell{position:relative;}
+.name-suggest{position:absolute;top:100%;left:4px;right:4px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 24px rgba(15,37,69,.14);z-index:30;max-height:220px;overflow-y:auto;}
+.name-suggest-item{padding:9px 12px;font-size:13px;cursor:pointer;color:var(--ink);}
+.name-suggest-item:hover{background:var(--navy-100);}
+.col-num{width:150px;}
+.col-num input{text-align:right;}
+.col-pair{width:190px;}
+.pair-cell{display:flex;align-items:center;}
+.pair-cell input{text-align:center;}
+.pair-cell input.months{width:38px;flex:none;}
+.pair-cell input.count{width:38px;flex:none;}
+.pair-cell input.amount{flex:1;text-align:right;}
+.pair-cell span.sep{color:var(--muted);font-size:12px;padding:0 2px;white-space:nowrap;}
+.col-del{width:44px;text-align:center;}
+.row-del-btn{border:none;background:transparent;color:#c0392b;cursor:pointer;font-size:15px;padding:6px;}
+.row-del-btn:hover{opacity:.7;}
+.add-row{padding:10px 12px;color:var(--navy-600);font-size:13px;font-weight:600;cursor:pointer;}
+.add-row:hover{background:var(--navy-100);}
+.hint{margin-top:12px;font-size:12.5px;color:var(--muted);line-height:1.7;}
 </style>
 </head>
 <body>
@@ -31,84 +61,48 @@
 </div>
 <div class="dash-wrap">
 <h1>당타사한도 관리</h1>
-<p class="sub">보험사별 담보 한도 기준을 등록/수정합니다. 이 화면은 관리자만 접근할 수 있으며, 여기서 정리한 기준으로 회원의 신규 가입 시 한도 초과 여부를 확인하는 기능이 이후 단계에서 연결됩니다.</p>
+<p class="sub">보험사를 선택한 뒤, 담보별 한도 기준을 표에서 바로 입력·수정하세요. 셀을 클릭하면 바로 편집할 수 있으며, "변경사항 저장"을 눌러야 실제로 저장됩니다.</p>
 
-<div class="limit-card">
-<h2 id="formTitle">담보 한도 등록</h2>
-<p class="sub">보험사와 담보명을 기준으로 매칭되며, 담보명은 자유롭게 입력한 문구 그대로 저장됩니다.</p>
-<form id="limitForm">
-<input type="hidden" id="editId" value="">
-<div class="limit-form-grid">
-<div class="field">
-<label>보험사</label>
-<input type="text" id="insurer" required placeholder="예: 삼성화재">
-</div>
-<div class="field">
-<label>담보명</label>
-<input type="text" id="coverageName" required placeholder="예: 암진단비">
-</div>
-<div class="field">
-<label>① 최대 합산한도 (원)</label>
-<input type="number" id="maxTotalLimit" min="0" step="1" placeholder="예: 100000000">
-<p class="field-hint">이 보험사에서 해당 담보를 합산했을 때 넘을 수 없는 최대 금액입니다.</p>
-</div>
-<div class="field"></div>
-<div class="field">
-<label>② 가입일 기준 N개월 이내 N건 초과</label>
-<div style="display:flex;gap:8px;align-items:center;">
-<input type="number" id="countLimitMonths" min="0" step="1" placeholder="개월 수" style="flex:1;">
-<span style="color:var(--muted);font-size:13px;">개월 이내</span>
-<input type="number" id="countLimitCount" min="0" step="1" placeholder="건수" style="flex:1;">
-<span style="color:var(--muted);font-size:13px;">건 초과</span>
-</div>
-<p class="field-hint">예: 3개월 이내 2건 초과 시 한도 초과로 표시됩니다.</p>
-</div>
-<div class="field">
-<label>③ 가입일 기준 N개월 이내 금액 초과</label>
-<div style="display:flex;gap:8px;align-items:center;">
-<input type="number" id="amountLimitMonths" min="0" step="1" placeholder="개월 수" style="flex:1;">
-<span style="color:var(--muted);font-size:13px;">개월 이내</span>
-<input type="number" id="amountLimitAmount" min="0" step="1" placeholder="금액(원)" style="flex:1;">
-<span style="color:var(--muted);font-size:13px;">원 초과</span>
-</div>
-<p class="field-hint">예: 6개월 이내 누적 가입금액이 5천만원을 초과하면 한도 초과로 표시됩니다.</p>
-</div>
-</div>
-<div class="form-actions">
-<button type="submit" class="btn-primary" id="saveBtn" style="width:auto;">저장</button>
-<button type="button" class="btn-ghost" id="cancelEditBtn">수정 취소</button>
-</div>
-<div class="msg" id="formMsg"></div>
-</form>
+<div class="insurer-tabs" id="insurerTabs"></div>
+
+<div class="sheet-toolbar">
+<div class="left" id="dirtyIndicator"></div>
+<div><button class="btn-save" id="saveBtn">변경사항 저장</button></div>
 </div>
 
-<div class="limit-card">
-<h2>등록된 당타사한도 목록</h2>
-<p class="sub">보험사명으로 검색해 원하는 항목을 빠르게 찾을 수 있습니다.</p>
-<div class="limit-filter">
-<input type="text" id="searchInsurer" placeholder="보험사명으로 검색...">
-</div>
-<table class="admin-table" id="limitTable">
+<div class="sheet-wrap">
+<table class="sheet">
 <thead>
 <tr>
-<th>보험사</th>
-<th>담보명</th>
-<th>① 최대 합산한도</th>
-<th>② N개월/N건</th>
-<th>③ N개월/N금액</th>
-<th>작업</th>
+<th class="col-name">담보명</th>
+<th class="col-num">① 합산한도<span class="th-sub">최대 금액(만원)</span></th>
+<th class="col-pair">② N개월 이내 건수초과<span class="th-sub">개월 / 건수</span></th>
+<th class="col-pair">③ N개월 이내 합산한도초과<span class="th-sub">개월 / 금액(만원)</span></th>
+<th class="col-del"></th>
 </tr>
 </thead>
-<tbody id="limitRows">
-<tr><td colspan="6">불러오는 중...</td></tr>
-</tbody>
+<tbody id="sheetBody"></tbody>
 </table>
 </div>
+
+<p class="hint">
+· 금액은 만원 단위로 입력합니다. (예: 1억원 → 10000, 5천만원 → 5000)<br>
+· 담보명 입력 시 이미 등록된 담보명이 검색되어 아래에 표시됩니다. 클릭해서 선택하면 이름을 통일할 수 있고, 목록에 없으면 새로 입력해도 됩니다.<br>
+· 빈 칸으로 두면 해당 기준은 적용하지 않는 것으로 저장됩니다.<br>
+· 보험사 탭을 눌러 다른 보험사의 담보 목록으로 전환할 수 있고, "+ 보험사 추가"로 새 보험사를 등록할 수 있습니다.<br>
+· 표 아래 "+ 담보 추가"를 누르면 새 담보 행이 생기고, 각 행 오른쪽 ✕ 버튼으로 담보를 삭제 예약할 수 있습니다.<br>
+· "변경사항 저장"을 눌러야 행 추가/삭제를 포함한 모든 변경사항이 실제로 저장됩니다.
+</p>
+
+<div class="msg" id="formMsg"></div>
 
 </div>
 <script src="assets/supabase-client.js"></script>
 <script>
-let allLimits = [];
+let limits = [];
+let pendingInsurers = [];
+let selectedInsurer = null;
+let dirty = false;
 
 (async ()=>{
   const profile = await requireAdmin();
@@ -116,9 +110,19 @@ let allLimits = [];
   await loadLimits();
 })();
 
-function formatWon(n){
-  if(n === null || n === undefined || n === "") return "-";
-  return Number(n).toLocaleString("ko-KR") + "원";
+function numOrNull(v){
+  if(v === null || v === undefined) return null;
+  const cleaned = String(v).replace(/,/g, "").trim();
+  if(cleaned === "") return null;
+  const n = Number(cleaned);
+  return isNaN(n) ? null : n;
+}
+
+function formatAmount(n){
+  if(n === null || n === undefined || n === "") return "";
+  const num = Number(n);
+  if(isNaN(num)) return "";
+  return num.toLocaleString("ko-KR");
 }
 
 async function loadLimits(){
@@ -127,183 +131,413 @@ async function loadLimits(){
     .select("*")
     .order("insurer", { ascending: true })
     .order("coverage_name", { ascending: true });
-  const tbody = document.getElementById("limitRows");
+
   if(error){
-    tbody.innerHTML = "";
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 6;
-    td.textContent = "불러오기 실패: " + error.message;
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    return;
-  }
-  allLimits = data || [];
-  renderLimits();
-}
-
-function renderLimits(){
-  const tbody = document.getElementById("limitRows");
-  const keyword = document.getElementById("searchInsurer").value.trim();
-  const filtered = keyword
-    ? allLimits.filter(function(l){ return (l.insurer || "").includes(keyword); })
-    : allLimits;
-
-  tbody.innerHTML = "";
-  if(filtered.length === 0){
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 6;
-    td.textContent = "등록된 항목이 없습니다.";
-    tr.appendChild(td);
-    tbody.appendChild(tr);
+    showMsg("불러오기 실패: " + error.message, "err");
     return;
   }
 
-  filtered.forEach(function(l){
-    const tr = document.createElement("tr");
-
-    const tdInsurer = document.createElement("td");
-    tdInsurer.textContent = l.insurer;
-    tr.appendChild(tdInsurer);
-
-    const tdCoverage = document.createElement("td");
-    tdCoverage.textContent = l.coverage_name;
-    tr.appendChild(tdCoverage);
-
-    const tdMax = document.createElement("td");
-    tdMax.className = "num";
-    tdMax.textContent = formatWon(l.max_total_limit);
-    tr.appendChild(tdMax);
-
-    const tdCount = document.createElement("td");
-    tdCount.className = "num";
-    tdCount.textContent = (l.count_limit_months != null && l.count_limit_count != null)
-      ? (l.count_limit_months + "개월/" + l.count_limit_count + "건")
-      : "-";
-    tr.appendChild(tdCount);
-
-    const tdAmount = document.createElement("td");
-    tdAmount.className = "num";
-    tdAmount.textContent = (l.amount_limit_months != null && l.amount_limit_amount != null)
-      ? (l.amount_limit_months + "개월/" + formatWon(l.amount_limit_amount))
-      : "-";
-    tr.appendChild(tdAmount);
-
-    const tdAction = document.createElement("td");
-    tdAction.className = "row-actions";
-    const editBtn = document.createElement("button");
-    editBtn.className = "btn-ghost";
-    editBtn.textContent = "수정";
-    editBtn.addEventListener("click", function(){ startEdit(l); });
-    const delBtn = document.createElement("button");
-    delBtn.className = "btn-ghost";
-    delBtn.textContent = "삭제";
-    delBtn.addEventListener("click", function(){ deleteLimit(l.id); });
-    tdAction.appendChild(editBtn);
-    tdAction.appendChild(delBtn);
-    tr.appendChild(tdAction);
-
-    tbody.appendChild(tr);
+  limits = (data || []).map(function(r){
+    return {
+      id: r.id,
+      insurer: r.insurer,
+      coverage_name: r.coverage_name,
+      max_total_limit: r.max_total_limit,
+      count_limit_months: r.count_limit_months,
+      count_limit_count: r.count_limit_count,
+      amount_limit_months: r.amount_limit_months,
+      amount_limit_amount: r.amount_limit_amount,
+      _isNew: false,
+      _dirty: false,
+      _deleted: false
+    };
   });
+
+  pendingInsurers = pendingInsurers.filter(function(name){
+    return !limits.some(function(r){ return r.insurer === name && !r._deleted; });
+  });
+
+  const insurers = getInsurerList();
+  if(!selectedInsurer || insurers.indexOf(selectedInsurer) === -1){
+    selectedInsurer = insurers.length ? insurers[0] : null;
+  }
+
+  setDirty(false);
+  renderTabs();
+  renderTable();
 }
 
-document.getElementById("searchInsurer").addEventListener("input", renderLimits);
-
-function startEdit(l){
-  document.getElementById("formTitle").textContent = "담보 한도 수정";
-  document.getElementById("editId").value = l.id;
-  document.getElementById("insurer").value = l.insurer || "";
-  document.getElementById("coverageName").value = l.coverage_name || "";
-  document.getElementById("maxTotalLimit").value = l.max_total_limit ?? "";
-  document.getElementById("countLimitMonths").value = l.count_limit_months ?? "";
-  document.getElementById("countLimitCount").value = l.count_limit_count ?? "";
-  document.getElementById("amountLimitMonths").value = l.amount_limit_months ?? "";
-  document.getElementById("amountLimitAmount").value = l.amount_limit_amount ?? "";
-  document.getElementById("cancelEditBtn").style.display = "inline-block";
-  document.getElementById("saveBtn").textContent = "수정 저장";
-  window.scrollTo({ top: 0, behavior: "smooth" });
+function getInsurerList(){
+  const set = [];
+  limits.forEach(function(r){
+    if(!r._deleted && r.insurer && set.indexOf(r.insurer) === -1) set.push(r.insurer);
+  });
+  pendingInsurers.forEach(function(name){
+    if(set.indexOf(name) === -1) set.push(name);
+  });
+  set.sort(function(a,b){ return a.localeCompare(b, "ko"); });
+  return set;
 }
 
-function resetForm(){
-  document.getElementById("formTitle").textContent = "담보 한도 등록";
-  document.getElementById("limitForm").reset();
-  document.getElementById("editId").value = "";
-  document.getElementById("cancelEditBtn").style.display = "none";
-  document.getElementById("saveBtn").textContent = "저장";
+function renderTabs(){
+  const wrap = document.getElementById("insurerTabs");
+  wrap.innerHTML = "";
+  const insurers = getInsurerList();
+
+  insurers.forEach(function(name){
+    const tab = document.createElement("div");
+    tab.className = "insurer-tab" + (name === selectedInsurer ? " active" : "");
+    tab.textContent = name;
+    tab.addEventListener("click", function(){
+      selectedInsurer = name;
+      renderTabs();
+      renderTable();
+    });
+    wrap.appendChild(tab);
+  });
+
+  const addTab = document.createElement("div");
+  addTab.className = "insurer-tab-add";
+  addTab.textContent = "+ 보험사 추가";
+  addTab.addEventListener("click", addInsurer);
+  wrap.appendChild(addTab);
 }
 
-document.getElementById("cancelEditBtn").addEventListener("click", resetForm);
+function addInsurer(){
+  const name = (prompt("추가할 보험사명을 입력하세요.") || "").trim();
+  if(!name) return;
+  const existing = getInsurerList();
+  if(existing.indexOf(name) !== -1){
+    selectedInsurer = name;
+    renderTabs();
+    renderTable();
+    return;
+  }
+  pendingInsurers.push(name);
+  selectedInsurer = name;
+  renderTabs();
+  renderTable();
+}
 
-document.getElementById("limitForm").addEventListener("submit", async function(e){
-  e.preventDefault();
+function getAllCoverageNames(){
+  const set = [];
+  limits.forEach(function(r){
+    const n = (r.coverage_name || "").trim();
+    if(!r._deleted && n && set.indexOf(n) === -1) set.push(n);
+  });
+  set.sort(function(a,b){ return a.localeCompare(b, "ko"); });
+  return set;
+}
+
+function visibleRowsForSelected(){
+  return limits.filter(function(r){ return r.insurer === selectedInsurer && !r._deleted; });
+}
+
+function renderTable(){
+  const tbody = document.getElementById("sheetBody");
+  tbody.innerHTML = "";
+
+  if(!selectedInsurer){
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">보험사를 먼저 선택하거나 추가하세요.</td></tr>';
+    return;
+  }
+
+  const rows = visibleRowsForSelected();
+
+  rows.forEach(function(row){
+    tbody.appendChild(buildRow(row));
+  });
+
+  const addRowTr = document.createElement("tr");
+  const addRowTd = document.createElement("td");
+  addRowTd.colSpan = 5;
+  addRowTd.className = "add-row";
+  addRowTd.textContent = "+ 담보 추가";
+  addRowTd.addEventListener("click", function(){ addCoverageRow(); });
+  addRowTr.appendChild(addRowTd);
+  tbody.appendChild(addRowTr);
+}
+
+function buildRow(row){
+  const tr = document.createElement("tr");
+
+  const tdName = document.createElement("td");
+  const nameCell = document.createElement("div");
+  nameCell.className = "name-cell";
+  const nameInput = document.createElement("input");
+  nameInput.value = row.coverage_name || "";
+  nameInput.placeholder = "담보명 검색 또는 입력";
+  nameInput.autocomplete = "off";
+  const suggestBox = document.createElement("div");
+  suggestBox.className = "name-suggest";
+  suggestBox.style.display = "none";
+
+  function renderNameSuggestions(){
+    const q = nameInput.value.trim().toLowerCase();
+    const names = getAllCoverageNames().filter(function(n){ return n !== row.coverage_name; });
+    const matches = q ? names.filter(function(n){ return n.toLowerCase().indexOf(q) !== -1; }) : names;
+    const top = matches.slice(0, 8);
+    suggestBox.innerHTML = "";
+    if(!top.length){
+      suggestBox.style.display = "none";
+      return;
+    }
+    top.forEach(function(n){
+      const item = document.createElement("div");
+      item.className = "name-suggest-item";
+      item.textContent = n;
+      item.addEventListener("mousedown", function(e){
+        e.preventDefault();
+        nameInput.value = n;
+        row.coverage_name = n;
+        row._dirty = true;
+        setDirty(true);
+        suggestBox.style.display = "none";
+      });
+      suggestBox.appendChild(item);
+    });
+    suggestBox.style.display = "block";
+  }
+
+  nameInput.addEventListener("input", function(){
+    row.coverage_name = nameInput.value;
+    row._dirty = true;
+    setDirty(true);
+    renderNameSuggestions();
+  });
+  nameInput.addEventListener("focus", renderNameSuggestions);
+  nameInput.addEventListener("blur", function(){
+    setTimeout(function(){ suggestBox.style.display = "none"; }, 150);
+  });
+
+  nameCell.appendChild(nameInput);
+  nameCell.appendChild(suggestBox);
+  tdName.appendChild(nameCell);
+  tr.appendChild(tdName);
+
+  const tdMax = document.createElement("td");
+  tdMax.className = "col-num";
+  const maxInput = document.createElement("input");
+  maxInput.type = "text";
+  maxInput.inputMode = "numeric";
+  maxInput.value = formatAmount(row.max_total_limit);
+  maxInput.placeholder = "-";
+  maxInput.addEventListener("focus", function(){ maxInput.value = row.max_total_limit ?? ""; });
+  maxInput.addEventListener("blur", function(){
+    row.max_total_limit = numOrNull(maxInput.value);
+    maxInput.value = formatAmount(row.max_total_limit);
+  });
+  maxInput.addEventListener("input", function(){
+    maxInput.value = maxInput.value.replace(/[^0-9,]/g, "");
+    row._dirty = true;
+    setDirty(true);
+  });
+  tdMax.appendChild(maxInput);
+  tr.appendChild(tdMax);
+
+  const tdCount = document.createElement("td");
+  const countPair = document.createElement("div");
+  countPair.className = "pair-cell";
+  const countMonths = document.createElement("input");
+  countMonths.className = "months";
+  countMonths.type = "text";
+  countMonths.inputMode = "numeric";
+  countMonths.placeholder = "-";
+  countMonths.value = row.count_limit_months ?? "";
+  const sep1 = document.createElement("span");
+  sep1.className = "sep";
+  sep1.textContent = "개월 /";
+  const countCount = document.createElement("input");
+  countCount.className = "count";
+  countCount.type = "text";
+  countCount.inputMode = "numeric";
+  countCount.placeholder = "-";
+  countCount.value = row.count_limit_count ?? "";
+  const sep2 = document.createElement("span");
+  sep2.className = "sep";
+  sep2.textContent = "건";
+  [countMonths, countCount].forEach(function(inp){
+    inp.addEventListener("input", function(){
+      inp.value = inp.value.replace(/[^0-9]/g, "");
+      row.count_limit_months = numOrNull(countMonths.value);
+      row.count_limit_count = numOrNull(countCount.value);
+      row._dirty = true;
+      setDirty(true);
+    });
+  });
+  countPair.appendChild(countMonths);
+  countPair.appendChild(sep1);
+  countPair.appendChild(countCount);
+  countPair.appendChild(sep2);
+  tdCount.appendChild(countPair);
+  tr.appendChild(tdCount);
+
+  const tdAmount = document.createElement("td");
+  const amountPair = document.createElement("div");
+  amountPair.className = "pair-cell";
+  const amountMonths = document.createElement("input");
+  amountMonths.className = "months";
+  amountMonths.type = "text";
+  amountMonths.inputMode = "numeric";
+  amountMonths.placeholder = "-";
+  amountMonths.value = row.amount_limit_months ?? "";
+  const sep3 = document.createElement("span");
+  sep3.className = "sep";
+  sep3.textContent = "개월 /";
+  const amountAmount = document.createElement("input");
+  amountAmount.className = "amount";
+  amountAmount.placeholder = "-";
+  amountAmount.value = formatAmount(row.amount_limit_amount);
+  amountAmount.addEventListener("focus", function(){ amountAmount.value = row.amount_limit_amount ?? ""; });
+  amountAmount.addEventListener("blur", function(){
+    row.amount_limit_amount = numOrNull(amountAmount.value);
+    amountAmount.value = formatAmount(row.amount_limit_amount);
+  });
+  const sep4 = document.createElement("span");
+  sep4.className = "sep";
+  sep4.textContent = "만원";
+  amountMonths.addEventListener("input", function(){
+    amountMonths.value = amountMonths.value.replace(/[^0-9]/g, "");
+    row.amount_limit_months = numOrNull(amountMonths.value);
+    row._dirty = true;
+    setDirty(true);
+  });
+  amountAmount.addEventListener("input", function(){
+    amountAmount.value = amountAmount.value.replace(/[^0-9,]/g, "");
+    row._dirty = true;
+    setDirty(true);
+  });
+  amountPair.appendChild(amountMonths);
+  amountPair.appendChild(sep3);
+  amountPair.appendChild(amountAmount);
+  amountPair.appendChild(sep4);
+  tdAmount.appendChild(amountPair);
+  tr.appendChild(tdAmount);
+
+  const tdDel = document.createElement("td");
+  tdDel.className = "col-del";
+  const delBtn = document.createElement("button");
+  delBtn.className = "row-del-btn";
+  delBtn.textContent = "✕";
+  delBtn.title = "삭제 예약 (저장 시 반영)";
+  delBtn.addEventListener("click", function(){
+    if(row._isNew){
+      const idx = limits.indexOf(row);
+      if(idx !== -1) limits.splice(idx, 1);
+    } else {
+      row._deleted = true;
+    }
+    setDirty(true);
+    renderTable();
+    renderTabs();
+  });
+  tdDel.appendChild(delBtn);
+  tr.appendChild(tdDel);
+
+  return tr;
+}
+
+function addCoverageRow(){
+  const row = {
+    id: null,
+    insurer: selectedInsurer,
+    coverage_name: "",
+    max_total_limit: null,
+    count_limit_months: null,
+    count_limit_count: null,
+    amount_limit_months: null,
+    amount_limit_amount: null,
+    _isNew: true,
+    _dirty: true,
+    _deleted: false
+  };
+  limits.push(row);
+  setDirty(true);
+  renderTable();
+  const inputs = document.querySelectorAll("#sheetBody tr td input");
+  if(inputs.length) inputs[inputs.length - 5] && inputs[inputs.length - 5].focus();
+}
+
+function setDirty(v){
+  dirty = v;
+  const indicator = document.getElementById("dirtyIndicator");
+  indicator.innerHTML = v ? '<span class="unsaved-dot"></span>저장하지 않은 변경사항이 있습니다' : "";
+}
+
+function showMsg(text, type){
+  const msg = document.getElementById("formMsg");
+  msg.className = "msg " + (type === "err" ? "err" : "ok") + " show";
+  msg.textContent = text;
+}
+
+document.getElementById("saveBtn").addEventListener("click", saveAll);
+
+async function saveAll(){
   const msg = document.getElementById("formMsg");
   msg.className = "msg";
   msg.textContent = "";
 
-  const insurer = document.getElementById("insurer").value.trim();
-  const coverageName = document.getElementById("coverageName").value.trim();
-  if(!insurer || !coverageName){
-    msg.className = "msg err show";
-    msg.textContent = "보험사와 담보명은 필수입니다.";
-    return;
+  const activeRows = limits.filter(function(r){ return !r._deleted; });
+  for(const r of activeRows){
+    if(!(r.coverage_name || "").trim()){
+      showMsg("담보명이 비어 있는 행이 있습니다. (" + r.insurer + ")", "err");
+      return;
+    }
   }
 
-  function numOrNull(id){
-    const v = document.getElementById(id).value;
-    if(v === "" || v === null) return null;
-    const n = Number(v);
-    return isNaN(n) ? null : n;
-  }
-
-  const payload = {
-    insurer: insurer,
-    coverage_name: coverageName,
-    max_total_limit: numOrNull("maxTotalLimit"),
-    count_limit_months: numOrNull("countLimitMonths"),
-    count_limit_count: numOrNull("countLimitCount"),
-    amount_limit_months: numOrNull("amountLimitMonths"),
-    amount_limit_amount: numOrNull("amountLimitAmount")
-  };
-
-  const editId = document.getElementById("editId").value;
   const saveBtn = document.getElementById("saveBtn");
   saveBtn.disabled = true;
 
-  let error;
-  if(editId){
-    payload.updated_at = new Date().toISOString();
-    const res = await supabaseClient.from("other_company_limits").update(payload).eq("id", editId);
-    error = res.error;
-  } else {
-    const { data:{ session } } = await supabaseClient.auth.getSession();
-    payload.created_by = session ? session.user.id : null;
-    const res = await supabaseClient.from("other_company_limits").insert(payload);
-    error = res.error;
+  try{
+    const inserts = limits.filter(function(r){ return r._isNew && !r._deleted; });
+    const updates = limits.filter(function(r){ return !r._isNew && !r._deleted && r._dirty; });
+    const deletes = limits.filter(function(r){ return !r._isNew && r._deleted; }).map(function(r){ return r.id; });
+
+    if(inserts.length){
+      const { data:{ session } } = await supabaseClient.auth.getSession();
+      const payload = inserts.map(function(r){
+        return {
+          insurer: r.insurer,
+          coverage_name: r.coverage_name.trim(),
+          max_total_limit: r.max_total_limit,
+          count_limit_months: r.count_limit_months,
+          count_limit_count: r.count_limit_count,
+          amount_limit_months: r.amount_limit_months,
+          amount_limit_amount: r.amount_limit_amount,
+          created_by: session ? session.user.id : null
+        };
+      });
+      const { error } = await supabaseClient.from("other_company_limits").insert(payload);
+      if(error) throw error;
+    }
+
+    for(const r of updates){
+      const payload = {
+        insurer: r.insurer,
+        coverage_name: r.coverage_name.trim(),
+        max_total_limit: r.max_total_limit,
+        count_limit_months: r.count_limit_months,
+        count_limit_count: r.count_limit_count,
+        amount_limit_months: r.amount_limit_months,
+        amount_limit_amount: r.amount_limit_amount,
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await supabaseClient.from("other_company_limits").update(payload).eq("id", r.id);
+      if(error) throw error;
+    }
+
+    if(deletes.length){
+      const { error } = await supabaseClient.from("other_company_limits").delete().in("id", deletes);
+      if(error) throw error;
+    }
+
+    showMsg("저장되었습니다.", "ok");
+    await loadLimits();
+  } catch(err){
+    showMsg("저장 실패: " + (err && err.message ? err.message : String(err)), "err");
+  } finally {
+    saveBtn.disabled = false;
   }
-
-  saveBtn.disabled = false;
-
-  if(error){
-    msg.className = "msg err show";
-    msg.textContent = "저장 실패: " + error.message;
-    return;
-  }
-
-  msg.className = "msg ok show";
-  msg.textContent = editId ? "수정되었습니다." : "등록되었습니다.";
-  resetForm();
-  await loadLimits();
-});
-
-async function deleteLimit(id){
-  if(!confirm("이 항목을 삭제하시겠습니까?")) return;
-  const { error } = await supabaseClient.from("other_company_limits").delete().eq("id", id);
-  if(error){
-    alert("삭제 실패: " + error.message);
-    return;
-  }
-  await loadLimits();
 }
 
 document.getElementById("logoutLink").addEventListener("click", async (e)=>{
