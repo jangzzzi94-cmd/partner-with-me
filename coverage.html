@@ -966,14 +966,10 @@ dlBtn.addEventListener("click", async ()=>{
     wb.calcProperties = wb.calcProperties || {};
     wb.calcProperties.fullCalcOnLoad = true;
 
-    // 표지 시트: 고객명과 작성일을 다운로드 시점 기준으로 채운다.
-    const wsCover = wb.getWorksheet("표지");
-    if(wsCover){
-      wsCover.getCell("B3").value = `${lastResult.customerName || lastResult.baseName || "고객"}님`;
-    }
+    // 표지 시트 B3는 템플릿에 내장된 수식이 '보장분석표(전)'!C2 값을 그대로 참조해 자동 표시하므로 별도로 채울 필요 없음.
 
     const wsBefore = wb.getWorksheet("보장분석표(전)");
-    wsBefore.getCell("C2").value = lastResult.customerName || "";
+    wsBefore.getCell("C2").value = lastResult.customerName || lastResult.baseName || "";
     fillSheetColumns(wsBefore, lastResult.columns, (c, field)=>{
       if(field === "amounts") return c.amounts;
       if(field === "text45") return (c.textTags && c.textTags.length) ? c.textTags.join(", ") : "";
