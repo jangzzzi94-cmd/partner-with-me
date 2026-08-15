@@ -10,7 +10,7 @@
 <body>
 <div class="navbar">
 <a href="dashboard.html" class="brand">With <span>Partners</span></a>
-<nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="admin-limits.html" id="adminLimitsLink" style="display:none">당타사한도</a><a href="#" id="logoutLink">로그아웃</a></nav>
+<nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="admin-limits.html" id="adminLimitsLink" style="display:none">당타사한도</a><a href="profile.html">프로필</a><a href="#" id="logoutLink">로그아웃</a></nav>
 </div>
 <div class="dash-wrap">
 <h1>안녕하세요<span id="userEmail"></span> 👋</h1>
@@ -39,6 +39,7 @@
     document.getElementById('userEmail').textContent = ', ' + session.user.email;
     const profile = await getMyProfile();
     if(profile){
+      document.getElementById('userEmail').textContent = ', ' + (profile.nickname || session.user.email);
       if(profile.role === 'admin'){
         document.getElementById('adminLink').style.display = 'inline';
         document.getElementById('adminLimitsLink').style.display = 'inline';
