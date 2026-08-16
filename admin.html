@@ -23,15 +23,35 @@
 </div>
 
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">기본 표지 이미지</h2>
-  <p class="sub" style="margin:0 0 16px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 기본으로 사용되는 이미지입니다. 회원이 프로필에서 개인 표지 이미지를 별도로 올리지 않으면 이 이미지가 사용됩니다. A4 가로 방향에 맞는 이미지를 올려주세요.</p>
-  <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);max-width:420px;margin-bottom:12px;">
-    <img id="defaultCoverPreviewImg" src="" alt="기본 표지 미리보기" style="display:block;width:100%;height:auto;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
+  <p class="sub" style="margin:0 0 16px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다. 회원이 프로필에서 스타일을 고르지 않으면 아래 "기본" 스타일이 자동으로 사용됩니다.</p>
+
+  <div id="styleListWrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:22px;">불러오는 중...</div>
+
+  <div style="border-top:1px solid var(--line);padding-top:18px;">
+    <h3 id="styleEditorTitle" style="font-size:14px;margin:0 0 12px;color:var(--navy-950);">새 스타일 추가</h3>
+    <div class="field">
+      <label>스타일 이름</label>
+      <input type="text" id="styleNameInput" placeholder="예: 스타일1" maxlength="30">
+    </div>
+    <div class="field">
+      <label>이미지 파일 (A4 가로 방향 권장 · jpg, png 등)</label>
+      <input type="file" id="styleFileInput" accept="image/*">
+    </div>
+    <div class="field">
+      <label>고객 이름 위치 &mdash; 미리보기 위에서 클릭하거나 배지를 드래그해 위치를 잡으세요</label>
+      <div id="stylePreviewWrap" style="position:relative;width:100%;max-width:480px;aspect-ratio:297/210;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#eee;display:none;user-select:none;touch-action:none;">
+        <img id="stylePreviewImg" src="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:fill;pointer-events:none;">
+        <div id="styleBadge" style="position:absolute;background:#1A1A2E;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:move;border:2px solid #fff;box-sizing:border-box;">이름</div>
+      </div>
+      <div class="sub" id="stylePreviewHint" style="margin-top:6px;">이미지를 선택하면 미리보기가 표시됩니다.</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="btn-primary" id="styleSaveBtn">추가</button>
+      <button type="button" class="btn-ghost" id="styleCancelEditBtn" style="display:none;">취소</button>
+    </div>
+    <div class="msg" id="styleMsg"></div>
   </div>
-  <div class="msg show" id="defaultCoverStatusMsg" style="margin-bottom:12px;color:var(--muted);font-size:13px;"></div>
-  <input type="file" id="defaultCoverFileInput" accept="image/*" style="margin-bottom:10px;display:block;">
-  <button type="button" class="btn-primary" id="uploadDefaultCoverBtn">업로드(교체)</button>
-  <div class="msg" id="defaultCoverMsg"></div>
 </div>
 
 <table class="admin-table" id="memberTable">
@@ -68,50 +88,243 @@
   if(!profile) return;
   await loadPointCosts();
   await loadMembers();
-  renderDefaultCoverPreview();
+  await loadCoverStyles();
 })();
 
-// 기본 표지 이미지 -- default/cover.png. 아직 관리자가 한 번도 업로드하지 않았다면
-// 이미지 로드가 실패하므로(404) 안내 문구로 대신 보여준다.
-function renderDefaultCoverPreview(){
-  const img = document.getElementById("defaultCoverPreviewImg");
-  const statusMsg = document.getElementById("defaultCoverStatusMsg");
-  img.style.display = "";
-  img.onerror = function(){
-    img.style.display = "none";
-    statusMsg.textContent = "아직 등록된 기본 표지 이미지가 없습니다. 아래에서 업로드해주세요.";
+/* =========================================================================
+   보장분석표 표지 스타일 관리 -- 스타일 목록(썸네일 + 이름 위치 미리보기) 표시,
+   새 스타일 추가/수정/삭제/기본 지정. 고객 이름 배지 위치는 미리보기 위에서
+   자유롭게 클릭하거나 드래그해서 잡는다(비율로 저장되어 실제 A4 표지 크기와
+   무관하게 동일한 위치에 재현된다).
+   ========================================================================= */
+let coverStyles = [];
+let editingStyleId = null;
+let pendingStyleFile = null;
+let styleNameXRatio = 0.2;
+let styleNameYRatio = 0.12;
+
+const STYLE_BADGE_W_RATIO = 0.28;
+const STYLE_BADGE_H_PT = 60;
+const STYLE_A4_H_PT = 210 * 2.834645669;
+const STYLE_BADGE_H_RATIO = STYLE_BADGE_H_PT / STYLE_A4_H_PT;
+
+function clampStyleRatio(x, y){
+  const halfW = STYLE_BADGE_W_RATIO / 2;
+  const halfH = STYLE_BADGE_H_RATIO / 2;
+  return {
+    x: Math.max(halfW, Math.min(1 - halfW, x)),
+    y: Math.max(halfH, Math.min(1 - halfH, y)),
   };
-  img.onload = function(){
-    img.style.display = "";
-    statusMsg.textContent = "현재 등록된 기본 표지 이미지입니다.";
-  };
-  statusMsg.textContent = "불러오는 중...";
-  img.src = getCoverImageUrl("default/cover.png");
 }
 
-document.getElementById("uploadDefaultCoverBtn").addEventListener("click", async function(){
-  const btn = document.getElementById("uploadDefaultCoverBtn");
-  const msg = document.getElementById("defaultCoverMsg");
-  const fileInput = document.getElementById("defaultCoverFileInput");
-  msg.className = "msg"; msg.textContent = "";
-  const file = fileInput.files && fileInput.files[0];
-  if(!file){
-    msg.className = "msg err show";
-    msg.textContent = "업로드할 이미지 파일을 선택해주세요.";
+function updateStyleBadgePosition(){
+  const badge = document.getElementById("styleBadge");
+  badge.style.width = (STYLE_BADGE_W_RATIO * 100) + "%";
+  badge.style.height = (STYLE_BADGE_H_RATIO * 100) + "%";
+  badge.style.left = ((styleNameXRatio - STYLE_BADGE_W_RATIO / 2) * 100) + "%";
+  badge.style.top = ((styleNameYRatio - STYLE_BADGE_H_RATIO / 2) * 100) + "%";
+}
+
+function setStyleRatioFromPoint(clientX, clientY){
+  const wrap = document.getElementById("stylePreviewWrap");
+  const rect = wrap.getBoundingClientRect();
+  const rx = (clientX - rect.left) / rect.width;
+  const ry = (clientY - rect.top) / rect.height;
+  const clamped = clampStyleRatio(rx, ry);
+  styleNameXRatio = clamped.x;
+  styleNameYRatio = clamped.y;
+  updateStyleBadgePosition();
+}
+
+function showStylePreview(url){
+  document.getElementById("stylePreviewImg").src = url;
+  document.getElementById("stylePreviewWrap").style.display = "block";
+  document.getElementById("stylePreviewHint").style.display = "none";
+  updateStyleBadgePosition();
+}
+
+function resetStyleEditor(){
+  editingStyleId = null;
+  pendingStyleFile = null;
+  styleNameXRatio = 0.2;
+  styleNameYRatio = 0.12;
+  document.getElementById("styleEditorTitle").textContent = "새 스타일 추가";
+  document.getElementById("styleNameInput").value = "";
+  document.getElementById("styleFileInput").value = "";
+  document.getElementById("stylePreviewWrap").style.display = "none";
+  document.getElementById("stylePreviewHint").style.display = "";
+  document.getElementById("stylePreviewHint").textContent = "이미지를 선택하면 미리보기가 표시됩니다.";
+  document.getElementById("styleSaveBtn").textContent = "추가";
+  document.getElementById("styleCancelEditBtn").style.display = "none";
+  document.getElementById("styleMsg").className = "msg";
+  document.getElementById("styleMsg").textContent = "";
+}
+
+document.getElementById("styleFileInput").addEventListener("change", function(){
+  const file = this.files && this.files[0];
+  if(!file) return;
+  pendingStyleFile = file;
+  showStylePreview(URL.createObjectURL(file));
+});
+
+document.getElementById("stylePreviewWrap").addEventListener("click", function(e){
+  if(e.target.id === "styleBadge") return; // 배지 자체 클릭/드래그는 아래 pointerdown에서 처리
+  setStyleRatioFromPoint(e.clientX, e.clientY);
+});
+
+(function(){
+  const badgeEl = document.getElementById("styleBadge");
+  let dragging = false;
+  badgeEl.addEventListener("pointerdown", function(e){
+    dragging = true;
+    badgeEl.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  });
+  badgeEl.addEventListener("pointermove", function(e){
+    if(!dragging) return;
+    setStyleRatioFromPoint(e.clientX, e.clientY);
+  });
+  badgeEl.addEventListener("pointerup", function(){ dragging = false; });
+  badgeEl.addEventListener("pointercancel", function(){ dragging = false; });
+})();
+
+async function loadCoverStyles(){
+  coverStyles = await getCoverStyles();
+  renderStyleList();
+}
+
+function renderStyleList(){
+  const wrap = document.getElementById("styleListWrap");
+  wrap.innerHTML = "";
+  if(!coverStyles.length){
+    wrap.innerHTML = '<div class="sub" style="grid-column:1/-1;">등록된 스타일이 없습니다. 아래에서 추가해주세요.</div>';
     return;
   }
-  btn.disabled = true; btn.textContent = "업로드 중...";
-  const result = await uploadDefaultCoverImage(file);
-  btn.disabled = false; btn.textContent = "업로드(교체)";
+  coverStyles.forEach(function(style){
+    const card = document.createElement("div");
+    card.style.cssText = "border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);";
+
+    const thumbWrap = document.createElement("div");
+    thumbWrap.style.cssText = "position:relative;width:100%;aspect-ratio:297/210;overflow:hidden;background:#eee;";
+    const img = document.createElement("img");
+    img.src = getCoverImageUrl(style.image_path);
+    img.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;object-fit:fill;";
+    thumbWrap.appendChild(img);
+    const bx = Number(style.name_x_ratio), by = Number(style.name_y_ratio);
+    const badgeMark = document.createElement("div");
+    badgeMark.style.cssText = "position:absolute;background:rgba(26,26,46,0.85);border:1px solid #fff;"
+      + "left:" + ((bx - STYLE_BADGE_W_RATIO / 2) * 100) + "%;top:" + ((by - STYLE_BADGE_H_RATIO / 2) * 100) + "%;"
+      + "width:" + (STYLE_BADGE_W_RATIO * 100) + "%;height:" + (STYLE_BADGE_H_RATIO * 100) + "%;";
+    thumbWrap.appendChild(badgeMark);
+    card.appendChild(thumbWrap);
+
+    const info = document.createElement("div");
+    info.style.cssText = "padding:8px 10px;";
+    const nameLine = document.createElement("div");
+    nameLine.style.cssText = "font-weight:600;font-size:13px;color:var(--navy-950);margin-bottom:6px;";
+    nameLine.textContent = style.name + (style.is_default ? " (기본)" : "");
+    info.appendChild(nameLine);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = "display:flex;gap:6px;flex-wrap:wrap;";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button"; editBtn.className = "btn-ghost"; editBtn.textContent = "수정";
+    editBtn.addEventListener("click", function(){ startEditStyle(style); });
+    btnRow.appendChild(editBtn);
+
+    if(!style.is_default){
+      const defaultBtn = document.createElement("button");
+      defaultBtn.type = "button"; defaultBtn.className = "btn-ghost"; defaultBtn.textContent = "기본으로 지정";
+      defaultBtn.addEventListener("click", async function(){
+        defaultBtn.disabled = true;
+        const result = await setDefaultCoverStyle(style.id);
+        if(!result.ok){ alert("실패: " + result.message); defaultBtn.disabled = false; return; }
+        await loadCoverStyles();
+      });
+      btnRow.appendChild(defaultBtn);
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button"; delBtn.className = "btn-ghost"; delBtn.textContent = "삭제";
+      delBtn.addEventListener("click", async function(){
+        if(!confirm('"' + style.name + '" 스타일을 삭제할까요? 이 스타일을 사용 중이던 회원은 기본 스타일로 자동 전환됩니다.')) return;
+        delBtn.disabled = true;
+        const result = await deleteCoverStyle(style.id);
+        if(!result.ok){ alert("삭제 실패: " + result.message); delBtn.disabled = false; return; }
+        if(editingStyleId === style.id) resetStyleEditor();
+        await loadCoverStyles();
+      });
+      btnRow.appendChild(delBtn);
+    }
+
+    info.appendChild(btnRow);
+    card.appendChild(info);
+    wrap.appendChild(card);
+  });
+}
+
+function startEditStyle(style){
+  editingStyleId = style.id;
+  pendingStyleFile = null;
+  styleNameXRatio = Number(style.name_x_ratio);
+  styleNameYRatio = Number(style.name_y_ratio);
+  document.getElementById("styleEditorTitle").textContent = "스타일 수정: " + style.name;
+  document.getElementById("styleNameInput").value = style.name;
+  document.getElementById("styleFileInput").value = "";
+  document.getElementById("styleSaveBtn").textContent = "저장";
+  document.getElementById("styleCancelEditBtn").style.display = "inline-block";
+  document.getElementById("styleMsg").className = "msg";
+  document.getElementById("styleMsg").textContent = "";
+  showStylePreview(getCoverImageUrl(style.image_path));
+  document.getElementById("stylePreviewWrap").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+document.getElementById("styleCancelEditBtn").addEventListener("click", resetStyleEditor);
+
+document.getElementById("styleSaveBtn").addEventListener("click", async function(){
+  const btn = this;
+  const msg = document.getElementById("styleMsg");
+  msg.className = "msg"; msg.textContent = "";
+  const name = document.getElementById("styleNameInput").value.trim();
+  if(!name){
+    msg.className = "msg err show";
+    msg.textContent = "스타일 이름을 입력해주세요.";
+    return;
+  }
+  if(!editingStyleId && !pendingStyleFile){
+    msg.className = "msg err show";
+    msg.textContent = "이미지 파일을 선택해주세요.";
+    return;
+  }
+  btn.disabled = true; btn.textContent = "저장 중...";
+  let result;
+  if(editingStyleId){
+    const changes = { name: name, name_x_ratio: styleNameXRatio, name_y_ratio: styleNameYRatio };
+    if(pendingStyleFile){
+      try{
+        changes.image_path = await uploadCoverStyleImage(editingStyleId, pendingStyleFile);
+      }catch(err){
+        btn.disabled = false; btn.textContent = "저장";
+        msg.className = "msg err show";
+        msg.textContent = "이미지 업로드 실패: " + err.message;
+        return;
+      }
+    }
+    result = await updateCoverStyle(editingStyleId, changes);
+  }else{
+    result = await createCoverStyle(name, pendingStyleFile, styleNameXRatio, styleNameYRatio);
+  }
+  btn.disabled = false; btn.textContent = editingStyleId ? "저장" : "추가";
   if(!result.ok){
     msg.className = "msg err show";
-    msg.textContent = "업로드 실패: " + result.message;
+    msg.textContent = "저장 실패: " + result.message;
     return;
   }
-  fileInput.value = "";
-  renderDefaultCoverPreview();
+  const wasEditing = !!editingStyleId;
+  resetStyleEditor();
+  await loadCoverStyles();
   msg.className = "msg ok show";
-  msg.textContent = "기본 표지 이미지가 저장되었습니다.";
+  msg.textContent = wasEditing ? "스타일이 수정되었습니다." : "스타일이 추가되었습니다.";
 });
 
 // 기능별 포인트 차감 설정 (병력정리/보장분석표 등) -- point_costs 테이블을 직접 읽고 쓴다.

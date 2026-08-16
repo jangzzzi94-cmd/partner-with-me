@@ -969,17 +969,18 @@ function setPrintAreaForColumns(ws, columnCount){
 
 /* =========================================================================
    "표지" 시트를 이미지로 완전히 교체한다.
-   - 회원이 프로필에서 개인 표지 이미지를 올렸으면 그 이미지를, 아니면 관리자가
-     admin.html에서 등록한 기본 이미지를 사용한다 (assets/supabase-client.js의
-     getEffectiveCoverImagePath / getCoverImageUrl).
+   - 회원이 프로필에서 고른 관리자 등록 "스타일"(cover_styles 테이블)을 사용한다.
+     고른 적이 없으면 관리자가 지정한 기본 스타일(is_default=true)을 사용한다
+     (assets/supabase-client.js의 getMyEffectiveCoverStyle). 관리자가 스타일을
+     하나도 등록하지 않았다면 표지를 건드리지 않고 템플릿 원본을 그대로 둔다.
    - 인쇄했을 때 A4 가로 용지에 여백 없이 정확히 꽉 차도록, 시트를 새로 만들어
-     A4 가로 크기(297mm x 210mm)에 맞춘 행/열 하나에 이미지를 앉히고 인쇄영역도
-     그 셀 하나로 고정한다. (로컬 프로토타입에서 LibreOffice 인쇄 렌더링까지
-     확인해 검증한 방식이다.)
-   - 관리자가 등록한 "기본" 이미지에는 왼쪽 위 회색 줄 바로 위에 고객명을 자동으로
-     적어 넣는다(기존 셀 기반 표지의 고객명 자동표시를 이미지 버전에서도 유지).
-     회원이 직접 올린 개인 이미지는 디자인을 알 수 없으므로 이름을 겹쳐 쓰지 않고
-     이미지 그대로 사용한다.
+     A4 가로 크기(297mm x 210mm)에 맞춘 격자에 이미지를 앉히고 인쇄영역도 그
+     격자 전체로 고정한다. (로컬 LibreOffice 인쇄 렌더링까지 확인해 검증한 방식.)
+   - 고객명은 스타일마다 관리자가 admin.html에서 자유롭게 지정한 위치(스타일의
+     name_x_ratio/name_y_ratio, 전체 이미지 대비 비율)에 불투명한 배지로 표시한다.
+     배지 칸을 뺀 나머지 칸은 서식 없이 그대로 두어 이미지 전체가 잘리지 않고
+     출력된다. 배지 자리는 이미지에도 똑같이 투명 구멍을 뚫어(badgeRect) 그
+     아래 실제 셀(고객명 수식)이 비쳐 보이도록 한다.
    ========================================================================= */
 const COVER_MM_TO_PT = 2.834645669;
 const COVER_PT_TO_PX = 96 / 72;
@@ -989,46 +990,22 @@ const COVER_TARGET_PT_W = COVER_A4_W_MM * COVER_MM_TO_PT;
 const COVER_TARGET_PT_H = COVER_A4_H_MM * COVER_MM_TO_PT;
 const COVER_TARGET_PX_W = Math.round(COVER_TARGET_PT_W / 0.75);
 const COVER_TARGET_PX_H = Math.round(COVER_TARGET_PT_H * COVER_PT_TO_PX);
-// 기본 표지 이미지(관리자가 등록한 AFG 샘플 이미지) 기준으로 측정한 좌표(전체 이미지 대비 비율).
-// 왼쪽 위 남색 영역: 오른쪽 끝 약 0.3397, 회색 구분선은 세로 145/595 지점(위아래 2px 두께),
-// 가로로는 35/842 ~ 256/842 구간. 고객명 칸은 이 남색 영역 안에 "구멍"을 뚫어 그 아래 실제
-// 셀(수식)이 비쳐 보이도록 하고, 회색 구분선은 구멍을 뚫은 뒤 같은 자리에 다시 그려 넣어
-// 유지한다(기존에는 이름을 이미지에 픽셀로 구워 넣었지만, 다운로드 후 보장분석표(전)에서 이름을
-// 바꿔도 표지에 반영되지 않는 문제가 있어 실제 수식 셀로 대체함). 고객명은 이 구분선 한가운데
-// 지나가도록 세로 중앙 정렬한다.
-const COVER_HOLE_RIGHT_X_RATIO = 0.335; // 남색 영역 오른쪽 끝(0.3397)보다 살짝 안쪽, 사진과의 이음매 여유
-const COVER_LINE_MID_Y_RATIO = 145 / 595; // 회색 구분선 세로 중앙 위치
-const COVER_LINE_THICKNESS_RATIO = 2 / 595; // 회색 구분선 두께
-const COVER_LINE_X0_RATIO = 35 / 842; // 회색 구분선 시작 x(= 기존 고객명 시작 x와 동일)
-const COVER_LINE_X1_RATIO = 256 / 842; // 회색 구분선 끝 x
-const COVER_LINE_COLOR = "#f0e7ef";
-const COVER_NAME_FILL_ARGB = "FF0E1B59"; // 이미지의 남색과 동일한 색(이음매가 보이지 않도록)
-const COVER_NAME_FONT_COLOR_ARGB = "FFF0E7EF";
-const COVER_NAME_FONT_SIZE_PT = 25.5; // 기존 34px 캔버스 폰트와 동일한 크기(96dpi 기준 px->pt 환산)
 const COVER_NAME_FONT_NAME = "Malgun Gothic";
-const COVER_NAME_INDENT = 2; // 셀 왼쪽 여백(첫 글자가 용지 왼쪽 끝에 붙어 잘려 보이지 않도록)
-// 고객명 칸(1행)의 높이 -- 회색 구분선이 정확히 이 행의 세로 중앙에 오도록(그래야 "vertical:middle"
-// 정렬을 적용했을 때 이름 글자가 구분선 한가운데를 지나간다) 구분선 위치 기준으로 역산한다.
-const COVER_ROW1_PT = 2 * COVER_LINE_MID_Y_RATIO * COVER_TARGET_PT_H;
-// (참고: 예전엔 여기서 행 높이 합계를 A4 실제 높이보다 일부러 살짝 작게 만드는 "안전 여백"을
-// 뒀었다 -- 실제 Microsoft Excel에서 프린터의 인쇄 불가 여백 때문에 정확히 꽉 채우면 페이지
-// 나누기 미리보기가 어긋나는 문제가 있었기 때문. 하지만 안전 여백 값을 아무리 조정해도 계속
-// 어긋나서, 이제는 그 방식 대신 아래 addWorksheet의 pageSetup에서 fitToPage:true +
-// fitToWidth:1 + fitToHeight:1로 엑셀의 "한 페이지에 맞춤" 기능을 직접 사용한다 -- 프린터
-// 여백이 얼마든 엑셀이 알아서 계산해 주므로, 행 높이는 다시 A4 크기에 정확히 맞춰도 된다.)
 
-// 회원이 직접 올린 개인 표지 이미지에 표시하는 고객명 "배지"(개인 이미지는 디자인을 알 수 없어
-// 기본 이미지처럼 특정 색과 자연스럽게 이어지는 "구멍" 방식을 쓸 수 없으므로, 불투명한 사각형
-// 배지를 올려 어떤 이미지 위에서도 항상 읽히도록 한다). 배지 위치는 회원이 profile.html에서
-// 4개 코너 중 하나로 직접 선택할 수 있다(profiles.cover_name_position). 배지 칸의 크기는
-// 항상 고정(세로 COVER_BADGE_ROW_PT, 가로는 전체 너비의 COVER_BADGE_COL_RATIO)이며, 시트는
-// 항상 2행 x 2열 격자(A1:B2)로 만들고 그 중 선택된 코너에 해당하는 셀 하나만 배지 셀로 쓴다
-// (로컬 LibreOffice 인쇄 검증: 4개 코너 모두 표지 1페이지로 정상 렌더링됨).
-const COVER_BADGE_ROW_PT = 70;
-const COVER_BADGE_COL_RATIO = 0.4;
+// 고객명 배지 -- 스타일 이미지는 배경색을 미리 알 수 없으므로(관리자가 매번 다른 이미지를
+// 올릴 수 있음), 어떤 이미지 위에서도 항상 읽히도록 불투명한 진한 남색 배지를 사용한다.
+// 배지의 세로 크기(COVER_BADGE_H_PT)와 가로 비율(COVER_BADGE_W_RATIO)은 고정이고,
+// 배지의 "중심" 위치만 스타일마다 관리자가 자유롭게 지정한다(name_x_ratio/name_y_ratio).
+const COVER_BADGE_W_RATIO = 0.28;
+const COVER_BADGE_H_PT = 60;
 const COVER_BADGE_FILL_ARGB = "FF1A1A2E";
 const COVER_BADGE_FONT_COLOR_ARGB = "FFFFFFFF";
 const COVER_BADGE_FONT_SIZE_PT = 14;
+// Excel/LibreOffice가 허용하는 단일 행의 최대 높이(대략 400~409pt)보다 안전하게 낮은 값.
+// 배지가 이미지 가장자리 가까이(예: 맨 위/맨 아래) 위치하면 반대쪽 남는 공간이 이 값을
+// 넘을 수 있는데, 그 경우 행 하나로 만들면 Excel이 높이를 조용히 잘라버려 인쇄 배치가
+// 깨진다. 그래서 넘는 만큼은 자동으로 2개 행으로 쪼갠다(splitSegment 참고).
+const COVER_MAX_ROW_PT = 380;
 
 function loadImageEl(url){
   return new Promise((resolve, reject)=>{
@@ -1040,31 +1017,15 @@ function loadImageEl(url){
   });
 }
 
-// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그린다. cutHole이 true이면(기본 이미지인 경우) 고객명이
-// 들어갈 자리(1행 전체)에 투명한 구멍을 뚫어, 이미지 아래에 놓일 실제 셀(고객명 수식)이 비쳐
-// 보이게 한 뒤, 구멍에 함께 지워진 회색 구분선을 같은 자리에 다시 그려 넣는다.
-// badgeRect가 주어지면(회원이 직접 올린 개인 이미지인 경우) 그 사각형 자리에도 투명한 구멍을
-// 뚫는다 -- 이미지 디자인을 알 수 없으므로 선은 다시 그리지 않고, 그 아래 놓일 불투명한 배지
-// 셀(진한 남색 배경)이 그대로 비쳐 보이도록 한다.
-async function buildCoverImageBuffer(imgUrl, cutHole, badgeRect){
+// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그리고, badgeRect 자리에 투명한 구멍을 뚫는다
+// (그 아래 놓일 불투명한 배지 셀이 그대로 비쳐 보이도록 하기 위함).
+async function buildCoverImageBuffer(imgUrl, badgeRect){
   const img = await loadImageEl(imgUrl);
   const canvas = document.createElement("canvas");
   canvas.width = COVER_TARGET_PX_W;
   canvas.height = COVER_TARGET_PX_H;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, COVER_TARGET_PX_W, COVER_TARGET_PX_H);
-  if(cutHole){
-    const holeW = COVER_TARGET_PX_W * COVER_HOLE_RIGHT_X_RATIO;
-    const holeH = COVER_TARGET_PX_H * (COVER_ROW1_PT / COVER_TARGET_PT_H); // = 1행 전체 높이
-    ctx.clearRect(0, 0, holeW, holeH);
-
-    const lineX0 = COVER_TARGET_PX_W * COVER_LINE_X0_RATIO;
-    const lineX1 = COVER_TARGET_PX_W * COVER_LINE_X1_RATIO;
-    const lineThickness = COVER_TARGET_PX_H * COVER_LINE_THICKNESS_RATIO;
-    const lineY0 = COVER_TARGET_PX_H * COVER_LINE_MID_Y_RATIO - lineThickness / 2;
-    ctx.fillStyle = COVER_LINE_COLOR;
-    ctx.fillRect(lineX0, lineY0, lineX1 - lineX0, lineThickness);
-  }
   if(badgeRect){
     ctx.clearRect(badgeRect.x, badgeRect.y, badgeRect.w, badgeRect.h);
   }
@@ -1074,27 +1035,71 @@ async function buildCoverImageBuffer(imgUrl, cutHole, badgeRect){
   return blob.arrayBuffer();
 }
 
+// 길이(size)가 maxSize를 넘으면 넘지 않는 여러 개의 동일한 조각으로 쪼갠다. size가
+// 거의 0이면 빈 배열(그 축에는 여백 칸을 아예 만들지 않음).
+function splitSegment(size, maxSize){
+  if(size <= 0.5) return [];
+  if(!maxSize || size <= maxSize) return [size];
+  const n = Math.ceil(size / maxSize);
+  const each = size / n;
+  return Array(n).fill(each);
+}
+
+// 0부터 시작하는 열 인덱스를 엑셀 열 문자(A, B, ..., Z, AA, ...)로 바꾼다.
+function colLetterFromIdx(idx){
+  let s = "";
+  idx += 1;
+  while(idx > 0){
+    const rem = (idx - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    idx = Math.floor((idx - 1) / 26);
+  }
+  return s;
+}
+
+// nameXRatio/nameYRatio(배지 중심의, 전체 이미지 대비 0~1 비율)를 받아 배지가 배지 크기
+// 그대로 이미지 안에 온전히 들어오도록 클램프한 뒤, 그 위치를 표현하는 열/행 격자를
+// 계산한다. 항상 배지 칸 하나 + 남는 공간을 채우는 0~2개의 "여백" 칸으로 구성된다.
+function buildCoverStyleGrid(nameXRatio, nameYRatio){
+  const badgeWpx = COVER_BADGE_W_RATIO * COVER_TARGET_PX_W;
+  const badgeHpt = COVER_BADGE_H_PT;
+  const badgeHpx = badgeHpt * COVER_PT_TO_PX;
+
+  const halfWRatio = COVER_BADGE_W_RATIO / 2;
+  const halfHRatio = (badgeHpt / 2) / COVER_TARGET_PT_H;
+  const cx = Math.max(halfWRatio, Math.min(1 - halfWRatio, nameXRatio));
+  const cy = Math.max(halfHRatio, Math.min(1 - halfHRatio, nameYRatio));
+
+  const leftPx = cx * COVER_TARGET_PX_W - badgeWpx / 2;
+  const rightPx = COVER_TARGET_PX_W - leftPx - badgeWpx;
+  const topPt = cy * COVER_TARGET_PT_H - badgeHpt / 2;
+  const bottomPt = COVER_TARGET_PT_H - topPt - badgeHpt;
+
+  const leftCols = splitSegment(leftPx, null); // 열은 최대 길이 제한이 사실상 없어 쪼갤 필요 없음
+  const rightCols = splitSegment(rightPx, null);
+  const topRows = splitSegment(topPt, COVER_MAX_ROW_PT);
+  const bottomRows = splitSegment(bottomPt, COVER_MAX_ROW_PT);
+
+  return {
+    colWidthsPx: [...leftCols, badgeWpx, ...rightCols],
+    rowHeightsPt: [...topRows, badgeHpt, ...bottomRows],
+    badgeColIdx: leftCols.length,
+    badgeRowIdx: topRows.length,
+    badgeHolePx: { x: Math.max(0, leftPx), y: Math.max(0, topPt * COVER_PT_TO_PX), w: badgeWpx, h: badgeHpx },
+  };
+}
+
 // wb의 기존 "표지" 시트를 통째로 지우고, A4 가로에 꽉 차는 이미지 시트로 교체한다.
 // 항상 첫 번째 시트 자리를 유지한다.
 async function replaceCoverSheetWithImage(wb, customerName){
   const oldWs = wb.getWorksheet("표지");
   if(!oldWs) return; // 혹시 템플릿에 표지 시트가 없으면 건드리지 않는다.
 
-  const isDefaultCover = !(currentProfile && currentProfile.cover_image_path);
-  const coverPath = getEffectiveCoverImagePath(currentProfile);
-  // 개인 이미지일 때만 사용하는, 회원이 profile.html에서 선택한 고객명 배지 코너 위치.
-  const namePosition = getEffectiveCoverNamePosition(currentProfile);
-  const badgeRowIdx = (namePosition === "top-left" || namePosition === "top-right") ? 0 : 1;
-  const badgeColIdx = (namePosition === "top-left" || namePosition === "bottom-left") ? 0 : 1;
-  const badgeHoleW = COVER_TARGET_PX_W * COVER_BADGE_COL_RATIO;
-  const badgeHoleH = COVER_TARGET_PX_H * (COVER_BADGE_ROW_PT / COVER_TARGET_PT_H);
-  const badgeRect = isDefaultCover ? null : {
-    x: badgeColIdx === 0 ? 0 : COVER_TARGET_PX_W - badgeHoleW,
-    y: badgeRowIdx === 0 ? 0 : COVER_TARGET_PX_H - badgeHoleH,
-    w: badgeHoleW,
-    h: badgeHoleH,
-  };
-  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(coverPath), isDefaultCover, badgeRect);
+  const style = await getMyEffectiveCoverStyle(currentProfile);
+  if(!style) return; // 관리자가 아직 스타일을 하나도 등록하지 않았다면 템플릿 표지를 그대로 둔다.
+
+  const grid = buildCoverStyleGrid(Number(style.name_x_ratio), Number(style.name_y_ratio));
+  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(style.image_path), grid.badgeHolePx);
 
   wb.removeWorksheet(oldWs.id);
   const ws = wb.addWorksheet("표지", {
@@ -1138,74 +1143,29 @@ async function replaceCoverSheetWithImage(wb, customerName){
   // 변환 시 표지 시트 하나가 페이지 2개로 잘못 쪼개지는 현상이 있었다(실제 사용자가 받은
   // 파일로도 재현 확인: 인쇄하면 이미지 맨 위 몇 픽셀만 다음 페이지에 걸쳐 나옴 -- "인쇄 영역이
   // 꽉 차지 않고 정중앙도 아니다"라는 원래 문제의 실제 원인으로 보인다). 이미지 크기를 셀 격자
-  // 경계에서 직접 계산하는 twoCellAnchor(tl~br)로 바꾸면 이 분할이 재현되지 않아 두 경우
-  // (기본/개인 이미지) 모두 이 방식으로 통일한다.
-  if(isDefaultCover){
-    // 기본 이미지: 1개 열(A) x 2개 행(A1:A2)으로 나눈다 -- 1행은 회색 구분선이 정확히 세로
-    // 중앙에 오는 높이, 2행은 나머지 전체(엑셀 최대 행 높이인 약 409pt 안에 들어오므로
-    // 예전처럼 굳이 2개 행으로 더 나눌 필요가 없다).
-    const cover2RowPt = COVER_TARGET_PT_H - COVER_ROW1_PT;
-    ws.getRow(1).height = COVER_ROW1_PT;
-    ws.getRow(2).height = cover2RowPt;
-    ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
-    ws.pageSetup.printArea = "A1:A2";
+  // 경계에서 직접 계산하는 twoCellAnchor(tl~br)로 바꾸면 이 분할이 재현되지 않아 이 방식으로
+  // 통일한다. (로컬 LibreOffice 검증: 중앙/네 변 끝/코너 등 다양한 배지 위치 모두 표지 1페이지로
+  // 정상 렌더링됨.)
+  grid.colWidthsPx.forEach((px, i)=>{ ws.getColumn(i + 1).width = pxToChars(px); });
+  grid.rowHeightsPt.forEach((pt, i)=>{ ws.getRow(i + 1).height = pt; });
 
-    // 관리자가 등록한 기본 이미지에는 고객명이 들어갈 자리에 이미지를 투명하게 뚫어 놓았고
-    // (buildCoverImageBuffer의 cutHole), 그 자리에 정확히 맞춰 실제 셀을 하나 배치해 고객명을
-    // 고정 픽셀이 아니라 "='보장분석표(전)'!C2" 수식으로 표시한다. 이러면 다운로드 후 엑셀에서
-    // 보장분석표(전) 시트의 이름을 바꾸면 표지의 이름도 함께 바뀐다. 1행 전체가 고객명 칸이고
-    // 회색 구분선이 그 세로 중앙을 지나가므로, 세로 정렬을 "middle"로 주면 이름 글자가 구분선
-    // 한가운데를 지나가게 된다.
-    // (참고: 이 구멍/구분선 좌표는 admin.html에서 등록한 기본 표지 이미지 원본을 직접 측정해
-    // 정한 값이라, 관리자가 완전히 다른 레이아웃의 이미지로 바꾸면 다시 맞춰야 할 수 있다.)
-    const nameCell = ws.getCell("A1");
-    nameCell.value = { formula: "'보장분석표(전)'!C2" };
-    nameCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COVER_NAME_FILL_ARGB } };
-    nameCell.font = { name: COVER_NAME_FONT_NAME, bold: true, size: COVER_NAME_FONT_SIZE_PT, color: { argb: COVER_NAME_FONT_COLOR_ARGB } };
-    // 주의: ExcelJS의 세로 정렬은 "center"가 아니라 "middle"이다(가로 정렬만 "center"를 쓴다).
-    // "center"를 쓰면 값이 조용히 무시되고 기본값(bottom)으로 저장되니 주의.
-    nameCell.alignment = { horizontal: "left", vertical: "middle", indent: COVER_NAME_INDENT };
+  const totalCols = grid.colWidthsPx.length;
+  const totalRows = grid.rowHeightsPt.length;
+  ws.pageSetup.printArea = `A1:${colLetterFromIdx(totalCols - 1)}${totalRows}`;
 
-    const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
-    ws.addImage(imgId, {
-      tl: { col: 0, row: 0 },
-      br: { col: 1, row: 2 },
-      editAs: "twoCell",
-    });
-  }else{
-    // 개인(직접 올린) 이미지: 항상 2행 x 2열 격자(A1:B2)로 만들고, 회원이 profile.html에서
-    // 선택한 코너(namePosition)에 해당하는 셀 하나만 고객명 "배지" 셀로 쓴다. 나머지 3칸은
-    // 특별한 서식 없이 그대로 두어(그 위 이미지에는 구멍이 없으므로) 이미지 전체가 원본
-    // 그대로, 잘리지 않고 출력된다. 배지 칸 크기(COVER_BADGE_ROW_PT/COVER_BADGE_COL_RATIO)는
-    // 위 badgeRect 계산과 정확히 같은 값을 사용해 이미지의 구멍과 셀 경계가 어긋나지 않게 한다.
-    const otherRowPt = COVER_TARGET_PT_H - COVER_BADGE_ROW_PT;
-    const rowHeights = badgeRowIdx === 0 ? [COVER_BADGE_ROW_PT, otherRowPt] : [otherRowPt, COVER_BADGE_ROW_PT];
-    ws.getRow(1).height = rowHeights[0];
-    ws.getRow(2).height = rowHeights[1];
+  const badgeCellRef = colLetterFromIdx(grid.badgeColIdx) + (grid.badgeRowIdx + 1);
+  const nameCell = ws.getCell(badgeCellRef);
+  nameCell.value = { formula: "'보장분석표(전)'!C2" };
+  nameCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COVER_BADGE_FILL_ARGB } };
+  nameCell.font = { name: COVER_NAME_FONT_NAME, bold: true, size: COVER_BADGE_FONT_SIZE_PT, color: { argb: COVER_BADGE_FONT_COLOR_ARGB } };
+  nameCell.alignment = { horizontal: "center", vertical: "middle" };
 
-    const otherColPx = COVER_TARGET_PX_W - badgeHoleW;
-    const colWidthsPx = badgeColIdx === 0 ? [badgeHoleW, otherColPx] : [otherColPx, badgeHoleW];
-    ws.getColumn(1).width = pxToChars(colWidthsPx[0]);
-    ws.getColumn(2).width = pxToChars(colWidthsPx[1]);
-    ws.pageSetup.printArea = "A1:B2";
-
-    const activeRow = badgeRowIdx + 1;
-    const activeCol = badgeColIdx === 0 ? "A" : "B";
-    const nameCell = ws.getCell(activeCol + activeRow);
-    nameCell.value = { formula: "'보장분석표(전)'!C2" };
-    // 개인 이미지는 배경색을 알 수 없으므로(기본 이미지처럼 색을 맞춰 자연스럽게 잇는 대신)
-    // 어떤 이미지 위에서도 항상 읽히도록 불투명한 진한 남색 배지를 올린다.
-    nameCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COVER_BADGE_FILL_ARGB } };
-    nameCell.font = { name: COVER_NAME_FONT_NAME, bold: true, size: COVER_BADGE_FONT_SIZE_PT, color: { argb: COVER_BADGE_FONT_COLOR_ARGB } };
-    nameCell.alignment = { horizontal: "center", vertical: "middle" };
-
-    const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
-    ws.addImage(imgId, {
-      tl: { col: 0, row: 0 },
-      br: { col: 2, row: 2 },
-      editAs: "twoCell",
-    });
-  }
+  const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
+  ws.addImage(imgId, {
+    tl: { col: 0, row: 0 },
+    br: { col: totalCols, row: totalRows },
+    editAs: "twoCell",
+  });
 }
 
 dlBtn.addEventListener("click", async ()=>{
