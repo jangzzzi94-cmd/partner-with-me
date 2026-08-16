@@ -21,7 +21,7 @@ async function getMyProfile(){
     if(!session) return null;
     const { data, error } = await supabaseClient
         .from("profiles")
-        .select("id, email, role, approval_status, points, nickname, created_at, cover_image_path")
+        .select("id, email, role, approval_status, points, nickname, created_at, cover_image_path, cover_name_position")
         .eq("id", session.user.id)
         .single();
     if(error){
@@ -150,6 +150,20 @@ async function resetMyCoverImage(){
     const { error } = await supabaseClient.rpc("update_my_cover_image_path", { p_path: null });
     if(error) return { ok:false, message: error.message };
     return { ok:true };
+}
+
+// 회원 본인의 표지 이미지(개인 업로드 이미지)에 이름 배지를 표시할 코너 위치를 저장한다.
+// 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' 중 하나.
+async function updateMyCoverNamePosition(position){
+    const { error } = await supabaseClient.rpc("update_my_cover_name_position", { p_position: position });
+    if(error) return { ok:false, message: error.message };
+    return { ok:true };
+}
+
+// profile을 받아 지금 적용될 이름 배지 위치를 반환한다 (미설정 시 기본값 top-left).
+function getEffectiveCoverNamePosition(profile){
+    const valid = ["top-left","top-right","bottom-left","bottom-right"];
+    return (profile && valid.includes(profile.cover_name_position)) ? profile.cover_name_position : "top-left";
 }
 
 // (관리자 전용) 전체 회원의 기본 표지 이미지를 업로드/교체한다.
