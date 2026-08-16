@@ -34,15 +34,61 @@
   </form>
   <div class="msg" id="msg"></div>
 </div>
-<!-- 앞으로 프로필에 더 적고 싶은 내용이 생기면 위 "별명 설정" 카드처럼 새 <div class="auth-card"> 섹션을 추가하면 됩니다. -->
+
+<div class="auth-card" style="max-width:100%;margin-top:20px;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 이미지</h2>
+  <p class="sub" style="margin:0 0 16px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용되는 이미지입니다. 별도로 설정하지 않으면 관리자가 지정한 기본 이미지가 사용됩니다.</p>
+
+  <div style="margin-bottom:18px;">
+    <div style="font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:8px;">① 미리보기</div>
+    <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);max-width:420px;">
+      <img id="coverPreviewImg" src="" alt="표지 미리보기" style="display:block;width:100%;height:auto;">
+    </div>
+    <div class="msg show" id="coverStatusMsg" style="margin-top:8px;color:var(--muted);font-size:13px;"></div>
+  </div>
+
+  <div style="margin-bottom:18px;">
+    <div style="font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:8px;">② 기본 이미지 사용</div>
+    <p class="sub" style="margin:0 0 10px;">직접 올린 이미지가 마음에 들지 않으면 관리자가 지정한 기본 이미지로 되돌릴 수 있습니다.</p>
+    <button type="button" class="btn-ghost" id="resetCoverBtn">기본 이미지로 되돌리기</button>
+  </div>
+
+  <div>
+    <div style="font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:8px;">③ 파일 업로드</div>
+    <p class="sub" style="margin:0 0 10px;">A4 가로 방향에 맞는 이미지를 올리면 가장 선명하게 인쇄됩니다. (jpg, png 등)</p>
+    <input type="file" id="coverFileInput" accept="image/*" style="margin-bottom:10px;display:block;">
+    <button type="button" class="btn-primary" id="uploadCoverBtn">업로드</button>
+  </div>
+  <div class="msg" id="coverMsg"></div>
+</div>
+<!-- 앞으로 프로필에 더 적고 싶은 내용이 생기면 위 카드들처럼 새 <div class="auth-card"> 섹션을 추가하면 됩니다. -->
 </div>
 <script src="assets/supabase-client.js"></script>
 <script>
+let myProfileForCover = null;
+
+function renderCoverPreview(){
+  const path = getEffectiveCoverImagePath(myProfileForCover);
+  const img = document.getElementById('coverPreviewImg');
+  img.style.display = '';
+  img.onerror = function(){
+    img.style.display = 'none';
+    document.getElementById('coverStatusMsg').textContent = '아직 설정된 표지 이미지가 없습니다. (관리자가 기본 이미지를 등록하면 표시됩니다)';
+  };
+  img.src = getCoverImageUrl(path);
+  const usingCustom = !!(myProfileForCover && myProfileForCover.cover_image_path);
+  document.getElementById('coverStatusMsg').textContent = usingCustom
+    ? '현재 직접 올린 개인 표지 이미지를 사용 중입니다.'
+    : '현재 관리자가 지정한 기본 표지 이미지를 사용 중입니다.';
+  document.getElementById('resetCoverBtn').disabled = !usingCustom;
+}
+
 (async ()=>{
   const session = await requireLogin();
   if(!session) return;
   const profile = await getMyProfile();
   if(profile){
+    myProfileForCover = profile;
     if(profile.role === 'admin'){
       document.getElementById('adminLink').style.display = 'inline';
       document.getElementById('adminLimitsLink').style.display = 'inline';
@@ -52,8 +98,53 @@
     document.getElementById('infoRole').value = roleLabels[profile.role] || profile.role || '-';
     document.getElementById('infoJoined').value = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ko-KR') : '-';
     document.getElementById('nicknameInput').value = profile.nickname || '';
+    renderCoverPreview();
   }
 })();
+
+document.getElementById('resetCoverBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('resetCoverBtn');
+  const msg = document.getElementById('coverMsg');
+  msg.className = 'msg'; msg.textContent = '';
+  btn.disabled = true;
+  const result = await resetMyCoverImage();
+  if(!result.ok){
+    msg.className = 'msg err show';
+    msg.textContent = '되돌리기 실패: ' + result.message;
+    btn.disabled = false;
+    return;
+  }
+  if(myProfileForCover) myProfileForCover.cover_image_path = null;
+  renderCoverPreview();
+  msg.className = 'msg ok show';
+  msg.textContent = '기본 이미지로 되돌렸습니다.';
+});
+
+document.getElementById('uploadCoverBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('uploadCoverBtn');
+  const msg = document.getElementById('coverMsg');
+  const fileInput = document.getElementById('coverFileInput');
+  msg.className = 'msg'; msg.textContent = '';
+  const file = fileInput.files && fileInput.files[0];
+  if(!file){
+    msg.className = 'msg err show';
+    msg.textContent = '업로드할 이미지 파일을 선택해주세요.';
+    return;
+  }
+  btn.disabled = true; btn.textContent = '업로드 중...';
+  const result = await uploadMyCoverImage(file);
+  btn.disabled = false; btn.textContent = '업로드';
+  if(!result.ok){
+    msg.className = 'msg err show';
+    msg.textContent = '업로드 실패: ' + result.message;
+    return;
+  }
+  if(myProfileForCover) myProfileForCover.cover_image_path = result.path;
+  fileInput.value = '';
+  renderCoverPreview();
+  msg.className = 'msg ok show';
+  msg.textContent = '표지 이미지가 저장되었습니다.';
+});
 
 document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{
   e.preventDefault();

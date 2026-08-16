@@ -967,6 +967,107 @@ function setPrintAreaForColumns(ws, columnCount){
   ws.pageSetup.printArea = `B2:${colLetterFromIndex(lastCol)}45`;
 }
 
+/* =========================================================================
+   "표지" 시트를 이미지로 완전히 교체한다.
+   - 회원이 프로필에서 개인 표지 이미지를 올렸으면 그 이미지를, 아니면 관리자가
+     admin.html에서 등록한 기본 이미지를 사용한다 (assets/supabase-client.js의
+     getEffectiveCoverImagePath / getCoverImageUrl).
+   - 인쇄했을 때 A4 가로 용지에 여백 없이 정확히 꽉 차도록, 시트를 새로 만들어
+     A4 가로 크기(297mm x 210mm)에 맞춘 행/열 하나에 이미지를 앉히고 인쇄영역도
+     그 셀 하나로 고정한다. (로컬 프로토타입에서 LibreOffice 인쇄 렌더링까지
+     확인해 검증한 방식이다.)
+   - 관리자가 등록한 "기본" 이미지에는 왼쪽 위 회색 줄 바로 위에 고객명을 자동으로
+     적어 넣는다(기존 셀 기반 표지의 고객명 자동표시를 이미지 버전에서도 유지).
+     회원이 직접 올린 개인 이미지는 디자인을 알 수 없으므로 이름을 겹쳐 쓰지 않고
+     이미지 그대로 사용한다.
+   ========================================================================= */
+const COVER_MM_TO_PT = 2.834645669;
+const COVER_PT_TO_PX = 96 / 72;
+const COVER_A4_W_MM = 297; // 가로(landscape)
+const COVER_A4_H_MM = 210;
+const COVER_TARGET_PT_W = COVER_A4_W_MM * COVER_MM_TO_PT;
+const COVER_TARGET_PT_H = COVER_A4_H_MM * COVER_MM_TO_PT;
+const COVER_TARGET_PX_W = Math.round(COVER_TARGET_PT_W / 0.75);
+const COVER_TARGET_PX_H = Math.round(COVER_TARGET_PT_H * COVER_PT_TO_PX);
+// 기본 표지 이미지 기준으로 위치를 맞춘 고객명 표시 좌표(전체 이미지 대비 비율).
+// 왼쪽 위 남색 영역의 회색 구분선 바로 위, 왼쪽 정렬.
+const COVER_NAME_X_RATIO = 0.0416;
+const COVER_NAME_BASELINE_Y_RATIO = 0.2246; // 회색선(약 0.242) 바로 위
+const COVER_NAME_FONT_PX = 34; // COVER_TARGET_PX_H(794) 기준 크기
+const COVER_NAME_COLOR = "#f0e7ef";
+
+function loadImageEl(url){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = ()=> resolve(img);
+    img.onerror = ()=> reject(new Error("표지 이미지를 불러오지 못했습니다."));
+    img.src = url;
+  });
+}
+
+// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그리고, 기본 이미지인 경우 고객명을 겹쳐 그린 뒤
+// PNG ArrayBuffer로 반환한다.
+async function buildCoverImageBuffer(imgUrl, customerName, drawName){
+  const img = await loadImageEl(imgUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = COVER_TARGET_PX_W;
+  canvas.height = COVER_TARGET_PX_H;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, COVER_TARGET_PX_W, COVER_TARGET_PX_H);
+  if(drawName && customerName){
+    ctx.font = `bold ${COVER_NAME_FONT_PX}px "Malgun Gothic","Apple SD Gothic Neo",sans-serif`;
+    ctx.fillStyle = COVER_NAME_COLOR;
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(customerName, COVER_TARGET_PX_W * COVER_NAME_X_RATIO, COVER_TARGET_PX_H * COVER_NAME_BASELINE_Y_RATIO);
+  }
+  const blob = await new Promise((resolve, reject)=>{
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error("표지 이미지 생성에 실패했습니다.")), "image/png");
+  });
+  return blob.arrayBuffer();
+}
+
+// wb의 기존 "표지" 시트를 통째로 지우고, A4 가로에 꽉 차는 이미지 시트로 교체한다.
+// 항상 첫 번째 시트 자리를 유지한다.
+async function replaceCoverSheetWithImage(wb, customerName){
+  const oldWs = wb.getWorksheet("표지");
+  if(!oldWs) return; // 혹시 템플릿에 표지 시트가 없으면 건드리지 않는다.
+
+  const isDefaultCover = !(currentProfile && currentProfile.cover_image_path);
+  const coverPath = getEffectiveCoverImagePath(currentProfile);
+  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(coverPath), customerName, isDefaultCover);
+
+  wb.removeWorksheet(oldWs.id);
+  const ws = wb.addWorksheet("표지", {
+    pageSetup: {
+      paperSize: 9, // A4
+      orientation: "landscape",
+      margins: { left:0, right:0, top:0, bottom:0, header:0, footer:0 },
+      fitToPage: false,
+      scale: 100,
+    }
+  });
+
+  // 시트 표시 순서(orderNo)는 workbook.worksheets 게터가 매번 orderNo로 정렬해
+  // 새로 계산하므로, 기존 시트들 중 가장 작은 orderNo보다 작게 지정해야 맨 앞에 온다.
+  const otherOrderNos = wb.worksheets.filter(w => w !== ws).map(w => w.orderNo);
+  ws.orderNo = (otherOrderNos.length ? Math.min(...otherOrderNos) : 1) - 1;
+
+  ws.getRow(1).height = COVER_TARGET_PT_H / 2;
+  ws.getRow(2).height = COVER_TARGET_PT_H / 2;
+  const MDW = 7; // Calibri 11 기준 Maximum Digit Width
+  const targetChars = (COVER_TARGET_PX_W * 256 / MDW - Math.floor(128 / MDW)) / 256;
+  ws.getColumn(1).width = targetChars;
+  ws.pageSetup.printArea = "A1:A2";
+
+  const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
+  ws.addImage(imgId, {
+    tl: { col: 0, row: 0 },
+    ext: { width: COVER_TARGET_PX_W, height: COVER_TARGET_PX_H },
+    editAs: "oneCell",
+  });
+}
+
 dlBtn.addEventListener("click", async ()=>{
   if(!lastResult) return;
   dlBtn.disabled = true;
@@ -1016,6 +1117,15 @@ dlBtn.addEventListener("click", async ()=>{
     // (상품이 8개보다 많으면 그만큼 더 넓게 잡힌다).
     setPrintAreaForColumns(wsBefore, Math.max(lastResult.columns.length, 8));
     setPrintAreaForColumns(wsAfter, Math.max(afterColumns.length, 8));
+
+    // 표지를 회원(또는 관리자가 지정한 기본) 이미지로 교체한다. 이미지가 아직 없거나
+    // 네트워크 오류로 못 불러온 경우에는 화면을 막지 않고 템플릿에 원래 있던 표지를
+    // 그대로 둔 채 나머지 다운로드는 정상 진행한다.
+    try{
+      await replaceCoverSheetWithImage(wb, lastResult.customerName || lastResult.baseName || "");
+    }catch(coverErr){
+      console.error("표지 이미지 적용 실패(기존 표지로 대체):", coverErr);
+    }
 
     // 관리자/골드 회원이 아니면 엑셀 다운로드 1회당 포인트를 차감한다(차감액은 DB point_costs
     // 테이블 값이며 관리자가 admin.html에서 수정할 수 있다. 실제 차감은 spend_points 함수가
@@ -1125,6 +1235,7 @@ const store = window.__mockStore || {
    마스터 탭 -- 엑셀 "마스터" 시트처럼 표에 바로 기입 -> 자동 저장
    ========================================================================= */
 let currentUserId = null;
+let currentProfile = null; // 로그인한 회원의 profiles row (표지 이미지 경로 등에 사용)
 let plans = []; // [{id, plan_name, insurer, items:{...}}, ...] 마지막 열은 항상 id가 없는 빈 신규 작성용 열
 const planSaveTimers = {};
 let freeUnlimited = false; // 관리자/골드 회원은 엑셀 다운로드 포인트 차감 없이 무제한 이용
@@ -1776,6 +1887,7 @@ document.querySelectorAll(".sheettab").forEach(btn=>{
   // 관리자/골드 회원은 엑셀 다운로드 시 포인트 차감 없이 무제한 이용.
   // 일반 회원은 다운로드 버튼에 차감될 포인트를 표시해준다.
   const myProfile = await getMyProfile();
+  currentProfile = myProfile;
   freeUnlimited = !!myProfile && (myProfile.role === 'admin' || myProfile.role === 'gold');
   if(!freeUnlimited){
     const costs = await getPointCosts(); // 관리자가 admin.html에서 수정한 최신 차감 포인트를 읽어온다

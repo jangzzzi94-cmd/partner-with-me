@@ -22,6 +22,18 @@
   <div id="pointCostRows">불러오는 중...</div>
 </div>
 
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">기본 표지 이미지</h2>
+  <p class="sub" style="margin:0 0 16px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 기본으로 사용되는 이미지입니다. 회원이 프로필에서 개인 표지 이미지를 별도로 올리지 않으면 이 이미지가 사용됩니다. A4 가로 방향에 맞는 이미지를 올려주세요.</p>
+  <div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);max-width:420px;margin-bottom:12px;">
+    <img id="defaultCoverPreviewImg" src="" alt="기본 표지 미리보기" style="display:block;width:100%;height:auto;">
+  </div>
+  <div class="msg show" id="defaultCoverStatusMsg" style="margin-bottom:12px;color:var(--muted);font-size:13px;"></div>
+  <input type="file" id="defaultCoverFileInput" accept="image/*" style="margin-bottom:10px;display:block;">
+  <button type="button" class="btn-primary" id="uploadDefaultCoverBtn">업로드(교체)</button>
+  <div class="msg" id="defaultCoverMsg"></div>
+</div>
+
 <table class="admin-table" id="memberTable">
 <thead>
 <tr>
@@ -56,7 +68,51 @@
   if(!profile) return;
   await loadPointCosts();
   await loadMembers();
+  renderDefaultCoverPreview();
 })();
+
+// 기본 표지 이미지 -- default/cover.png. 아직 관리자가 한 번도 업로드하지 않았다면
+// 이미지 로드가 실패하므로(404) 안내 문구로 대신 보여준다.
+function renderDefaultCoverPreview(){
+  const img = document.getElementById("defaultCoverPreviewImg");
+  const statusMsg = document.getElementById("defaultCoverStatusMsg");
+  img.style.display = "";
+  img.onerror = function(){
+    img.style.display = "none";
+    statusMsg.textContent = "아직 등록된 기본 표지 이미지가 없습니다. 아래에서 업로드해주세요.";
+  };
+  img.onload = function(){
+    img.style.display = "";
+    statusMsg.textContent = "현재 등록된 기본 표지 이미지입니다.";
+  };
+  statusMsg.textContent = "불러오는 중...";
+  img.src = getCoverImageUrl("default/cover.png");
+}
+
+document.getElementById("uploadDefaultCoverBtn").addEventListener("click", async function(){
+  const btn = document.getElementById("uploadDefaultCoverBtn");
+  const msg = document.getElementById("defaultCoverMsg");
+  const fileInput = document.getElementById("defaultCoverFileInput");
+  msg.className = "msg"; msg.textContent = "";
+  const file = fileInput.files && fileInput.files[0];
+  if(!file){
+    msg.className = "msg err show";
+    msg.textContent = "업로드할 이미지 파일을 선택해주세요.";
+    return;
+  }
+  btn.disabled = true; btn.textContent = "업로드 중...";
+  const result = await uploadDefaultCoverImage(file);
+  btn.disabled = false; btn.textContent = "업로드(교체)";
+  if(!result.ok){
+    msg.className = "msg err show";
+    msg.textContent = "업로드 실패: " + result.message;
+    return;
+  }
+  fileInput.value = "";
+  renderDefaultCoverPreview();
+  msg.className = "msg ok show";
+  msg.textContent = "기본 표지 이미지가 저장되었습니다.";
+});
 
 // 기능별 포인트 차감 설정 (병력정리/보장분석표 등) -- point_costs 테이블을 직접 읽고 쓴다.
 // RLS 정책상 조회는 로그인한 회원 누구나, 수정은 관리자만 가능하다.
