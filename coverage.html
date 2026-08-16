@@ -1089,6 +1089,10 @@ async function replaceCoverSheetWithImage(wb, customerName){
   const otherOrderNos = wb.worksheets.filter(w => w !== ws).map(w => w.orderNo);
   ws.orderNo = (otherOrderNos.length ? Math.min(...otherOrderNos) : 1) - 1;
 
+  // 엑셀에서 이 시트를 열었을 때 처음부터 "페이지 나누기 미리보기"로 보이도록 한다(실선=인쇄
+  // 영역, 점선=실제 페이지 구분선이 한눈에 같은지 바로 확인할 수 있도록).
+  ws.views = [{ style: "pageBreakPreview" }];
+
   const MDW = 7; // Calibri 11 기준 Maximum Digit Width
   const pxToChars = (px)=> (px * 256 / MDW - Math.floor(128 / MDW)) / 256;
 
