@@ -1087,16 +1087,19 @@ async function replaceCoverSheetWithImage(wb, customerName){
   const MDW = 7; // Calibri 11 기준 Maximum Digit Width
   const pxToChars = (px)=> (px * 256 / MDW - Math.floor(128 / MDW)) / 256;
 
-  // 두 경우(기본 이미지 / 개인 이미지) 모두 동일하게 3개 행(A1:A3)으로 나눈다 -- 1행은 회색
-  // 구분선이 정확히 세로 중앙에 오는 높이, 나머지는 엑셀 최대 행 높이(약 409pt) 제한 때문에
-  // 2개 행으로 나눈 것. 개인 이미지에는 고객명을 겹쳐 쓰지 않지만, 인쇄영역/행 구조는 기본
-  // 이미지와 동일하게 맞춰 둔다.
-  const remainderPt = COVER_TARGET_PT_H - COVER_ROW1_PT;
+  // 두 경우(기본 이미지 / 개인 이미지) 모두 동일하게 2개 행(A1:A2)으로 나눈다 -- 1행은 회색
+  // 구분선이 정확히 세로 중앙에 오는 높이, 2행은 나머지 전체(약 305.14pt, 엑셀 최대 행 높이인
+  // 약 409pt 안에 들어오므로 예전처럼 굳이 2개 행으로 더 나눌 필요가 없다). 개인 이미지에는
+  // 고객명을 겹쳐 쓰지 않지만, 인쇄영역/행 구조는 기본 이미지와 동일하게 맞춰 둔다.
+  // 참고: 2행 높이는 306처럼 반올림한 값을 넣지 말고 반드시 "전체 - 1행" 계산값을 그대로
+  // 써야 한다. 로컬 검증 중 306을 넣었더니 전체 합이 A4 실제 높이보다 약 0.85pt 더 커져서,
+  // 그 미세한 초과분 때문에 표지가 다시 2페이지로 갈라지는 현상이 재현됐다(오차가 1pt도 안
+  // 되는데도 "실제 크기로 인쇄"(scale 100, 맞춤 없음) 모드에서는 그대로 다음 페이지로 넘어감).
+  const cover2RowPt = COVER_TARGET_PT_H - COVER_ROW1_PT; // ≈ 305.14
   ws.getRow(1).height = COVER_ROW1_PT;
-  ws.getRow(2).height = remainderPt / 2;
-  ws.getRow(3).height = remainderPt / 2;
+  ws.getRow(2).height = cover2RowPt;
   ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
-  ws.pageSetup.printArea = "A1:A3";
+  ws.pageSetup.printArea = "A1:A2";
 
   if(isDefaultCover){
     // 관리자가 등록한 기본 이미지에는 고객명이 들어갈 자리에 이미지를 투명하게 뚫어 놓았고
@@ -1126,7 +1129,7 @@ async function replaceCoverSheetWithImage(wb, customerName){
   // 통일한다.
   ws.addImage(imgId, {
     tl: { col: 0, row: 0 },
-    br: { col: 1, row: 3 },
+    br: { col: 1, row: 2 },
     editAs: "twoCell",
   });
 }
