@@ -21,7 +21,7 @@ async function getMyProfile(){
     if(!session) return null;
     const { data, error } = await supabaseClient
         .from("profiles")
-        .select("id, email, role, approval_status, points, nickname, created_at, cover_image_path, cover_name_position")
+        .select("id, email, role, approval_status, points, nickname, created_at, cover_style_id")
         .eq("id", session.user.id)
         .single();
     if(error){
@@ -77,13 +77,16 @@ async function updateMyNickname(nickname){
 }
 
 /* =========================================================================
-   보장분석표 "표지" 이미지 -- Storage 버킷 cover-images 사용.
-     - default/cover.png       : 관리자가 admin.html에서 설정하는 기본 표지 이미지
-     - users/<uid>/cover.png   : 회원이 profile.html에서 직접 올린 개인 표지 이미지
-   profiles.cover_image_path가 NULL이면 기본 이미지를, 값이 있으면 그 경로의
-   개인 이미지를 사용한다. 업로드된 원본 파일은 형식에 관계없이(jpg/png 등)
-   캔버스로 다시 그려 PNG로 변환한 뒤 저장한다(형식 통일 + 파일명 고정으로
-   재업로드 시 이전 파일을 자연스럽게 덮어쓰기 위함).
+   보장분석표 "표지" 스타일 -- Storage 버킷 cover-images의 styles/<id>.png 사용,
+   DB 테이블 cover_styles(id, name, image_path, name_x_ratio, name_y_ratio,
+   is_default, sort_order)로 관리한다.
+     - 관리자가 admin.html에서 스타일을 여러 개 등록해두고(각 스타일마다 이미지 +
+       고객명 배지를 표시할 위치), 그 중 하나를 "기본 스타일"로 지정한다.
+     - 회원은 profile.html에서 그 중 하나를 골라 쓰거나(profiles.cover_style_id),
+       고르지 않으면 기본 스타일이 자동으로 적용된다.
+   회원이 개인 이미지를 직접 올리던 이전 방식은 더 이상 사용하지 않는다.
+   업로드된 원본 파일은 형식에 관계없이(jpg/png 등) 캔버스로 다시 그려 PNG로
+   변환한 뒤 저장한다.
    ========================================================================= */
 function loadImageFromFile(file){
     return new Promise(function(resolve, reject){
@@ -114,69 +117,114 @@ async function fileToPngBlob(file, maxSize){
     });
 }
 
-// profile(=getMyProfile() 결과)을 받아 지금 적용될 표지 이미지의 Storage 경로를 반환한다.
-function getEffectiveCoverImagePath(profile){
-    return (profile && profile.cover_image_path) ? profile.cover_image_path : "default/cover.png";
-}
-
-// Storage 경로를 공개 URL로 바꾼다. 관리자/회원이 이미지를 교체해도 브라우저나 CDN에
+// Storage 경로를 공개 URL로 바꾼다. 관리자가 이미지를 교체해도 브라우저나 CDN에
 // 캐시된 이전 이미지가 보이지 않도록 매번 캐시 무효화용 쿼리를 붙인다.
 function getCoverImageUrl(path){
     const { data } = supabaseClient.storage.from("cover-images").getPublicUrl(path);
     return data.publicUrl + "?v=" + Math.floor(Date.now() / 1000);
 }
 
-// 회원 본인의 표지 이미지를 업로드하고, profiles.cover_image_path를 그 경로로 갱신한다.
-async function uploadMyCoverImage(file){
-    const { data:{ session } } = await supabaseClient.auth.getSession();
-    if(!session) return { ok:false, message:"로그인이 필요합니다." };
+// 등록된 표지 스타일 전체 목록을 가져온다(관리자 관리 화면 + 회원 선택 화면 공용).
+async function getCoverStyles(){
+    const { data, error } = await supabaseClient
+        .from("cover_styles")
+        .select("id, name, image_path, name_x_ratio, name_y_ratio, is_default, sort_order, created_at")
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+// profile(=getMyProfile() 결과)을 받아 지금 적용될 표지 스타일 행을 반환한다.
+// 회원이 고른 스타일(cover_style_id)이 있으면 그것을, 없으면(또는 그 스타일이
+// 삭제되어 더 없으면) 관리자가 지정한 기본 스타일을 반환한다. 관리자가 스타일을
+// 하나도 등록하지 않았다면 null을 반환한다.
+async function getMyEffectiveCoverStyle(profile){
+    if(profile && profile.cover_style_id){
+        const { data, error } = await supabaseClient
+            .from("cover_styles")
+            .select("id, name, image_path, name_x_ratio, name_y_ratio, is_default")
+            .eq("id", profile.cover_style_id)
+            .maybeSingle();
+        if(!error && data) return data;
+    }
+    const { data, error } = await supabaseClient
+        .from("cover_styles")
+        .select("id, name, image_path, name_x_ratio, name_y_ratio, is_default")
+        .eq("is_default", true)
+        .maybeSingle();
+    if(error){
+        console.error(error);
+        return null;
+    }
+    return data || null;
+}
+
+// 회원 본인이 사용할 표지 스타일을 고른다. styleId를 null로 주면 선택을 해제하고
+// 관리자의 기본 스타일을 다시 따르게 된다.
+async function updateMyCoverStyle(styleId){
+    const { error } = await supabaseClient.rpc("update_my_cover_style", { p_style_id: styleId });
+    if(error) return { ok:false, message: error.message };
+    return { ok:true };
+}
+
+/* ---- 아래는 관리자 전용(admin.html) ---- */
+
+// 새 스타일 이미지를 Storage에 올린다(styles/<uuid>.png). 실제 cover_styles 행 생성은
+// createCoverStyle에서 같은 id로 한 번에 처리한다.
+async function uploadCoverStyleImage(styleId, file){
+    const blob = await fileToPngBlob(file, 1600);
+    const path = "styles/" + styleId + ".png";
+    const { error } = await supabaseClient.storage
+        .from("cover-images")
+        .upload(path, blob, { upsert:true, contentType:"image/png" });
+    if(error) throw new Error(error.message);
+    return path;
+}
+
+// 새 표지 스타일을 등록한다(이미지 업로드 + cover_styles 행 생성을 한 번에 처리).
+async function createCoverStyle(name, file, nameXRatio, nameYRatio){
     try{
-        const blob = await fileToPngBlob(file, 1600);
-        const path = "users/" + session.user.id + "/cover.png";
-        const { error: uploadError } = await supabaseClient.storage
-            .from("cover-images")
-            .upload(path, blob, { upsert:true, contentType:"image/png" });
-        if(uploadError) return { ok:false, message: uploadError.message };
-        const { error: rpcError } = await supabaseClient.rpc("update_my_cover_image_path", { p_path: path });
-        if(rpcError) return { ok:false, message: rpcError.message };
-        return { ok:true, path: path };
+        const styleId = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)));
+        const path = await uploadCoverStyleImage(styleId, file);
+        const { data: existing } = await supabaseClient.from("cover_styles").select("id");
+        const isFirst = !existing || existing.length === 0;
+        const { error } = await supabaseClient.from("cover_styles").insert({
+            id: styleId,
+            name: name,
+            image_path: path,
+            name_x_ratio: nameXRatio,
+            name_y_ratio: nameYRatio,
+            is_default: isFirst, // 첫 스타일은 자동으로 기본 스타일로 지정
+        });
+        if(error) return { ok:false, message: error.message };
+        return { ok:true, id: styleId };
     }catch(err){
         return { ok:false, message: err.message };
     }
 }
 
-// 회원이 올린 개인 표지 이미지를 지우고 관리자가 설정한 기본 이미지로 되돌린다.
-async function resetMyCoverImage(){
-    const { error } = await supabaseClient.rpc("update_my_cover_image_path", { p_path: null });
+// 기존 스타일의 이름/고객명 배지 위치를 수정한다. changes에는 { name?, name_x_ratio?, name_y_ratio? }.
+async function updateCoverStyle(styleId, changes){
+    const { error } = await supabaseClient.from("cover_styles").update(changes).eq("id", styleId);
     if(error) return { ok:false, message: error.message };
     return { ok:true };
 }
 
-// 회원 본인의 표지 이미지(개인 업로드 이미지)에 이름 배지를 표시할 코너 위치를 저장한다.
-// 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' 중 하나.
-async function updateMyCoverNamePosition(position){
-    const { error } = await supabaseClient.rpc("update_my_cover_name_position", { p_position: position });
+// 스타일을 삭제한다(Storage의 이미지 파일도 함께 지운다).
+async function deleteCoverStyle(styleId){
+    await supabaseClient.storage.from("cover-images").remove(["styles/" + styleId + ".png"]);
+    const { error } = await supabaseClient.from("cover_styles").delete().eq("id", styleId);
     if(error) return { ok:false, message: error.message };
     return { ok:true };
 }
 
-// profile을 받아 지금 적용될 이름 배지 위치를 반환한다 (미설정 시 기본값 top-left).
-function getEffectiveCoverNamePosition(profile){
-    const valid = ["top-left","top-right","bottom-left","bottom-right"];
-    return (profile && valid.includes(profile.cover_name_position)) ? profile.cover_name_position : "top-left";
-}
-
-// (관리자 전용) 전체 회원의 기본 표지 이미지를 업로드/교체한다.
-async function uploadDefaultCoverImage(file){
-    try{
-        const blob = await fileToPngBlob(file, 1600);
-        const path = "default/cover.png";
-        const { error: uploadError } = await supabaseClient.storage
-            .from("cover-images")
-            .upload(path, blob, { upsert:true, contentType:"image/png" });
-        if(uploadError) return { ok:false, message: uploadError.message };
-        return { ok:true, path: path };
-    }catch(err){
-        return { ok:false, message: err.message };
-    }
+// 주어진 스타일을 "기본 스타일"로 지정한다(다른 스타일의 기본 지정은 자동으로 해제됨).
+async function setDefaultCoverStyle(styleId){
+    const { error } = await supabaseClient.rpc("set_default_cover_style", { p_style_id: styleId });
+    if(error) return { ok:false, message: error.message };
+    return { ok:true };
 }
