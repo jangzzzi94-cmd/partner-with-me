@@ -53,13 +53,25 @@
     <button type="button" class="btn-ghost" id="resetCoverBtn">기본 이미지로 되돌리기</button>
   </div>
 
-  <div>
+  <div style="margin-bottom:18px;">
     <div style="font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:8px;">③ 파일 업로드</div>
     <p class="sub" style="margin:0 0 10px;">A4 가로 방향에 맞는 이미지를 올리면 가장 선명하게 인쇄됩니다. (jpg, png 등)</p>
     <input type="file" id="coverFileInput" accept="image/*" style="margin-bottom:10px;display:block;">
     <button type="button" class="btn-primary" id="uploadCoverBtn">업로드</button>
   </div>
   <div class="msg" id="coverMsg"></div>
+
+  <div id="namePosSection">
+    <div style="font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:8px;">④ 고객 이름 위치</div>
+    <p class="sub" style="margin:0 0 10px;">직접 올린 이미지를 사용할 때, 고객 이름이 표시될 코너 위치를 선택하세요. (기본 이미지 사용 중에는 이름 위치가 고정되어 있어 적용되지 않습니다)</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:280px;">
+      <button type="button" class="btn-ghost namePosBtn" data-pos="top-left">↖ 왼쪽 위</button>
+      <button type="button" class="btn-ghost namePosBtn" data-pos="top-right">↗ 오른쪽 위</button>
+      <button type="button" class="btn-ghost namePosBtn" data-pos="bottom-left">↙ 왼쪽 아래</button>
+      <button type="button" class="btn-ghost namePosBtn" data-pos="bottom-right">↘ 오른쪽 아래</button>
+    </div>
+    <div class="msg" id="namePosMsg"></div>
+  </div>
 </div>
 <!-- 앞으로 프로필에 더 적고 싶은 내용이 생기면 위 카드들처럼 새 <div class="auth-card"> 섹션을 추가하면 됩니다. -->
 </div>
@@ -81,6 +93,21 @@ function renderCoverPreview(){
     ? '현재 직접 올린 개인 표지 이미지를 사용 중입니다.'
     : '현재 관리자가 지정한 기본 표지 이미지를 사용 중입니다.';
   document.getElementById('resetCoverBtn').disabled = !usingCustom;
+  renderNamePosButtons();
+}
+
+function renderNamePosButtons(){
+  const usingCustom = !!(myProfileForCover && myProfileForCover.cover_image_path);
+  const current = getEffectiveCoverNamePosition(myProfileForCover);
+  const section = document.getElementById('namePosSection');
+  section.style.opacity = usingCustom ? '1' : '0.5';
+  document.querySelectorAll('.namePosBtn').forEach(function(btn){
+    btn.disabled = !usingCustom;
+    const isSelected = btn.getAttribute('data-pos') === current;
+    btn.style.borderColor = isSelected ? 'var(--navy-900)' : '';
+    btn.style.background = isSelected ? 'var(--navy-900)' : '';
+    btn.style.color = isSelected ? '#fff' : '';
+  });
 }
 
 (async ()=>{
@@ -144,6 +171,26 @@ document.getElementById('uploadCoverBtn').addEventListener('click', async ()=>{
   renderCoverPreview();
   msg.className = 'msg ok show';
   msg.textContent = '표지 이미지가 저장되었습니다.';
+});
+
+document.querySelectorAll('.namePosBtn').forEach(function(btn){
+  btn.addEventListener('click', async ()=>{
+    const pos = btn.getAttribute('data-pos');
+    const msg = document.getElementById('namePosMsg');
+    msg.className = 'msg'; msg.textContent = '';
+    document.querySelectorAll('.namePosBtn').forEach(function(b){ b.disabled = true; });
+    const result = await updateMyCoverNamePosition(pos);
+    if(!result.ok){
+      msg.className = 'msg err show';
+      msg.textContent = '저장 실패: ' + result.message;
+      renderNamePosButtons();
+      return;
+    }
+    if(myProfileForCover) myProfileForCover.cover_name_position = pos;
+    renderNamePosButtons();
+    msg.className = 'msg ok show';
+    msg.textContent = '이름 위치가 저장되었습니다.';
+  });
 });
 
 document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{

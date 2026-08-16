@@ -1017,6 +1017,19 @@ const COVER_ROW1_PT = 2 * COVER_LINE_MID_Y_RATIO * COVER_TARGET_PT_H;
 // fitToWidth:1 + fitToHeight:1로 엑셀의 "한 페이지에 맞춤" 기능을 직접 사용한다 -- 프린터
 // 여백이 얼마든 엑셀이 알아서 계산해 주므로, 행 높이는 다시 A4 크기에 정확히 맞춰도 된다.)
 
+// 회원이 직접 올린 개인 표지 이미지에 표시하는 고객명 "배지"(개인 이미지는 디자인을 알 수 없어
+// 기본 이미지처럼 특정 색과 자연스럽게 이어지는 "구멍" 방식을 쓸 수 없으므로, 불투명한 사각형
+// 배지를 올려 어떤 이미지 위에서도 항상 읽히도록 한다). 배지 위치는 회원이 profile.html에서
+// 4개 코너 중 하나로 직접 선택할 수 있다(profiles.cover_name_position). 배지 칸의 크기는
+// 항상 고정(세로 COVER_BADGE_ROW_PT, 가로는 전체 너비의 COVER_BADGE_COL_RATIO)이며, 시트는
+// 항상 2행 x 2열 격자(A1:B2)로 만들고 그 중 선택된 코너에 해당하는 셀 하나만 배지 셀로 쓴다
+// (로컬 LibreOffice 인쇄 검증: 4개 코너 모두 표지 1페이지로 정상 렌더링됨).
+const COVER_BADGE_ROW_PT = 70;
+const COVER_BADGE_COL_RATIO = 0.4;
+const COVER_BADGE_FILL_ARGB = "FF1A1A2E";
+const COVER_BADGE_FONT_COLOR_ARGB = "FFFFFFFF";
+const COVER_BADGE_FONT_SIZE_PT = 14;
+
 function loadImageEl(url){
   return new Promise((resolve, reject)=>{
     const img = new Image();
@@ -1030,7 +1043,10 @@ function loadImageEl(url){
 // 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그린다. cutHole이 true이면(기본 이미지인 경우) 고객명이
 // 들어갈 자리(1행 전체)에 투명한 구멍을 뚫어, 이미지 아래에 놓일 실제 셀(고객명 수식)이 비쳐
 // 보이게 한 뒤, 구멍에 함께 지워진 회색 구분선을 같은 자리에 다시 그려 넣는다.
-async function buildCoverImageBuffer(imgUrl, cutHole){
+// badgeRect가 주어지면(회원이 직접 올린 개인 이미지인 경우) 그 사각형 자리에도 투명한 구멍을
+// 뚫는다 -- 이미지 디자인을 알 수 없으므로 선은 다시 그리지 않고, 그 아래 놓일 불투명한 배지
+// 셀(진한 남색 배경)이 그대로 비쳐 보이도록 한다.
+async function buildCoverImageBuffer(imgUrl, cutHole, badgeRect){
   const img = await loadImageEl(imgUrl);
   const canvas = document.createElement("canvas");
   canvas.width = COVER_TARGET_PX_W;
@@ -1049,6 +1065,9 @@ async function buildCoverImageBuffer(imgUrl, cutHole){
     ctx.fillStyle = COVER_LINE_COLOR;
     ctx.fillRect(lineX0, lineY0, lineX1 - lineX0, lineThickness);
   }
+  if(badgeRect){
+    ctx.clearRect(badgeRect.x, badgeRect.y, badgeRect.w, badgeRect.h);
+  }
   const blob = await new Promise((resolve, reject)=>{
     canvas.toBlob(b => b ? resolve(b) : reject(new Error("표지 이미지 생성에 실패했습니다.")), "image/png");
   });
@@ -1063,7 +1082,19 @@ async function replaceCoverSheetWithImage(wb, customerName){
 
   const isDefaultCover = !(currentProfile && currentProfile.cover_image_path);
   const coverPath = getEffectiveCoverImagePath(currentProfile);
-  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(coverPath), isDefaultCover);
+  // 개인 이미지일 때만 사용하는, 회원이 profile.html에서 선택한 고객명 배지 코너 위치.
+  const namePosition = getEffectiveCoverNamePosition(currentProfile);
+  const badgeRowIdx = (namePosition === "top-left" || namePosition === "top-right") ? 0 : 1;
+  const badgeColIdx = (namePosition === "top-left" || namePosition === "bottom-left") ? 0 : 1;
+  const badgeHoleW = COVER_TARGET_PX_W * COVER_BADGE_COL_RATIO;
+  const badgeHoleH = COVER_TARGET_PX_H * (COVER_BADGE_ROW_PT / COVER_TARGET_PT_H);
+  const badgeRect = isDefaultCover ? null : {
+    x: badgeColIdx === 0 ? 0 : COVER_TARGET_PX_W - badgeHoleW,
+    y: badgeRowIdx === 0 ? 0 : COVER_TARGET_PX_H - badgeHoleH,
+    w: badgeHoleW,
+    h: badgeHoleH,
+  };
+  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(coverPath), isDefaultCover, badgeRect);
 
   wb.removeWorksheet(oldWs.id);
   const ws = wb.addWorksheet("표지", {
@@ -1102,17 +1133,23 @@ async function replaceCoverSheetWithImage(wb, customerName){
   const MDW = 7; // Calibri 11 기준 Maximum Digit Width
   const pxToChars = (px)=> (px * 256 / MDW - Math.floor(128 / MDW)) / 256;
 
-  // 두 경우(기본 이미지 / 개인 이미지) 모두 동일하게 2개 행(A1:A2)으로 나눈다 -- 1행은 회색
-  // 구분선이 정확히 세로 중앙에 오는 높이, 2행은 나머지 전체(엑셀 최대 행 높이인 약 409pt
-  // 안에 들어오므로 예전처럼 굳이 2개 행으로 더 나눌 필요가 없다). 개인 이미지에는 고객명을
-  // 겹쳐 쓰지 않지만, 인쇄영역/행 구조는 기본 이미지와 동일하게 맞춰 둔다.
-  const cover2RowPt = COVER_TARGET_PT_H - COVER_ROW1_PT;
-  ws.getRow(1).height = COVER_ROW1_PT;
-  ws.getRow(2).height = cover2RowPt;
-  ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
-  ws.pageSetup.printArea = "A1:A2";
-
+  // 참고: 이미지를 oneCellAnchor(셀 하나에 고정 픽셀 크기로 앉히는 방식)로 넣으면 -- 심지어
+  // 다른 셀에 아무 값도 없는 예전 방식(이미지만 있는 A1:A2)에서도 -- 로컬 LibreOffice 인쇄/PDF
+  // 변환 시 표지 시트 하나가 페이지 2개로 잘못 쪼개지는 현상이 있었다(실제 사용자가 받은
+  // 파일로도 재현 확인: 인쇄하면 이미지 맨 위 몇 픽셀만 다음 페이지에 걸쳐 나옴 -- "인쇄 영역이
+  // 꽉 차지 않고 정중앙도 아니다"라는 원래 문제의 실제 원인으로 보인다). 이미지 크기를 셀 격자
+  // 경계에서 직접 계산하는 twoCellAnchor(tl~br)로 바꾸면 이 분할이 재현되지 않아 두 경우
+  // (기본/개인 이미지) 모두 이 방식으로 통일한다.
   if(isDefaultCover){
+    // 기본 이미지: 1개 열(A) x 2개 행(A1:A2)으로 나눈다 -- 1행은 회색 구분선이 정확히 세로
+    // 중앙에 오는 높이, 2행은 나머지 전체(엑셀 최대 행 높이인 약 409pt 안에 들어오므로
+    // 예전처럼 굳이 2개 행으로 더 나눌 필요가 없다).
+    const cover2RowPt = COVER_TARGET_PT_H - COVER_ROW1_PT;
+    ws.getRow(1).height = COVER_ROW1_PT;
+    ws.getRow(2).height = cover2RowPt;
+    ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
+    ws.pageSetup.printArea = "A1:A2";
+
     // 관리자가 등록한 기본 이미지에는 고객명이 들어갈 자리에 이미지를 투명하게 뚫어 놓았고
     // (buildCoverImageBuffer의 cutHole), 그 자리에 정확히 맞춰 실제 셀을 하나 배치해 고객명을
     // 고정 픽셀이 아니라 "='보장분석표(전)'!C2" 수식으로 표시한다. 이러면 다운로드 후 엑셀에서
@@ -1128,21 +1165,47 @@ async function replaceCoverSheetWithImage(wb, customerName){
     // 주의: ExcelJS의 세로 정렬은 "center"가 아니라 "middle"이다(가로 정렬만 "center"를 쓴다).
     // "center"를 쓰면 값이 조용히 무시되고 기본값(bottom)으로 저장되니 주의.
     nameCell.alignment = { horizontal: "left", vertical: "middle", indent: COVER_NAME_INDENT };
-  }
 
-  const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
-  // 참고: 이미지를 oneCellAnchor(셀 하나에 고정 픽셀 크기로 앉히는 방식)로 넣으면 -- 심지어
-  // 다른 셀에 아무 값도 없는 예전 방식(이미지만 있는 A1:A2)에서도 -- 로컬 LibreOffice 인쇄/PDF
-  // 변환 시 표지 시트 하나가 페이지 2개로 잘못 쪼개지는 현상이 있었다(실제 사용자가 받은
-  // 파일로도 재현 확인: 인쇄하면 이미지 맨 위 몇 픽셀만 다음 페이지에 걸쳐 나옴 -- "인쇄 영역이
-  // 꽉 차지 않고 정중앙도 아니다"라는 원래 문제의 실제 원인으로 보인다). 이미지 크기를 셀 격자
-  // 경계에서 직접 계산하는 twoCellAnchor(tl~br)로 바꾸면 이 분할이 재현되지 않아 이 방식으로
-  // 통일한다.
-  ws.addImage(imgId, {
-    tl: { col: 0, row: 0 },
-    br: { col: 1, row: 2 },
-    editAs: "twoCell",
-  });
+    const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
+    ws.addImage(imgId, {
+      tl: { col: 0, row: 0 },
+      br: { col: 1, row: 2 },
+      editAs: "twoCell",
+    });
+  }else{
+    // 개인(직접 올린) 이미지: 항상 2행 x 2열 격자(A1:B2)로 만들고, 회원이 profile.html에서
+    // 선택한 코너(namePosition)에 해당하는 셀 하나만 고객명 "배지" 셀로 쓴다. 나머지 3칸은
+    // 특별한 서식 없이 그대로 두어(그 위 이미지에는 구멍이 없으므로) 이미지 전체가 원본
+    // 그대로, 잘리지 않고 출력된다. 배지 칸 크기(COVER_BADGE_ROW_PT/COVER_BADGE_COL_RATIO)는
+    // 위 badgeRect 계산과 정확히 같은 값을 사용해 이미지의 구멍과 셀 경계가 어긋나지 않게 한다.
+    const otherRowPt = COVER_TARGET_PT_H - COVER_BADGE_ROW_PT;
+    const rowHeights = badgeRowIdx === 0 ? [COVER_BADGE_ROW_PT, otherRowPt] : [otherRowPt, COVER_BADGE_ROW_PT];
+    ws.getRow(1).height = rowHeights[0];
+    ws.getRow(2).height = rowHeights[1];
+
+    const otherColPx = COVER_TARGET_PX_W - badgeHoleW;
+    const colWidthsPx = badgeColIdx === 0 ? [badgeHoleW, otherColPx] : [otherColPx, badgeHoleW];
+    ws.getColumn(1).width = pxToChars(colWidthsPx[0]);
+    ws.getColumn(2).width = pxToChars(colWidthsPx[1]);
+    ws.pageSetup.printArea = "A1:B2";
+
+    const activeRow = badgeRowIdx + 1;
+    const activeCol = badgeColIdx === 0 ? "A" : "B";
+    const nameCell = ws.getCell(activeCol + activeRow);
+    nameCell.value = { formula: "'보장분석표(전)'!C2" };
+    // 개인 이미지는 배경색을 알 수 없으므로(기본 이미지처럼 색을 맞춰 자연스럽게 잇는 대신)
+    // 어떤 이미지 위에서도 항상 읽히도록 불투명한 진한 남색 배지를 올린다.
+    nameCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COVER_BADGE_FILL_ARGB } };
+    nameCell.font = { name: COVER_NAME_FONT_NAME, bold: true, size: COVER_BADGE_FONT_SIZE_PT, color: { argb: COVER_BADGE_FONT_COLOR_ARGB } };
+    nameCell.alignment = { horizontal: "center", vertical: "middle" };
+
+    const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
+    ws.addImage(imgId, {
+      tl: { col: 0, row: 0 },
+      br: { col: 2, row: 2 },
+      editAs: "twoCell",
+    });
+  }
 }
 
 dlBtn.addEventListener("click", async ()=>{
