@@ -1010,6 +1010,14 @@ const COVER_NAME_INDENT = 2; // 셀 왼쪽 여백(첫 글자가 용지 왼쪽 �
 // 고객명 칸(1행)의 높이 -- 회색 구분선이 정확히 이 행의 세로 중앙에 오도록(그래야 "vertical:middle"
 // 정렬을 적용했을 때 이름 글자가 구분선 한가운데를 지나간다) 구분선 위치 기준으로 역산한다.
 const COVER_ROW1_PT = 2 * COVER_LINE_MID_Y_RATIO * COVER_TARGET_PT_H;
+// 행 높이 합계를 A4 실제 높이(COVER_TARGET_PT_H)에 1pt도 남김없이 딱 맞췄더니, 실제
+// Microsoft Excel에서는 페이지 나누기 미리보기의 점선(실제 인쇄 페이지 경계)이 1행 뒤에서
+// 끊기고 2행이 다음 페이지로 밀리는 문제가 있었다(인쇄영역인 실선은 A1:A2로 정상 표시되는데도).
+// 인쇄영역 여백을 0으로 지정해도, 엑셀은 인쇄 미리보기를 계산할 때 실제(또는 기본) 프린터가
+// 갖고 있는 인쇄 불가 여백을 감안하는 것으로 보이며, 우리가 여유 없이 정확히 페이지 크기만큼만
+// 채우면 그 여백만큼 무조건 다음 페이지로 밀려나는 것으로 보인다. 그래서 살짝 덜 채우도록
+// 안전 여백을 둔다(사용자 확인: "꼭 A4에 정확히 맞출 필요 없고 살짝 넘치는 정도는 괜찮다").
+const COVER_PRINT_SAFETY_MARGIN_PT = 14; // 약 4.9mm
 
 function loadImageEl(url){
   return new Promise((resolve, reject)=>{
@@ -1097,14 +1105,13 @@ async function replaceCoverSheetWithImage(wb, customerName){
   const pxToChars = (px)=> (px * 256 / MDW - Math.floor(128 / MDW)) / 256;
 
   // 두 경우(기본 이미지 / 개인 이미지) 모두 동일하게 2개 행(A1:A2)으로 나눈다 -- 1행은 회색
-  // 구분선이 정확히 세로 중앙에 오는 높이, 2행은 나머지 전체(약 305.14pt, 엑셀 최대 행 높이인
-  // 약 409pt 안에 들어오므로 예전처럼 굳이 2개 행으로 더 나눌 필요가 없다). 개인 이미지에는
-  // 고객명을 겹쳐 쓰지 않지만, 인쇄영역/행 구조는 기본 이미지와 동일하게 맞춰 둔다.
-  // 참고: 2행 높이는 306처럼 반올림한 값을 넣지 말고 반드시 "전체 - 1행" 계산값을 그대로
-  // 써야 한다. 로컬 검증 중 306을 넣었더니 전체 합이 A4 실제 높이보다 약 0.85pt 더 커져서,
-  // 그 미세한 초과분 때문에 표지가 다시 2페이지로 갈라지는 현상이 재현됐다(오차가 1pt도 안
-  // 되는데도 "실제 크기로 인쇄"(scale 100, 맞춤 없음) 모드에서는 그대로 다음 페이지로 넘어감).
-  const cover2RowPt = COVER_TARGET_PT_H - COVER_ROW1_PT; // ≈ 305.14
+  // 구분선이 정확히 세로 중앙에 오는 높이, 2행은 나머지(엑셀 최대 행 높이인 약 409pt 안에
+  // 들어오므로 예전처럼 굳이 2개 행으로 더 나눌 필요가 없다) 에서 안전 여백만큼 뺀 값. 개인
+  // 이미지에는 고객명을 겹쳐 쓰지 않지만, 인쇄영역/행 구조는 기본 이미지와 동일하게 맞춰 둔다.
+  // 참고: 1행+2행 합계를 A4 실제 높이와 소수점까지 정확히 맞추면(예: 306처럼 반올림해 아주
+  // 살짝만 더 커져도) 실제 엑셀에서 그 초과분 때문에 표지가 다시 2페이지로 갈라지는 문제가
+  // 있었다. COVER_PRINT_SAFETY_MARGIN_PT만큼 일부러 살짝 덜 채워서 이 문제를 피한다.
+  const cover2RowPt = COVER_TARGET_PT_H - COVER_ROW1_PT - COVER_PRINT_SAFETY_MARGIN_PT;
   ws.getRow(1).height = COVER_ROW1_PT;
   ws.getRow(2).height = cover2RowPt;
   ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
