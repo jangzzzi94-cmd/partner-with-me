@@ -989,12 +989,18 @@ const COVER_TARGET_PT_W = COVER_A4_W_MM * COVER_MM_TO_PT;
 const COVER_TARGET_PT_H = COVER_A4_H_MM * COVER_MM_TO_PT;
 const COVER_TARGET_PX_W = Math.round(COVER_TARGET_PT_W / 0.75);
 const COVER_TARGET_PX_H = Math.round(COVER_TARGET_PT_H * COVER_PT_TO_PX);
-// 기본 표지 이미지 기준으로 위치를 맞춘 고객명 표시 좌표(전체 이미지 대비 비율).
-// 왼쪽 위 남색 영역의 회색 구분선 바로 위, 왼쪽 정렬.
-const COVER_NAME_X_RATIO = 0.0416;
-const COVER_NAME_BASELINE_Y_RATIO = 0.2246; // 회색선(약 0.242) 바로 위
-const COVER_NAME_FONT_PX = 34; // COVER_TARGET_PX_H(794) 기준 크기
-const COVER_NAME_COLOR = "#f0e7ef";
+// 기본 표지 이미지(관리자가 등록한 AFG 샘플 이미지) 기준으로 측정한 좌표(전체 이미지 대비 비율).
+// 왼쪽 위 남색 영역: 오른쪽 끝 약 0.3397, 회색 구분선 y 약 0.2429 지점.
+// 고객명 자리는 이 남색 영역 안, 회색선 바로 위쪽 공간에 "구멍"을 뚫어 그 아래 실제 셀(수식)이
+// 비쳐 보이도록 한다 (기존에는 이름을 이미지에 픽셀로 구워 넣었지만, 다운로드 후 보장분석표(전)에서
+// 이름을 바꿔도 표지에 반영되지 않는 문제가 있어 실제 수식 셀로 대체함).
+const COVER_HOLE_RIGHT_X_RATIO = 0.335; // 남색 영역 오른쪽 끝(0.3397)보다 살짝 안쪽, 사진과의 이음매 여유
+const COVER_HOLE_BOTTOM_Y_RATIO = 0.238; // 회색선(약 0.2429)보다 살짝 위쪽까지만 구멍을 뚫어 선은 그대로 남긴다
+const COVER_NAME_FILL_ARGB = "FF0E1B59"; // 이미지의 남색과 동일한 색(이음매가 보이지 않도록)
+const COVER_NAME_FONT_COLOR_ARGB = "FFF0E7EF";
+const COVER_NAME_FONT_SIZE_PT = 25.5; // 기존 34px 캔버스 폰트와 동일한 크기(96dpi 기준 px->pt 환산)
+const COVER_NAME_FONT_NAME = "Malgun Gothic";
+const COVER_NAME_INDENT = 2; // 셀 왼쪽 여백(첫 글자가 용지 왼쪽 끝에 붙어 잘려 보이지 않도록)
 
 function loadImageEl(url){
   return new Promise((resolve, reject)=>{
@@ -1006,20 +1012,19 @@ function loadImageEl(url){
   });
 }
 
-// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그리고, 기본 이미지인 경우 고객명을 겹쳐 그린 뒤
-// PNG ArrayBuffer로 반환한다.
-async function buildCoverImageBuffer(imgUrl, customerName, drawName){
+// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그린다. cutHole이 true이면(기본 이미지인 경우) 고객명이
+// 들어갈 자리에 투명한 구멍을 뚫어, 이미지 아래에 놓일 실제 셀(고객명 수식)이 비쳐 보이게 한다.
+async function buildCoverImageBuffer(imgUrl, cutHole){
   const img = await loadImageEl(imgUrl);
   const canvas = document.createElement("canvas");
   canvas.width = COVER_TARGET_PX_W;
   canvas.height = COVER_TARGET_PX_H;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, COVER_TARGET_PX_W, COVER_TARGET_PX_H);
-  if(drawName && customerName){
-    ctx.font = `bold ${COVER_NAME_FONT_PX}px "Malgun Gothic","Apple SD Gothic Neo",sans-serif`;
-    ctx.fillStyle = COVER_NAME_COLOR;
-    ctx.textBaseline = "alphabetic";
-    ctx.fillText(customerName, COVER_TARGET_PX_W * COVER_NAME_X_RATIO, COVER_TARGET_PX_H * COVER_NAME_BASELINE_Y_RATIO);
+  if(cutHole){
+    const holeW = COVER_TARGET_PX_W * COVER_HOLE_RIGHT_X_RATIO;
+    const holeH = COVER_TARGET_PX_H * COVER_HOLE_BOTTOM_Y_RATIO;
+    ctx.clearRect(0, 0, holeW, holeH);
   }
   const blob = await new Promise((resolve, reject)=>{
     canvas.toBlob(b => b ? resolve(b) : reject(new Error("표지 이미지 생성에 실패했습니다.")), "image/png");
@@ -1035,7 +1040,7 @@ async function replaceCoverSheetWithImage(wb, customerName){
 
   const isDefaultCover = !(currentProfile && currentProfile.cover_image_path);
   const coverPath = getEffectiveCoverImagePath(currentProfile);
-  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(coverPath), customerName, isDefaultCover);
+  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(coverPath), isDefaultCover);
 
   wb.removeWorksheet(oldWs.id);
   const ws = wb.addWorksheet("표지", {
@@ -1044,7 +1049,16 @@ async function replaceCoverSheetWithImage(wb, customerName){
       orientation: "landscape",
       margins: { left:0, right:0, top:0, bottom:0, header:0, footer:0 },
       fitToPage: false,
+      // fitToWidth/fitToHeight를 명시적으로 0으로 지정하지 않으면 ExcelJS가 내부적으로 1로
+      // 채워 <pageSetup fitToWidth="1" fitToHeight="1"/>가 그대로 저장되는데, sheetPr의
+      // fitToPage 플래그 없이 이 값만 있으면 실제 Microsoft Excel에서 "한 페이지에 맞춤"으로
+      // 오인해 인쇄 영역이 축소/좌측 정렬되어 보이는 문제가 있었다(로컬 LibreOffice 렌더링은
+      // 정상으로 보였지만 실제 다운로드 파일을 열어보면 원인이 이 부분으로 확인됨).
+      fitToWidth: 0,
+      fitToHeight: 0,
       scale: 100,
+      horizontalCentered: true,
+      verticalCentered: true,
     }
   });
 
@@ -1053,19 +1067,62 @@ async function replaceCoverSheetWithImage(wb, customerName){
   const otherOrderNos = wb.worksheets.filter(w => w !== ws).map(w => w.orderNo);
   ws.orderNo = (otherOrderNos.length ? Math.min(...otherOrderNos) : 1) - 1;
 
-  ws.getRow(1).height = COVER_TARGET_PT_H / 2;
-  ws.getRow(2).height = COVER_TARGET_PT_H / 2;
   const MDW = 7; // Calibri 11 기준 Maximum Digit Width
-  const targetChars = (COVER_TARGET_PX_W * 256 / MDW - Math.floor(128 / MDW)) / 256;
-  ws.getColumn(1).width = targetChars;
-  ws.pageSetup.printArea = "A1:A2";
+  const pxToChars = (px)=> (px * 256 / MDW - Math.floor(128 / MDW)) / 256;
 
-  const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
-  ws.addImage(imgId, {
-    tl: { col: 0, row: 0 },
-    ext: { width: COVER_TARGET_PX_W, height: COVER_TARGET_PX_H },
-    editAs: "oneCell",
-  });
+  if(isDefaultCover){
+    // 관리자가 등록한 기본 이미지에는 고객명이 들어갈 자리에 이미지를 투명하게 뚫어 놓았고
+    // (buildCoverImageBuffer의 cutHole), 그 자리에 정확히 맞춰 실제 셀을 하나 배치해 고객명을
+    // 고정 픽셀이 아니라 "='보장분석표(전)'!C2" 수식으로 표시한다. 이러면 다운로드 후 엑셀에서
+    // 보장분석표(전) 시트의 이름을 바꾸면 표지의 이름도 함께 바뀐다.
+    // (참고: 이 구멍 자리 좌표는 admin.html에서 등록한 기본 표지 이미지 원본을 직접 측정해
+    // 정한 값이라, 관리자가 완전히 다른 레이아웃의 이미지로 바꾸면 다시 맞춰야 할 수 있다 —
+    // 기존의 고객명 좌표(COVER_NAME_X_RATIO 등)도 동일한 전제였다.)
+    const holeBottomYpt = COVER_HOLE_BOTTOM_Y_RATIO * COVER_TARGET_PT_H;
+    const remainderYpt = COVER_TARGET_PT_H - holeBottomYpt;
+    // 행 하나의 높이가 엑셀 최대 행 높이(약 409pt)를 넘지 않도록 나머지 구간을 2개 행으로 나눈다.
+    ws.getRow(1).height = holeBottomYpt;
+    ws.getRow(2).height = remainderYpt / 2;
+    ws.getRow(3).height = remainderYpt / 2;
+    ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
+    ws.pageSetup.printArea = "A1:A3";
+
+    const nameCell = ws.getCell("A1");
+    nameCell.value = { formula: "'보장분석표(전)'!C2" };
+    nameCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COVER_NAME_FILL_ARGB } };
+    nameCell.font = { name: COVER_NAME_FONT_NAME, bold: true, size: COVER_NAME_FONT_SIZE_PT, color: { argb: COVER_NAME_FONT_COLOR_ARGB } };
+    nameCell.alignment = { horizontal: "left", vertical: "bottom", indent: COVER_NAME_INDENT };
+
+    const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
+    // 참고: 이미지를 oneCellAnchor(셀 하나에 고정 픽셀 크기로 앉히는 방식)로 넣으면 -- 심지어
+    // 다른 셀에 아무 값도 없는 예전 방식(이미지만 있는 A1:A2)에서도 -- 로컬 LibreOffice 인쇄/PDF
+    // 변환 시 표지 시트 하나가 페이지 2개로 잘못 쪼개지는 현상이 있었다(실제 사용자가 받은
+    // 파일로도 재현 확인: 인쇄하면 이미지 맨 위 몇 픽셀만 다음 페이지에 걸쳐 나옴 -- "인쇄 영역이
+    // 꽉 차지 않고 정중앙도 아니다"라는 원래 문제의 실제 원인으로 보인다). 이미지 크기를 셀 격자
+    // 경계에서 직접 계산하는 twoCellAnchor(tl~br)로 바꾸면 이 분할이 재현되지 않아 이 방식으로
+    // 통일한다.
+    ws.addImage(imgId, {
+      tl: { col: 0, row: 0 },
+      br: { col: 1, row: 3 },
+      editAs: "twoCell",
+    });
+  } else {
+    // 회원이 직접 올린 개인 이미지는 레이아웃을 알 수 없으므로 이름을 겹쳐 쓰지 않고
+    // 기존과 동일하게 이미지 그대로, 셀 하나짜리 단순 구조를 사용한다.
+    ws.getRow(1).height = COVER_TARGET_PT_H / 2;
+    ws.getRow(2).height = COVER_TARGET_PT_H / 2;
+    ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
+    ws.pageSetup.printArea = "A1:A2";
+
+    const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
+    // 위와 동일한 이유로 twoCellAnchor를 사용한다(oneCellAnchor는 표지가 페이지 2개로
+    // 잘못 분할되는 문제가 있었다).
+    ws.addImage(imgId, {
+      tl: { col: 0, row: 0 },
+      br: { col: 1, row: 2 },
+      editAs: "twoCell",
+    });
+  }
 }
 
 dlBtn.addEventListener("click", async ()=>{
