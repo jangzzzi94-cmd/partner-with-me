@@ -174,10 +174,15 @@ button.secondary:hover{background:#e2eee2;}
 <script>
 let myProfile = null;
   let freeUnlimited = false;
+  let historyCost = 1000; // 1회 매칭 실행당 차감 포인트. 관리자가 admin.html에서 수정 가능(로그인 시 최신값으로 갱신됨)
   (async ()=>{
       await requireLogin();
       myProfile = await getMyProfile();
       freeUnlimited = !!myProfile && (myProfile.role === 'admin' || myProfile.role === 'gold');
+      if(!freeUnlimited){
+        const costs = await getPointCosts(); // 관리자가 admin.html에서 수정한 최신 차감 포인트를 읽어온다
+        historyCost = costs.history;
+      }
   })();
 document.getElementById("logoutLink").addEventListener("click", async (e)=>{
   e.preventDefault();
@@ -854,7 +859,7 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
                   document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
                   document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
                   document.getElementById("results").classList.add("show");
-                  status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (freeUnlimited ? "" : " (1,000P 차감)");
+                  status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (freeUnlimited ? "" : ` (${historyCost.toLocaleString()}P 차감)`);
         }catch(err){
                   console.error(err);
                   status.className="status err"; status.textContent="오류: "+err.message+" (포인트는 차감되지 않았습니다)";

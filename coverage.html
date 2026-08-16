@@ -1017,7 +1017,9 @@ dlBtn.addEventListener("click", async ()=>{
     setPrintAreaForColumns(wsBefore, Math.max(lastResult.columns.length, 8));
     setPrintAreaForColumns(wsAfter, Math.max(afterColumns.length, 8));
 
-    // 관리자/골드 회원이 아니면 엑셀 다운로드 1회당 3,000P를 차감한다.
+    // 관리자/골드 회원이 아니면 엑셀 다운로드 1회당 포인트를 차감한다(차감액은 DB point_costs
+    // 테이블 값이며 관리자가 admin.html에서 수정할 수 있다. 실제 차감은 spend_points 함수가
+    // DB에 저장된 최신 값을 기준으로 처리하므로, 여기 화면에 보이는 coverageCost는 안내용이다).
     // (템플릿 로딩/데이터 채우기가 모두 성공한 뒤, 실제 파일을 만들어 내려주기 직전에 차감하여
     //  네트워크 오류 등으로 파일을 만들지 못한 경우에는 포인트가 빠지지 않도록 한다.)
     if(!freeUnlimited){
@@ -1126,6 +1128,7 @@ let currentUserId = null;
 let plans = []; // [{id, plan_name, insurer, items:{...}}, ...] 마지막 열은 항상 id가 없는 빈 신규 작성용 열
 const planSaveTimers = {};
 let freeUnlimited = false; // 관리자/골드 회원은 엑셀 다운로드 포인트 차감 없이 무제한 이용
+let coverageCost = 3000; // 엑셀 다운로드 1회당 차감 포인트. 관리자가 admin.html에서 수정 가능(로그인 시 최신값으로 갱신됨)
 
 function blankPlan(){
   return { id:null, plan_name:"", insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
@@ -1775,7 +1778,9 @@ document.querySelectorAll(".sheettab").forEach(btn=>{
   const myProfile = await getMyProfile();
   freeUnlimited = !!myProfile && (myProfile.role === 'admin' || myProfile.role === 'gold');
   if(!freeUnlimited){
-    dlBtn.textContent = dlBtn.textContent + " · 3,000P";
+    const costs = await getPointCosts(); // 관리자가 admin.html에서 수정한 최신 차감 포인트를 읽어온다
+    coverageCost = costs.coverage;
+    dlBtn.textContent = dlBtn.textContent + " · " + coverageCost.toLocaleString() + "P";
   }
 
   await loadOtherCompanyLimits();
