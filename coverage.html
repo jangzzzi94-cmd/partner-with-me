@@ -974,13 +974,14 @@ function setPrintAreaForColumns(ws, columnCount){
      (assets/supabase-client.js의 getMyEffectiveCoverStyle). 관리자가 스타일을
      하나도 등록하지 않았다면 표지를 건드리지 않고 템플릿 원본을 그대로 둔다.
    - 인쇄했을 때 A4 가로 용지에 여백 없이 정확히 꽉 차도록, 시트를 새로 만들어
-     A4 가로 크기(297mm x 210mm)에 맞춘 격자에 이미지를 앉히고 인쇄영역도 그
-     격자 전체로 고정한다. (로컬 LibreOffice 인쇄 렌더링까지 확인해 검증한 방식.)
+     A4 가로 크기(297mm x 210mm)에 맞춘 이미지를 앉히고 인쇄영역도 그 전체로
+     고정한다. (로컬 LibreOffice 인쇄 렌더링까지 확인해 검증한 방식.)
    - 고객명은 스타일마다 관리자가 admin.html에서 자유롭게 지정한 위치(스타일의
-     name_x_ratio/name_y_ratio, 전체 이미지 대비 비율)에 불투명한 배지로 표시한다.
-     배지 칸을 뺀 나머지 칸은 서식 없이 그대로 두어 이미지 전체가 잘리지 않고
-     출력된다. 배지 자리는 이미지에도 똑같이 투명 구멍을 뚫어(badgeRect) 그
-     아래 실제 셀(고객명 수식)이 비쳐 보이도록 한다.
+     name_x_ratio/name_y_ratio, 전체 이미지 대비 비율)에, 별도 배경 없이 텍스트만
+     캔버스에 직접 그려 이미지 픽셀에 포함시킨다(테두리/배지 박스 없이 이미지
+     위에 투명하게 얹힌 느낌). 어떤 배경 사진 위에서도 읽히도록 흰색 글자에
+     옅은 어두운 외곽선(stroke)만 준다. 표지에서만 이름 뒤에 "님"을 붙인다
+     (다른 시트의 고객명 표기에는 영향 없음).
    ========================================================================= */
 const COVER_MM_TO_PT = 2.834645669;
 const COVER_PT_TO_PX = 96 / 72;
@@ -992,19 +993,19 @@ const COVER_TARGET_PX_W = Math.round(COVER_TARGET_PT_W / 0.75);
 const COVER_TARGET_PX_H = Math.round(COVER_TARGET_PT_H * COVER_PT_TO_PX);
 const COVER_NAME_FONT_NAME = "Malgun Gothic";
 
-// 고객명 배지 -- 스타일 이미지는 배경색을 미리 알 수 없으므로(관리자가 매번 다른 이미지를
-// 올릴 수 있음), 어떤 이미지 위에서도 항상 읽히도록 불투명한 진한 남색 배지를 사용한다.
-// 배지의 세로 크기(COVER_BADGE_H_PT)와 가로 비율(COVER_BADGE_W_RATIO)은 고정이고,
-// 배지의 "중심" 위치만 스타일마다 관리자가 자유롭게 지정한다(name_x_ratio/name_y_ratio).
-const COVER_BADGE_W_RATIO = 0.28;
-const COVER_BADGE_H_PT = 60;
-const COVER_BADGE_FILL_ARGB = "FF1A1A2E";
-const COVER_BADGE_FONT_COLOR_ARGB = "FFFFFFFF";
-const COVER_BADGE_FONT_SIZE_PT = 14;
+// 고객명 텍스트 -- 박스/배지 없이 이미지 위에 바로 그린다. 글자 크기는 기본값에서
+// 시작해 이름이 길면 COVER_NAME_MAX_WIDTH_RATIO(전체 너비 대비)를 넘지 않도록
+// 자동으로 줄어든다. 어떤 사진 위에서도 읽히도록 흰 글자 + 옅은 어두운 외곽선을 쓴다.
+const COVER_NAME_FONT_SIZE_PT = 26;
+const COVER_NAME_MAX_WIDTH_RATIO = 0.6;
+const COVER_NAME_MARGIN_PX = 24; // 이미지 가장자리에서 최소 이만큼은 띄운다
+const COVER_NAME_FILL_COLOR = "#FFFFFF";
+const COVER_NAME_STROKE_COLOR = "rgba(0,0,0,0.55)";
+
 // Excel/LibreOffice가 허용하는 단일 행의 최대 높이(대략 400~409pt)보다 안전하게 낮은 값.
-// 배지가 이미지 가장자리 가까이(예: 맨 위/맨 아래) 위치하면 반대쪽 남는 공간이 이 값을
-// 넘을 수 있는데, 그 경우 행 하나로 만들면 Excel이 높이를 조용히 잘라버려 인쇄 배치가
-// 깨진다. 그래서 넘는 만큼은 자동으로 2개 행으로 쪼갠다(splitSegment 참고).
+// 표지 한 장 전체 높이(COVER_TARGET_PT_H, 약 595pt)가 이 한도를 넘기 때문에, 행 하나로
+// 만들면 Excel이 높이를 조용히 잘라버려 인쇄 배치가 깨진다. 그래서 넘는 만큼은 자동으로
+// 여러 행으로 쪼갠다(splitSegment). 이미지는 그 행들 전체에 걸쳐 하나로 앉힌다.
 const COVER_MAX_ROW_PT = 380;
 
 function loadImageEl(url){
@@ -1017,18 +1018,57 @@ function loadImageEl(url){
   });
 }
 
-// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그리고, badgeRect 자리에 투명한 구멍을 뚫는다
-// (그 아래 놓일 불투명한 배지 셀이 그대로 비쳐 보이도록 하기 위함).
-async function buildCoverImageBuffer(imgUrl, badgeRect){
+// 이름이 너무 길면 maxWidthPx를 넘지 않을 때까지 글자 크기를 1px씩 줄인다.
+function fitCoverNameFont(ctx, text, maxWidthPx, basePx){
+  let size = basePx;
+  ctx.font = `bold ${size}px "${COVER_NAME_FONT_NAME}", sans-serif`;
+  while(size > 10 && ctx.measureText(text).width > maxWidthPx){
+    size -= 1;
+    ctx.font = `bold ${size}px "${COVER_NAME_FONT_NAME}", sans-serif`;
+  }
+  return size;
+}
+
+// customerName 뒤에 "님"이 없으면 붙인다(표지 전용 표기 -- 다른 시트의 고객명에는
+// 적용하지 않는다).
+function withNimSuffix(name){
+  const trimmed = (name || "").trim();
+  if(!trimmed) return trimmed;
+  return /님$/.test(trimmed) ? trimmed : trimmed + "님";
+}
+
+// 표지 이미지를 A4 가로 크기(px)에 꽉 차게 그리고, nameText가 있으면 nameXRatio/
+// nameYRatio(전체 이미지 대비 0~1 비율) 위치에 배경 없이 텍스트만 그려 넣는다.
+async function buildCoverImageBuffer(imgUrl, nameText, nameXRatio, nameYRatio){
   const img = await loadImageEl(imgUrl);
   const canvas = document.createElement("canvas");
   canvas.width = COVER_TARGET_PX_W;
   canvas.height = COVER_TARGET_PX_H;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, COVER_TARGET_PX_W, COVER_TARGET_PX_H);
-  if(badgeRect){
-    ctx.clearRect(badgeRect.x, badgeRect.y, badgeRect.w, badgeRect.h);
+
+  if(nameText){
+    const basePx = COVER_NAME_FONT_SIZE_PT * COVER_PT_TO_PX;
+    const maxWidthPx = COVER_NAME_MAX_WIDTH_RATIO * COVER_TARGET_PX_W;
+    const fontPx = fitCoverNameFont(ctx, nameText, maxWidthPx, basePx);
+    ctx.font = `bold ${fontPx}px "${COVER_NAME_FONT_NAME}", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(2, Math.round(fontPx * 0.12));
+
+    const textWidthPx = ctx.measureText(nameText).width;
+    const halfW = textWidthPx / 2 + COVER_NAME_MARGIN_PX;
+    const halfH = fontPx / 2 + COVER_NAME_MARGIN_PX;
+    const cx = Math.max(halfW, Math.min(COVER_TARGET_PX_W - halfW, nameXRatio * COVER_TARGET_PX_W));
+    const cy = Math.max(halfH, Math.min(COVER_TARGET_PX_H - halfH, nameYRatio * COVER_TARGET_PX_H));
+
+    ctx.strokeStyle = COVER_NAME_STROKE_COLOR;
+    ctx.strokeText(nameText, cx, cy);
+    ctx.fillStyle = COVER_NAME_FILL_COLOR;
+    ctx.fillText(nameText, cx, cy);
   }
+
   const blob = await new Promise((resolve, reject)=>{
     canvas.toBlob(b => b ? resolve(b) : reject(new Error("표지 이미지 생성에 실패했습니다.")), "image/png");
   });
@@ -1036,57 +1076,13 @@ async function buildCoverImageBuffer(imgUrl, badgeRect){
 }
 
 // 길이(size)가 maxSize를 넘으면 넘지 않는 여러 개의 동일한 조각으로 쪼갠다. size가
-// 거의 0이면 빈 배열(그 축에는 여백 칸을 아예 만들지 않음).
+// 거의 0이면 빈 배열.
 function splitSegment(size, maxSize){
   if(size <= 0.5) return [];
   if(!maxSize || size <= maxSize) return [size];
   const n = Math.ceil(size / maxSize);
   const each = size / n;
   return Array(n).fill(each);
-}
-
-// 0부터 시작하는 열 인덱스를 엑셀 열 문자(A, B, ..., Z, AA, ...)로 바꾼다.
-function colLetterFromIdx(idx){
-  let s = "";
-  idx += 1;
-  while(idx > 0){
-    const rem = (idx - 1) % 26;
-    s = String.fromCharCode(65 + rem) + s;
-    idx = Math.floor((idx - 1) / 26);
-  }
-  return s;
-}
-
-// nameXRatio/nameYRatio(배지 중심의, 전체 이미지 대비 0~1 비율)를 받아 배지가 배지 크기
-// 그대로 이미지 안에 온전히 들어오도록 클램프한 뒤, 그 위치를 표현하는 열/행 격자를
-// 계산한다. 항상 배지 칸 하나 + 남는 공간을 채우는 0~2개의 "여백" 칸으로 구성된다.
-function buildCoverStyleGrid(nameXRatio, nameYRatio){
-  const badgeWpx = COVER_BADGE_W_RATIO * COVER_TARGET_PX_W;
-  const badgeHpt = COVER_BADGE_H_PT;
-  const badgeHpx = badgeHpt * COVER_PT_TO_PX;
-
-  const halfWRatio = COVER_BADGE_W_RATIO / 2;
-  const halfHRatio = (badgeHpt / 2) / COVER_TARGET_PT_H;
-  const cx = Math.max(halfWRatio, Math.min(1 - halfWRatio, nameXRatio));
-  const cy = Math.max(halfHRatio, Math.min(1 - halfHRatio, nameYRatio));
-
-  const leftPx = cx * COVER_TARGET_PX_W - badgeWpx / 2;
-  const rightPx = COVER_TARGET_PX_W - leftPx - badgeWpx;
-  const topPt = cy * COVER_TARGET_PT_H - badgeHpt / 2;
-  const bottomPt = COVER_TARGET_PT_H - topPt - badgeHpt;
-
-  const leftCols = splitSegment(leftPx, null); // 열은 최대 길이 제한이 사실상 없어 쪼갤 필요 없음
-  const rightCols = splitSegment(rightPx, null);
-  const topRows = splitSegment(topPt, COVER_MAX_ROW_PT);
-  const bottomRows = splitSegment(bottomPt, COVER_MAX_ROW_PT);
-
-  return {
-    colWidthsPx: [...leftCols, badgeWpx, ...rightCols],
-    rowHeightsPt: [...topRows, badgeHpt, ...bottomRows],
-    badgeColIdx: leftCols.length,
-    badgeRowIdx: topRows.length,
-    badgeHolePx: { x: Math.max(0, leftPx), y: Math.max(0, topPt * COVER_PT_TO_PX), w: badgeWpx, h: badgeHpx },
-  };
 }
 
 // wb의 기존 "표지" 시트를 통째로 지우고, A4 가로에 꽉 차는 이미지 시트로 교체한다.
@@ -1098,8 +1094,13 @@ async function replaceCoverSheetWithImage(wb, customerName){
   const style = await getMyEffectiveCoverStyle(currentProfile);
   if(!style) return; // 관리자가 아직 스타일을 하나도 등록하지 않았다면 템플릿 표지를 그대로 둔다.
 
-  const grid = buildCoverStyleGrid(Number(style.name_x_ratio), Number(style.name_y_ratio));
-  const imageArrayBuffer = await buildCoverImageBuffer(getCoverImageUrl(style.image_path), grid.badgeHolePx);
+  const nameText = withNimSuffix(customerName);
+  const imageArrayBuffer = await buildCoverImageBuffer(
+    getCoverImageUrl(style.image_path),
+    nameText,
+    Number(style.name_x_ratio),
+    Number(style.name_y_ratio)
+  );
 
   wb.removeWorksheet(oldWs.id);
   const ws = wb.addWorksheet("표지", {
@@ -1144,26 +1145,19 @@ async function replaceCoverSheetWithImage(wb, customerName){
   // 파일로도 재현 확인: 인쇄하면 이미지 맨 위 몇 픽셀만 다음 페이지에 걸쳐 나옴 -- "인쇄 영역이
   // 꽉 차지 않고 정중앙도 아니다"라는 원래 문제의 실제 원인으로 보인다). 이미지 크기를 셀 격자
   // 경계에서 직접 계산하는 twoCellAnchor(tl~br)로 바꾸면 이 분할이 재현되지 않아 이 방식으로
-  // 통일한다. (로컬 LibreOffice 검증: 중앙/네 변 끝/코너 등 다양한 배지 위치 모두 표지 1페이지로
-  // 정상 렌더링됨.)
-  grid.colWidthsPx.forEach((px, i)=>{ ws.getColumn(i + 1).width = pxToChars(px); });
-  grid.rowHeightsPt.forEach((pt, i)=>{ ws.getRow(i + 1).height = pt; });
+  // 통일한다. 열은 한 칸이면 충분하지만(열 너비 최대치에 훨씬 못 미침), 행은 표지 전체
+  // 높이가 Excel의 단일 행 높이 한도를 넘으므로 여러 행으로 쪼갠다(splitSegment).
+  const rowHeightsPt = splitSegment(COVER_TARGET_PT_H, COVER_MAX_ROW_PT);
+  ws.getColumn(1).width = pxToChars(COVER_TARGET_PX_W);
+  rowHeightsPt.forEach((pt, i)=>{ ws.getRow(i + 1).height = pt; });
 
-  const totalCols = grid.colWidthsPx.length;
-  const totalRows = grid.rowHeightsPt.length;
-  ws.pageSetup.printArea = `A1:${colLetterFromIdx(totalCols - 1)}${totalRows}`;
-
-  const badgeCellRef = colLetterFromIdx(grid.badgeColIdx) + (grid.badgeRowIdx + 1);
-  const nameCell = ws.getCell(badgeCellRef);
-  nameCell.value = { formula: "'보장분석표(전)'!C2" };
-  nameCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COVER_BADGE_FILL_ARGB } };
-  nameCell.font = { name: COVER_NAME_FONT_NAME, bold: true, size: COVER_BADGE_FONT_SIZE_PT, color: { argb: COVER_BADGE_FONT_COLOR_ARGB } };
-  nameCell.alignment = { horizontal: "center", vertical: "middle" };
+  const totalRows = rowHeightsPt.length;
+  ws.pageSetup.printArea = `A1:A${totalRows}`;
 
   const imgId = wb.addImage({ buffer: imageArrayBuffer, extension: "png" });
   ws.addImage(imgId, {
     tl: { col: 0, row: 0 },
-    br: { col: totalCols, row: totalRows },
+    br: { col: 1, row: totalRows },
     editAs: "twoCell",
   });
 }
