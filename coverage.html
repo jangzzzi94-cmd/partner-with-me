@@ -30,7 +30,19 @@ button.danger{background:#fff;color:#c0392b;border:1px solid #c0392b;}
 .log{font-size:12px;color:var(--ink-soft);background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:10px;}
 table.preview{border-collapse:collapse;width:100%;font-size:12px;margin-top:14px;table-layout:fixed;}
 table.preview th,table.preview td{border:1px solid var(--line);padding:5px 7px;text-align:center;white-space:normal;word-break:break-word;overflow-wrap:break-word;vertical-align:middle;}
-table.preview th{background:#eef2f8;position:sticky;top:0;}
+table.preview th{background:#eef2f8;position:sticky;top:0;z-index:2;}
+/* 왼쪽 담보명 열 고정 -- 상품/플랜 열을 아무리 많이 추가해도, 표를 오른쪽으로 스크롤할 때
+   왼쪽의 담보(대분류/항목/합계) 라벨 열은 항상 화면에 그대로 남도록 가로 스크롤에도 고정한다.
+   각 표(보장분석표 전/후/마스터)의 colgroup 프리픽스 너비(60px, 150px, 90px 또는 60px, 170px)에
+   맞춰 누적 left 값을 지정한다. */
+.stick-l0{position:sticky;left:0;z-index:2;}
+.stick-l60{position:sticky;left:60px;z-index:2;}
+.stick-l210{position:sticky;left:210px;z-index:2;}
+/* 세로 고정(top)과 가로 고정(left)이 동시에 걸리는 "모서리" 칸 -- 보장분석표(전)의 헤더 담보
+   라벨 칸들 -- 은 둘 다 겹치는 경우에도 항상 맨 위에 그려지도록 z-index를 한 단계 더 높인다. */
+#previewTable thead .stick-l0,
+#previewTable thead .stick-l60,
+#previewTable thead .stick-l210{z-index:3;}
 table.preview td.label{background:#fafbfd;font-weight:600;}
 table.preview td.grouplabel{background:#eef2f8;font-weight:700;}
 table.preview td.meta-cell.kept-cell{background:#e8c547;}
@@ -789,7 +801,7 @@ function renderPreview(result){
   countBadge.textContent = `상품 ${result.columns.length}건`;
 
   let html = buildColgroupHtml([60,150,90], DATA_COL_WIDTH, result.columns.length);
-  html += "<thead><tr><th></th><th>구분</th><th>합계<br>(D열)</th>";
+  html += `<thead><tr><th class="stick-l0"></th><th class="stick-l60">구분</th><th class="stick-l210">합계<br>(D열)</th>`;
   result.columns.forEach((c,i)=> html += `<th>${String.fromCharCode(69+i)}열<br>`+
     `<button type="button" class="keep-btn ${c.kept?'active-keep':'secondary'}" data-col="${i}" style="margin-top:4px;padding:3px 8px;font-size:11px;">${c.kept?'유지 중 (해제하려면 클릭)':'유지'}</button>`+
     `<button type="button" class="danger" data-delbeforecol="${i}" style="margin-top:4px;margin-left:4px;padding:3px 8px;font-size:11px;">삭제</button></th>`);
@@ -808,7 +820,7 @@ function renderPreview(result){
     const isPremiumRow = field === "premium";
     const totalCellAttr = isPremiumRow ? ' id="premiumTotalCell"' : "";
     const totalText = isPremiumRow ? (()=>{ const t = sumPremiums(result.columns); return t ? t.toLocaleString()+"원" : ""; })() : "";
-    html += `<tr><td class="grouplabel" colspan="2">${label}</td><td class="label"${totalCellAttr}>${totalText}</td>`;
+    html += `<tr><td class="grouplabel stick-l0" colspan="2">${label}</td><td class="label stick-l210"${totalCellAttr}>${totalText}</td>`;
     result.columns.forEach((c,i)=>{
       const val = String(c.header[field]||"");
       const inputHtml = field === "productName"
@@ -823,14 +835,14 @@ function renderPreview(result){
   numericRowDefs.forEach(([row, group, item], ri)=>{
     let sum = 0;
     result.columns.forEach(c=> sum += (c.amounts[row]||0));
-    html += `<tr><td class="label">${group||""}</td><td class="label">${item}</td><td class="label pv-sum" data-row="${row}">${sum?sum.toLocaleString():""}</td>`;
+    html += `<tr><td class="label stick-l0">${group||""}</td><td class="label stick-l60">${item}</td><td class="label stick-l210 pv-sum" data-row="${row}">${sum?sum.toLocaleString():""}</td>`;
     result.columns.forEach((c,i)=>{
       html += `<td><input type="number" class="pv-item-input" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${c.amounts[row]||""}" placeholder="0"></td>`;
     });
     html += `</tr>`;
   });
 
-  html += `<tr><td class="grouplabel" colspan="3">기타(텍스트 태그, 쉼표로 구분)</td>`;
+  html += `<tr><td class="grouplabel stick-l0" colspan="3">기타(텍스트 태그, 쉼표로 구분)</td>`;
   result.columns.forEach((c,i)=> html += `<td><input type="text" class="pv-etc-input" data-col="${i}" data-gridrow="${6+numericRowDefs.length}" data-gridcol="${i}" value="${(c.textTags||[]).join(", ").replace(/"/g,"&quot;")}"></td>`);
   html += `</tr>`;
 
@@ -1359,26 +1371,26 @@ function renderMasterTable(){
   ensureTrailingBlankColumn();
   const table = document.getElementById("masterTable");
   let html = buildColgroupHtml([60,170], 160, plans.length);
-  html += "<thead><tr><th></th><th>구분</th>";
+  html += `<thead><tr><th class="stick-l0"></th><th class="stick-l60">구분</th>`;
   plans.forEach((p,i)=>{
     html += `<th>${p.id ? "" : `<span style="color:var(--ink-soft);font-weight:400;">(새 플랜)</span>`}`+
             `${p.id ? `<button class="danger" data-delcol="${i}" style="padding:2px 6px;font-size:11px;margin-left:4px;">삭제</button>` : ""}</th>`;
   });
   html += "</tr></thead><tbody>";
 
-  html += `<tr><td class="grouplabel" colspan="2">상품명 / 별칭<br><span style="font-weight:400;font-size:11px;">(보장분석표(후)에서 이 안의 글자를 검색해 찾습니다)</span></td>`;
+  html += `<tr><td class="grouplabel stick-l0" colspan="2">상품명 / 별칭<br><span style="font-weight:400;font-size:11px;">(보장분석표(후)에서 이 안의 글자를 검색해 찾습니다)</span></td>`;
   plans.forEach((p,i)=> html += `<td><textarea rows="3" style="resize:vertical;" data-col="${i}" data-field="plan_name" class="master-input" data-gridrow="0" data-gridcol="${i}" placeholder="예: 흥국3105&#10;(무)흥국생명다사랑...">${(p.plan_name||"").replace(/</g,"&lt;")}</textarea></td>`);
   html += `</tr>`;
 
   // 보장분석표(전)/(후)와 동일한 계약정보 필드 (보험회사/보험기간/납기·만기/보험료/계약자).
   MASTER_META_FIELDS.forEach(([label, field], mi)=>{
-    html += `<tr><td class="grouplabel" colspan="2">${label}</td>`;
+    html += `<tr><td class="grouplabel stick-l0" colspan="2">${label}</td>`;
     plans.forEach((p,i)=> html += `<td><input type="text" data-col="${i}" data-field="${field}" class="master-input" data-gridrow="${1+mi}" data-gridcol="${i}" value="${String(p[field]||"").replace(/"/g,"&quot;")}"></td>`);
     html += `</tr>`;
   });
 
   ROW_DEFS.forEach(([row, group, item], ri)=>{
-    html += `<tr><td class="label">${group||""}</td><td class="label">${item}</td>`;
+    html += `<tr><td class="label stick-l0">${group||""}</td><td class="label stick-l60">${item}</td>`;
     plans.forEach((p,i)=>{
       const raw = (p.items && p.items[row]!=null) ? p.items[row] : "";
       if(TEXT_ROWS.has(row)){
@@ -1777,7 +1789,7 @@ function syncAfterCarryoverFromBefore(){
 function buildAfterSheetSkeleton(){
   const table = document.getElementById("afterTable");
   let html = buildColgroupHtml([60,150,90], DATA_COL_WIDTH, afterColumns.length);
-  html += "<thead><tr><th></th><th>구분</th><th>합계</th>";
+  html += `<thead><tr><th class="stick-l0"></th><th class="stick-l60">구분</th><th class="stick-l210">합계</th>`;
   afterColumns.forEach((c,i)=>{
     html += `<th>${String.fromCharCode(69+i)}열`;
     html += ` <button type="button" class="danger" data-delaftercol="${i}" style="padding:2px 6px;font-size:11px;">삭제</button>`;
@@ -1785,7 +1797,7 @@ function buildAfterSheetSkeleton(){
   });
   html += "</tr></thead><tbody>";
 
-  html += `<tr><td class="grouplabel" colspan="3">플랜 별칭 / 출처</td>`;
+  html += `<tr><td class="grouplabel stick-l0" colspan="3">플랜 별칭 / 출처</td>`;
   afterColumns.forEach((c,i)=>{
     if(c.source === "carryover"){
       html += `<td style="font-size:11px;color:var(--ink-soft);">전 탭에서 유지 중인 상품<br>(자동 연동, 아래 값은 직접 수정 가능)</td>`;
@@ -1801,7 +1813,7 @@ function buildAfterSheetSkeleton(){
     const isPremiumRow = field === "premium";
     const totalCellAttr = isPremiumRow ? ' id="afterPremiumTotalCell"' : "";
     const totalText = isPremiumRow ? (()=>{ const t = sumAfterPremiums(afterColumns); return t ? t.toLocaleString()+"원" : ""; })() : "";
-    html += `<tr><td class="grouplabel" colspan="2">${label}</td><td class="label"${totalCellAttr}>${totalText}</td>`;
+    html += `<tr><td class="grouplabel stick-l0" colspan="2">${label}</td><td class="label stick-l210"${totalCellAttr}>${totalText}</td>`;
     afterColumns.forEach((c,i)=>{
       const val = String(c[field]||"");
       const metaCellClass = `meta-cell${c.source==='carryover'?' kept-cell':''}`;
@@ -1815,7 +1827,7 @@ function buildAfterSheetSkeleton(){
   });
 
   ROW_DEFS.forEach(([row, group, item], ri)=>{
-    html += `<tr><td class="label">${group||""}</td><td class="label">${item}</td><td class="label af-sum" data-row="${row}"></td>`;
+    html += `<tr><td class="label stick-l0">${group||""}</td><td class="label stick-l60">${item}</td><td class="label stick-l210 af-sum" data-row="${row}"></td>`;
     afterColumns.forEach((c,i)=>{
       const raw = (c.items && c.items[row]!=null) ? c.items[row] : "";
       const inputType = TEXT_ROWS.has(row) ? "text" : "number";
