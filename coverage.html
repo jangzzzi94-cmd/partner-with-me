@@ -58,6 +58,9 @@ table.grid td.grouplabel{background:#eef2f8;font-weight:700;}
 table.preview input,table.preview textarea,table.grid input,table.grid textarea{width:100%;text-align:center;font-family:inherit;border:1px solid transparent;background:transparent;padding:2px 3px;border-radius:4px;font-size:12px;resize:vertical;}
 table.preview input:focus,table.preview textarea:focus,table.grid input:focus,table.grid textarea:focus{border-color:var(--amber);background:#fff;outline:none;}
 textarea.pv-meta-input,textarea.af-productname{min-height:56px;line-height:1.4;}
+/* 기타(텍스트 태그) 칸은 기존 대비 2배 높이의 고정 크기 박스로 둔다(자동 늘어남 없음,
+   필요하면 사용자가 직접 세로로 드래그해서 더 늘릴 수 있다 -- resize:vertical). */
+textarea.pv-etc-input,textarea.master-item-input,textarea.af-item{min-height:80px;line-height:1.4;resize:vertical;}
 .scrollwrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px;}
 .badge{display:inline-block;background:#eef2f8;color:var(--ink-soft);border-radius:6px;padding:2px 8px;font-size:11px;margin-left:6px;}
 .col-alias{width:100%;}
@@ -395,6 +398,29 @@ function wireGridEnterNav(container){
       if(moveGridFocus(container, target, 0, -1)) e.preventDefault();
     } else if(e.key === "ArrowRight" && atEnd){
       if(moveGridFocus(container, target, 0, 1)) e.preventDefault();
+    }
+  });
+}
+
+/* =========================================================================
+   여러 줄 textarea(상품명 등)는 입력한 텍스트가 잘리지 않도록 높이를 내용에 맞춰
+   자동으로 늘린다. 값이 프로그램적으로 바뀌는 경우(자동완성 등)에도 다시 불러서
+   맞춰줄 수 있도록 별도 함수로 둔다.
+   -- 기타(텍스트 태그) 칸(.pv-etc-input/.master-item-input/.af-item)은 자동 늘어남
+   없이 고정 크기(2배 높이) + 수동 리사이즈만 쓰도록 여기서 제외한다.
+   ========================================================================= */
+function autosizeTextarea(el){
+  if(!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+function wireAutosizeTextareas(container){
+  if(!container) return;
+  container.querySelectorAll("textarea:not(.pv-etc-input):not(.master-item-input):not(.af-item)").forEach(ta=>{
+    autosizeTextarea(ta);
+    if(!ta.__autosizeWired){
+      ta.__autosizeWired = true;
+      ta.addEventListener("input", ()=> autosizeTextarea(ta));
     }
   });
 }
@@ -873,7 +899,7 @@ function renderPreview(result){
   });
 
   html += `<tr><td class="grouplabel stick-l0" colspan="3">기타(텍스트 태그, 줄바꿈 또는 쉼표로 구분)</td>`;
-  result.columns.forEach((c,i)=> html += `<td><textarea rows="2" class="pv-etc-input" data-col="${i}" data-gridrow="${6+numericRowDefs.length}" data-gridcol="${i}">${(c.textTags||[]).join("\n").replace(/</g,"&lt;")}</textarea></td>`);
+  result.columns.forEach((c,i)=> html += `<td><textarea rows="4" class="pv-etc-input" data-col="${i}" data-gridrow="${6+numericRowDefs.length}" data-gridcol="${i}">${(c.textTags||[]).join("\n").replace(/</g,"&lt;")}</textarea></td>`);
   html += `</tr>`;
 
   html += "</tbody>";
@@ -881,6 +907,7 @@ function renderPreview(result){
   wireExcelPaste(table);
   wireGridEnterNav(table);
   wireDragSelect(table);
+  wireAutosizeTextareas(table);
 
   table.querySelectorAll(".keep-btn").forEach(btn=>{
     btn.addEventListener("click", ()=> toggleKept(Number(btn.dataset.col)));
@@ -1431,7 +1458,7 @@ function renderMasterTable(){
       // 있으면 0으로 취급한다(numOrZero 참고). 값 자체는 입력한 그대로 저장/보존된다.
       // "기타" 행(TEXT_ROWS)은 여러 줄(줄바꿈) 입력이 가능하도록 textarea로 그린다.
       if(TEXT_ROWS.has(row)){
-        html += `<td><textarea rows="2" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
+        html += `<td><textarea rows="4" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
       } else {
         html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
       }
@@ -1443,6 +1470,7 @@ function renderMasterTable(){
   wireExcelPaste(table);
   wireGridEnterNav(table);
   wireDragSelect(table);
+  wireAutosizeTextareas(table);
 
   table.querySelectorAll(".master-input, .master-item-input").forEach(el=>{
     el.addEventListener("input", ()=>{
@@ -1870,7 +1898,7 @@ function buildAfterSheetSkeleton(){
       // 텍스트를 0으로 취급한다. "기타" 행(TEXT_ROWS)은 여러 줄(줄바꿈) 입력이 가능하도록
       // textarea로 그린다.
       if(TEXT_ROWS.has(row)){
-        html += `<td><textarea rows="2" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
+        html += `<td><textarea rows="4" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
       } else {
         html += `<td><input type="text" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
       }
@@ -1883,6 +1911,7 @@ function buildAfterSheetSkeleton(){
   wireExcelPaste(table);
   wireGridEnterNav(table);
   wireDragSelect(table);
+  wireAutosizeTextareas(table);
 
   table.querySelectorAll(".col-alias").forEach(inp=>{
     inp.addEventListener("input", ()=>{
@@ -1954,7 +1983,7 @@ function applyColumnValuesToDom(i){
   const col = afterColumns[i];
   if(!col) return;
   const pn = table.querySelector(`.af-productname[data-col="${i}"]`);
-  if(pn && pn.value !== (col.productName||"")) pn.value = col.productName||"";
+  if(pn && pn.value !== (col.productName||"")){ pn.value = col.productName||""; autosizeTextarea(pn); }
   table.querySelectorAll(`.af-meta-input[data-col="${i}"]`).forEach(inp=>{
     const field = inp.dataset.field;
     const v = col[field] || "";
