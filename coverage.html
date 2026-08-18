@@ -1429,8 +1429,12 @@ function renderMasterTable(){
       // 숫자뿐 아니라 텍스트도 입력할 수 있다("미가입"/"무제한" 같은 메모성 텍스트 포함).
       // 합산한도 계산 시에는 순수 숫자로 해석되는 값만 그대로 사용하고, 텍스트가 섞여
       // 있으면 0으로 취급한다(numOrZero 참고). 값 자체는 입력한 그대로 저장/보존된다.
-      const placeholder = TEXT_ROWS.has(row) ? "텍스트 입력" : "숫자 또는 텍스트";
-      html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}" placeholder="${placeholder}"></td>`;
+      // "기타" 행(TEXT_ROWS)은 여러 줄(줄바꿈) 입력이 가능하도록 textarea로 그린다.
+      if(TEXT_ROWS.has(row)){
+        html += `<td><textarea rows="2" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
+      } else {
+        html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
+      }
     });
     html += `</tr>`;
   });
@@ -1863,8 +1867,13 @@ function buildAfterSheetSkeleton(){
     afterColumns.forEach((c,i)=>{
       const raw = (c.items && c.items[row]!=null) ? c.items[row] : "";
       // 마스터와 마찬가지로 숫자/텍스트를 모두 입력할 수 있다. 합계/한도 계산은 numOrZero로
-      // 텍스트를 0으로 취급한다.
-      html += `<td><input type="text" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
+      // 텍스트를 0으로 취급한다. "기타" 행(TEXT_ROWS)은 여러 줄(줄바꿈) 입력이 가능하도록
+      // textarea로 그린다.
+      if(TEXT_ROWS.has(row)){
+        html += `<td><textarea rows="2" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
+      } else {
+        html += `<td><input type="text" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
+      }
     });
     html += `</tr>`;
   });
