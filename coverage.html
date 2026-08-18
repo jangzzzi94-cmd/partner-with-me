@@ -58,6 +58,10 @@ table.grid td.grouplabel{background:#eef2f8;font-weight:700;}
 table.preview input,table.preview textarea,table.grid input,table.grid textarea{width:100%;text-align:center;font-family:inherit;border:1px solid transparent;background:transparent;padding:2px 3px;border-radius:4px;font-size:12px;resize:vertical;}
 table.preview input:focus,table.preview textarea:focus,table.grid input:focus,table.grid textarea:focus{border-color:var(--amber);background:#fff;outline:none;}
 textarea.pv-meta-input,textarea.af-productname{min-height:56px;line-height:1.4;}
+/* 여러 줄 텍스트 칸(기타 태그 등)은 입력한 내용이 다 보이도록 자바스크립트로 높이를
+   자동 조정한다(autosizeTextarea). overflow:hidden으로 스크롤바 없이 늘어나게 하고,
+   최소 높이는 처음부터 두 줄 정도는 보이도록 잡아둔다. */
+textarea.pv-etc-input,textarea.master-item-input,textarea.af-item{min-height:40px;line-height:1.4;overflow:hidden;resize:none;}
 .scrollwrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px;}
 .badge{display:inline-block;background:#eef2f8;color:var(--ink-soft);border-radius:6px;padding:2px 8px;font-size:11px;margin-left:6px;}
 .col-alias{width:100%;}
@@ -395,6 +399,27 @@ function wireGridEnterNav(container){
       if(moveGridFocus(container, target, 0, -1)) e.preventDefault();
     } else if(e.key === "ArrowRight" && atEnd){
       if(moveGridFocus(container, target, 0, 1)) e.preventDefault();
+    }
+  });
+}
+
+/* =========================================================================
+   여러 줄 textarea(기타 태그, 상품명 등)는 입력한 텍스트가 잘리지 않고 다 보이도록
+   높이를 내용에 맞춰 자동으로 늘린다. 값이 프로그램적으로 바뀌는 경우(자동완성 등)에도
+   다시 불러서 맞춰줄 수 있도록 별도 함수로 둔다.
+   ========================================================================= */
+function autosizeTextarea(el){
+  if(!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+function wireAutosizeTextareas(container){
+  if(!container) return;
+  container.querySelectorAll("textarea").forEach(ta=>{
+    autosizeTextarea(ta);
+    if(!ta.__autosizeWired){
+      ta.__autosizeWired = true;
+      ta.addEventListener("input", ()=> autosizeTextarea(ta));
     }
   });
 }
@@ -881,6 +906,7 @@ function renderPreview(result){
   wireExcelPaste(table);
   wireGridEnterNav(table);
   wireDragSelect(table);
+  wireAutosizeTextareas(table);
 
   table.querySelectorAll(".keep-btn").forEach(btn=>{
     btn.addEventListener("click", ()=> toggleKept(Number(btn.dataset.col)));
@@ -1443,6 +1469,7 @@ function renderMasterTable(){
   wireExcelPaste(table);
   wireGridEnterNav(table);
   wireDragSelect(table);
+  wireAutosizeTextareas(table);
 
   table.querySelectorAll(".master-input, .master-item-input").forEach(el=>{
     el.addEventListener("input", ()=>{
@@ -1883,6 +1910,7 @@ function buildAfterSheetSkeleton(){
   wireExcelPaste(table);
   wireGridEnterNav(table);
   wireDragSelect(table);
+  wireAutosizeTextareas(table);
 
   table.querySelectorAll(".col-alias").forEach(inp=>{
     inp.addEventListener("input", ()=>{
@@ -1954,7 +1982,7 @@ function applyColumnValuesToDom(i){
   const col = afterColumns[i];
   if(!col) return;
   const pn = table.querySelector(`.af-productname[data-col="${i}"]`);
-  if(pn && pn.value !== (col.productName||"")) pn.value = col.productName||"";
+  if(pn && pn.value !== (col.productName||"")){ pn.value = col.productName||""; autosizeTextarea(pn); }
   table.querySelectorAll(`.af-meta-input[data-col="${i}"]`).forEach(inp=>{
     const field = inp.dataset.field;
     const v = col[field] || "";
@@ -1965,7 +1993,7 @@ function applyColumnValuesToDom(i){
   table.querySelectorAll(`.af-item[data-col="${i}"]`).forEach(inp=>{
     const row = inp.dataset.row;
     const v = (col.items && col.items[row]!=null) ? col.items[row] : "";
-    if(String(inp.value) !== String(v)) inp.value = v;
+    if(String(inp.value) !== String(v)){ inp.value = v; if(inp.tagName === "TEXTAREA") autosizeTextarea(inp); }
     recomputeAfterRowSum(row);
   });
   applyLimitWarningsToDom();
