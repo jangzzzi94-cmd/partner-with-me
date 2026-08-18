@@ -228,6 +228,14 @@ const ROW_DEFS = [
 ];
 // row 45(기타)는 금액이 아니라 텍스트이므로 숫자 합산 대상에서 제외하고 텍스트 그대로 다룬다.
 const TEXT_ROWS = new Set([45]);
+// 마스터/보장분석표(후)의 담보 금액 칸은 숫자뿐 아니라 텍스트도 입력할 수 있다(예: "미가입",
+// "무제한" 등 메모성 텍스트). 합산/한도 계산에서는 순수 숫자로 해석되는 값만 그 값 그대로,
+// 텍스트가 섞여 있으면 0으로 취급한다.
+function numOrZero(v){
+  if(v === null || v === undefined || v === "") return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 /* =========================================================================
    공용 유틸: 고정 열 너비(colgroup) / 엑셀에서 드래그로 복사한 범위를 그대로
@@ -350,22 +358,44 @@ document.addEventListener("keydown", (e)=>{
 });
 
 /* =========================================================================
-   엑셀처럼 숫자를 입력하고 Enter를 누르면 바로 아래 칸으로 이동한다.
-   (data-gridrow/data-gridcol을 가진 <input>에서만 동작 -- 여러 줄 textarea인
-   상품명 칸은 Enter가 줄바꿈으로 쓰이도록 그대로 둔다.)
+   엑셀처럼 숫자/텍스트를 입력하고 Enter를 누르면 바로 아래 칸으로, 왼쪽/오른쪽
+   화살표를 누르면(칸 안 커서가 맨 앞/맨 끝에 있을 때) 옆 칸으로 이동한다.
+   (data-gridrow/data-gridcol을 가진 <input>/<textarea>에서만 동작 -- 여러 줄
+   textarea인 상품명 칸은 Enter가 줄바꿈으로 쓰이도록 그대로 둔다.)
    ========================================================================= */
+function moveGridFocus(container, target, dr, dc){
+  const row = Number(target.dataset.gridrow), col = Number(target.dataset.gridcol);
+  const next = container.querySelector(`[data-gridrow="${row+dr}"][data-gridcol="${col+dc}"]`);
+  if(next){ next.focus(); if(next.select) next.select(); return true; }
+  return false;
+}
 function wireGridEnterNav(container){
   if(!container || container.__enterNavWired) return;
   container.__enterNavWired = true;
   container.addEventListener("keydown", (e)=>{
-    if(e.key !== "Enter") return;
     const target = e.target;
-    if(!target || target.tagName !== "INPUT") return;
-    if(!target.dataset || target.dataset.gridrow===undefined || target.dataset.gridcol===undefined) return;
-    e.preventDefault();
-    const row = Number(target.dataset.gridrow), col = Number(target.dataset.gridcol);
-    const next = container.querySelector(`[data-gridrow="${row+1}"][data-gridcol="${col}"]`);
-    if(next){ next.focus(); if(next.select) next.select(); }
+    if(!target || !target.dataset || target.dataset.gridrow===undefined || target.dataset.gridcol===undefined) return;
+    const tag = target.tagName;
+    if(tag !== "INPUT" && tag !== "TEXTAREA") return;
+
+    if(e.key === "Enter"){
+      if(tag !== "INPUT") return; // 여러 줄 textarea는 Enter가 줄바꿈으로 쓰이도록 그대로 둔다
+      e.preventDefault();
+      moveGridFocus(container, target, 1, 0);
+      return;
+    }
+
+    if(e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    // number 타입 입력창은 selectionStart를 읽을 수 없고(브라우저 제약) 화살표로 값 안에서
+    // 커서를 옮기거나 스핀 버튼을 조작하는 기본 동작을 그대로 살려두기 위해 건드리지 않는다.
+    if(tag === "INPUT" && target.type === "number") return;
+    const atStart = target.selectionStart === 0 && target.selectionEnd === 0;
+    const atEnd = target.selectionStart === target.value.length && target.selectionEnd === target.value.length;
+    if(e.key === "ArrowLeft" && atStart){
+      if(moveGridFocus(container, target, 0, -1)) e.preventDefault();
+    } else if(e.key === "ArrowRight" && atEnd){
+      if(moveGridFocus(container, target, 0, 1)) e.preventDefault();
+    }
   });
 }
 
@@ -842,8 +872,8 @@ function renderPreview(result){
     html += `</tr>`;
   });
 
-  html += `<tr><td class="grouplabel stick-l0" colspan="3">기타(텍스트 태그, 쉼표로 구분)</td>`;
-  result.columns.forEach((c,i)=> html += `<td><input type="text" class="pv-etc-input" data-col="${i}" data-gridrow="${6+numericRowDefs.length}" data-gridcol="${i}" value="${(c.textTags||[]).join(", ").replace(/"/g,"&quot;")}"></td>`);
+  html += `<tr><td class="grouplabel stick-l0" colspan="3">기타(텍스트 태그, 줄바꿈 또는 쉼표로 구분)</td>`;
+  result.columns.forEach((c,i)=> html += `<td><textarea rows="2" class="pv-etc-input" data-col="${i}" data-gridrow="${6+numericRowDefs.length}" data-gridcol="${i}">${(c.textTags||[]).join("\n").replace(/</g,"&lt;")}</textarea></td>`);
   html += `</tr>`;
 
   html += "</tbody>";
@@ -889,7 +919,8 @@ function renderPreview(result){
       const i = Number(inp.dataset.col);
       const c = lastResult && lastResult.columns[i];
       if(!c) return;
-      c.textTags = inp.value.split(",").map(s=>s.trim()).filter(Boolean);
+      // 줄바꿈으로 여러 줄 입력도 가능하고, 기존처럼 쉼표로 한 줄에 여러 개를 적어도 된다.
+      c.textTags = inp.value.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
     });
   });
 }
@@ -930,7 +961,12 @@ function fillSheetColumns(ws, columns, getField){
     ROW_DEFS.forEach(([row])=>{
       if(TEXT_ROWS.has(row)) return;
       const v = amounts[row];
-      ws.getCell(row, col).value = v ? v : null;
+      if(v === null || v === undefined || v === ""){ ws.getCell(row, col).value = null; return; }
+      // 순수 숫자로 해석되는 값은 숫자로 써서 엑셀의 합계 수식(SUM)에 그대로 잡히게 하고,
+      // "미가입"처럼 텍스트가 섞인 값은 텍스트 그대로 써서(엑셀 SUM은 텍스트 셀을 0으로
+      // 취급해 자동으로 무시한다) 웹 화면의 "텍스트는 0으로 취급" 규칙과 결과가 일치하게 한다.
+      const n = Number(v);
+      ws.getCell(row, col).value = Number.isFinite(n) ? n : v;
     });
     const textVal = getField(c, "text45");
     ws.getCell(45, col).value = textVal ? textVal : null;
@@ -1274,13 +1310,10 @@ function autofillColumnFromPlan(plan){
   if(!plan) return { insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
   const items = {};
   for(const [row, amt] of Object.entries(plan.items||{})){
-    if(TEXT_ROWS.has(Number(row))){
-      const s = String(amt==null?"":amt).trim();
-      if(s) items[row] = s;
-    } else {
-      const n = Number(amt);
-      if(n) items[row] = n;
-    }
+    // 마스터의 담보 칸은 숫자/텍스트를 모두 담을 수 있으므로, 값이 있으면(숫자든 텍스트든)
+    // 그대로 옮겨 담는다. 합산/한도 계산에서만 텍스트를 0으로 취급한다(numOrZero).
+    const s = String(amt==null?"":amt).trim();
+    if(s) items[row] = s;
   }
   return { insurer: plan.insurer||"", duration: plan.duration||"", term: plan.term||"",
            premium: plan.premium||"", holder: plan.holder||"", items };
@@ -1393,17 +1426,19 @@ function renderMasterTable(){
     html += `<tr><td class="label stick-l0">${group||""}</td><td class="label stick-l60">${item}</td>`;
     plans.forEach((p,i)=>{
       const raw = (p.items && p.items[row]!=null) ? p.items[row] : "";
-      if(TEXT_ROWS.has(row)){
-        html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}" placeholder="텍스트 입력"></td>`;
-      } else {
-        html += `<td><input type="number" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${raw}" placeholder="0"></td>`;
-      }
+      // 숫자뿐 아니라 텍스트도 입력할 수 있다("미가입"/"무제한" 같은 메모성 텍스트 포함).
+      // 합산한도 계산 시에는 순수 숫자로 해석되는 값만 그대로 사용하고, 텍스트가 섞여
+      // 있으면 0으로 취급한다(numOrZero 참고). 값 자체는 입력한 그대로 저장/보존된다.
+      const placeholder = TEXT_ROWS.has(row) ? "텍스트 입력" : "숫자 또는 텍스트";
+      html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}" placeholder="${placeholder}"></td>`;
     });
     html += `</tr>`;
   });
   html += "</tbody>";
   table.innerHTML = html;
   wireExcelPaste(table);
+  wireGridEnterNav(table);
+  wireDragSelect(table);
 
   table.querySelectorAll(".master-input, .master-item-input").forEach(el=>{
     el.addEventListener("input", ()=>{
@@ -1414,12 +1449,9 @@ function renderMasterTable(){
         plan[el.dataset.field] = el.value;
       } else if(el.dataset.row){
         const row = el.dataset.row;
-        if(TEXT_ROWS.has(Number(row))){
-          if(el.value.trim()) plan.items[row] = el.value; else delete plan.items[row];
-        } else {
-          const n = parseFloat(el.value);
-          if(!isNaN(n) && n>0) plan.items[row] = n; else delete plan.items[row];
-        }
+        // 숫자든 텍스트든 입력한 값 그대로 저장한다. 합산/한도 계산 시에만 텍스트를 0으로
+        // 취급한다(numOrZero) -- 값 자체를 지우거나 숫자로 강제 변환하지 않는다.
+        if(el.value.trim()) plan.items[row] = el.value; else delete plan.items[row];
       }
       renderAfterSheet(); // 마스터를 고치는 즉시 (후) 시트 자동완성도 따라오게 (표 구조는 안 건드림)
       schedulePlanSave(col);
@@ -1521,7 +1553,7 @@ function beforeRowSum(row){
 }
 function afterRowSum(row){
   let sum = 0;
-  afterColumns.forEach(c=> sum += ((c.items && c.items[row])||0));
+  afterColumns.forEach(c=> sum += numOrZero(c.items && c.items[row]));
   return sum;
 }
 function rowLabel(row){
@@ -1666,14 +1698,14 @@ function computeLimitWarnings(){
 
     // 이 담보에 금액이 있는 신규가입 열 전체 (보험사 무관 -- 여러 보험사에 동시에
     // 새로 가입하더라도 전부 "이번에 새로 늘어나는 총량"으로 함께 계산한다)
-    const newColsAtRow = manualIdxs.filter(i=> (afterColumns[i].items && afterColumns[i].items[row] > 0));
+    const newColsAtRow = manualIdxs.filter(i=> numOrZero(afterColumns[i].items && afterColumns[i].items[row]) > 0);
     if(!newColsAtRow.length) return;
-    const newSumAll = newColsAtRow.reduce((s,i)=> s + afterColumns[i].items[row], 0);
+    const newSumAll = newColsAtRow.reduce((s,i)=> s + numOrZero(afterColumns[i].items[row]), 0);
     const newCountAll = newColsAtRow.length;
 
     // 이 담보에 금액이 있는 기존 유지(carryover) 열 전체 (보험사 무관, 합산한도 계산용)
-    const keptColsAtRow = afterColumns.filter(c=> c.source === "carryover" && c.items && c.items[row] > 0);
-    const existingTotal = keptColsAtRow.reduce((s,c)=> s + c.items[row], 0);
+    const keptColsAtRow = afterColumns.filter(c=> c.source === "carryover" && numOrZero(c.items && c.items[row]) > 0);
+    const existingTotal = keptColsAtRow.reduce((s,c)=> s + numOrZero(c.items[row]), 0);
 
     insurersWithNew.forEach(insurer=>{
       const rowLimits = otherCompanyLimitsMap[insurer];
@@ -1712,7 +1744,7 @@ function computeLimitWarnings(){
               return months != null && months <= limit.amount_limit_months;
             })
           : [];
-        const recentKeptSum = recentKept.reduce((s,c)=> s + c.items[row], 0);
+        const recentKeptSum = recentKept.reduce((s,c)=> s + numOrZero(c.items[row]), 0);
         const totalAmount = newSumAll + recentKeptSum;
         if(totalAmount > limit.amount_limit_amount){
           const monthTxt = limit.amount_limit_months ? `${limit.amount_limit_months}개월 이내 ` : "";
@@ -1830,8 +1862,9 @@ function buildAfterSheetSkeleton(){
     html += `<tr><td class="label stick-l0">${group||""}</td><td class="label stick-l60">${item}</td><td class="label stick-l210 af-sum" data-row="${row}"></td>`;
     afterColumns.forEach((c,i)=>{
       const raw = (c.items && c.items[row]!=null) ? c.items[row] : "";
-      const inputType = TEXT_ROWS.has(row) ? "text" : "number";
-      html += `<td><input type="${inputType}" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
+      // 마스터와 마찬가지로 숫자/텍스트를 모두 입력할 수 있다. 합계/한도 계산은 numOrZero로
+      // 텍스트를 0으로 취급한다.
+      html += `<td><input type="text" class="af-item" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
     });
     html += `</tr>`;
   });
@@ -1890,12 +1923,7 @@ function buildAfterSheetSkeleton(){
       const i = Number(inp.dataset.col), row = inp.dataset.row;
       const col = afterColumns[i];
       if(!col) return;
-      if(TEXT_ROWS.has(Number(row))){
-        if(inp.value.trim()) col.items[row] = inp.value; else delete col.items[row];
-      } else {
-        const n = parseFloat(inp.value);
-        if(!isNaN(n) && n>0) col.items[row] = n; else delete col.items[row];
-      }
+      if(inp.value.trim()) col.items[row] = inp.value; else delete col.items[row];
       recomputeAfterRowSum(row);
       applyLimitWarningsToDom();
     });
