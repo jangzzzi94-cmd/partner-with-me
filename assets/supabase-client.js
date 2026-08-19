@@ -113,6 +113,17 @@ async function updateMyName(name){
     return { ok:true };
 }
 
+async function deleteMyAccount(){
+    const { error } = await supabaseClient.rpc("delete_my_account");
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    // 계정이 서버에서 이미 삭제되었으므로, 브라우저에 남아있는 로그인 세션도 정리한다.
+    try{ await supabaseClient.auth.signOut(); }catch(e){ /* 세션이 이미 무효화된 경우 무시 */ }
+    return { ok:true };
+}
+
 /* =========================================================================
    보장분석표 "표지" 스타일 -- Storage 버킷 cover-images의 styles/<id>.png 사용,
    DB 테이블 cover_styles(id, name, image_path, name_x_ratio, name_y_ratio,
