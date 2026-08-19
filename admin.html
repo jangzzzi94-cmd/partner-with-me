@@ -23,60 +23,78 @@
 </div>
 
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
-  <p class="sub" style="margin:0 0 16px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다. 회원이 프로필에서 스타일을 고르지 않으면 아래 "기본" 스타일이 자동으로 사용됩니다.</p>
-
-  <div id="styleListWrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:22px;">불러오는 중...</div>
-
-  <div style="border-top:1px solid var(--line);padding-top:18px;">
-    <h3 id="styleEditorTitle" style="font-size:14px;margin:0 0 12px;color:var(--navy-950);">새 스타일 추가</h3>
-    <div class="field">
-      <label>스타일 이름</label>
-      <input type="text" id="styleNameInput" placeholder="예: 스타일1" maxlength="30">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
+      <p class="sub" style="margin:0;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다.</p>
     </div>
-    <div class="field">
-      <label>이미지 파일 (A4 가로 방향 권장 · jpg, png 등)</label>
-      <input type="file" id="styleFileInput" accept="image/*">
-    </div>
-    <div class="field">
-      <label>고객 이름 위치 &mdash; 미리보기 위에서 클릭하거나 배지를 드래그해 위치를 잡으세요</label>
-      <div id="stylePreviewWrap" style="position:relative;width:100%;max-width:480px;aspect-ratio:297/210;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#eee;display:none;user-select:none;touch-action:none;">
-        <img id="stylePreviewImg" src="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:fill;pointer-events:none;">
-        <div id="styleBadge" style="position:absolute;background:#1A1A2E;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:move;border:2px solid #fff;box-sizing:border-box;">이름</div>
+    <button type="button" class="btn-ghost" id="toggleStyleSectionBtn" style="flex:none;">펼치기</button>
+  </div>
+
+  <div id="styleSectionBody" style="display:none;margin-top:16px;">
+    <p class="sub" style="margin:0 0 16px;">회원이 프로필에서 스타일을 고르지 않으면 아래 "기본" 스타일이 자동으로 사용됩니다.</p>
+
+    <div id="styleListWrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:22px;">불러오는 중...</div>
+
+    <div style="border-top:1px solid var(--line);padding-top:18px;">
+      <h3 id="styleEditorTitle" style="font-size:14px;margin:0 0 12px;color:var(--navy-950);">새 스타일 추가</h3>
+      <div class="field">
+        <label>스타일 이름</label>
+        <input type="text" id="styleNameInput" placeholder="예: 스타일1" maxlength="30">
       </div>
-      <div class="sub" id="stylePreviewHint" style="margin-top:6px;">이미지를 선택하면 미리보기가 표시됩니다.</div>
+      <div class="field">
+        <label>이미지 파일 (A4 가로 방향 권장 · jpg, png 등)</label>
+        <input type="file" id="styleFileInput" accept="image/*">
+      </div>
+      <div class="field">
+        <label>고객 이름 위치 &mdash; 미리보기 위에서 클릭하거나 배지를 드래그해 위치를 잡으세요</label>
+        <div id="stylePreviewWrap" style="position:relative;width:100%;max-width:480px;aspect-ratio:297/210;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#eee;display:none;user-select:none;touch-action:none;">
+          <img id="stylePreviewImg" src="" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:fill;pointer-events:none;">
+          <div id="styleBadge" style="position:absolute;background:#1A1A2E;color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:move;border:2px solid #fff;box-sizing:border-box;">이름</div>
+        </div>
+        <div class="sub" id="stylePreviewHint" style="margin-top:6px;">이미지를 선택하면 미리보기가 표시됩니다.</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn-primary" id="styleSaveBtn">추가</button>
+        <button type="button" class="btn-ghost" id="styleCancelEditBtn" style="display:none;">취소</button>
+      </div>
+      <div class="msg" id="styleMsg"></div>
     </div>
-    <div style="display:flex;gap:8px;">
-      <button type="button" class="btn-primary" id="styleSaveBtn">추가</button>
-      <button type="button" class="btn-ghost" id="styleCancelEditBtn" style="display:none;">취소</button>
-    </div>
-    <div class="msg" id="styleMsg"></div>
   </div>
 </div>
 
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">포인트 지급/사용 로그</h2>
-  <p class="sub" style="margin:0 0 16px;">관리자가 지급한 포인트와 회원이 병력정리/보장분석표 등을 이용하며 차감된 포인트 내역입니다(최근 200건, 최신순).</p>
-  <table class="admin-table" id="pointLogTable">
-  <thead>
-  <tr>
-  <th>일시</th>
-  <th>회원</th>
-  <th>구분</th>
-  <th>포인트</th>
-  <th>내용</th>
-  <th>담당 관리자</th>
-  </tr>
-  </thead>
-  <tbody id="pointLogRows">
-  <tr><td colspan="6">불러오는 중...</td></tr>
-  </tbody>
-  </table>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">포인트 지급/사용 로그</h2>
+      <p class="sub" style="margin:0;">관리자가 지급한 포인트와 회원이 병력정리/보장분석표 등을 이용하며 차감된 포인트 내역입니다(최근 200건, 최신순).</p>
+    </div>
+    <button type="button" class="btn-ghost" id="togglePointLogBtn" style="flex:none;">펼치기</button>
+  </div>
+
+  <div id="pointLogSectionBody" style="display:none;margin-top:16px;">
+    <table class="admin-table" id="pointLogTable">
+    <thead>
+    <tr>
+    <th>일시</th>
+    <th>회원</th>
+    <th>구분</th>
+    <th>포인트</th>
+    <th>내용</th>
+    <th>담당 관리자</th>
+    </tr>
+    </thead>
+    <tbody id="pointLogRows">
+    <tr><td colspan="6">불러오는 중...</td></tr>
+    </tbody>
+    </table>
+  </div>
 </div>
 
 <table class="admin-table" id="memberTable">
 <thead>
 <tr>
+<th>이름</th>
 <th>별명</th>
 <th>이메일</th>
 <th>등급</th>
@@ -87,7 +105,7 @@
 </tr>
 </thead>
 <tbody id="memberRows">
-<tr><td colspan="7">불러오는 중...</td></tr>
+<tr><td colspan="8">불러오는 중...</td></tr>
 </tbody>
 </table>
 </div>
@@ -106,11 +124,28 @@
 (async ()=>{
   const profile = await requireAdmin();
   if(!profile) return;
-  await loadPointCosts();
-  await loadMembers();
-  await loadPointLogs();
-  await loadCoverStyles();
+  // 섹션 하나가 실패해도(예: 스크립트 캐시 문제로 함수가 아직 없는 경우) 다른 섹션까지
+  // 전부 멈추지 않도록 각 단계를 따로 try/catch로 감싼다.
+  try{ await loadPointCosts(); }catch(e){ console.error("기능별 포인트 차감 설정 불러오기 실패", e); }
+  try{ await loadMembers(); }catch(e){ console.error("회원 목록 불러오기 실패", e); }
+  try{ await loadPointLogs(); }catch(e){ console.error("포인트 로그 불러오기 실패", e); }
+  try{ await loadCoverStyles(); }catch(e){ console.error("표지 스타일 불러오기 실패", e); }
 })();
+
+// 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그)은 기본으로 접어 두고
+// 버튼을 눌러야 펼쳐지도록 한다 -- 화면을 열자마자 회원 목록부터 바로 보이게 하기 위함.
+function wireCollapsibleSection(btnId, bodyId){
+  const btn = document.getElementById(btnId);
+  const body = document.getElementById(bodyId);
+  if(!btn || !body) return;
+  btn.addEventListener("click", function(){
+    const isHidden = body.style.display === "none";
+    body.style.display = isHidden ? "block" : "none";
+    btn.textContent = isHidden ? "접기" : "펼치기";
+  });
+}
+wireCollapsibleSection("toggleStyleSectionBtn", "styleSectionBody");
+wireCollapsibleSection("togglePointLogBtn", "pointLogSectionBody");
 
 /* =========================================================================
    보장분석표 표지 스타일 관리 -- 스타일 목록(썸네일 + 이름 위치 미리보기) 표시,
@@ -444,7 +479,7 @@ function memberLabel(id){
 async function loadMembers(){
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("id, email, role, approval_status, points, created_at, nickname")
+    .select("id, email, role, approval_status, points, created_at, nickname, name")
     .order("created_at", { ascending: false });
   memberCache = data || [];
   const tbody = document.getElementById("memberRows");
@@ -452,7 +487,7 @@ async function loadMembers(){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 7;
+    td.colSpan = 8;
     td.textContent = "불러오기 실패: " + error.message;
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -462,7 +497,7 @@ async function loadMembers(){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 7;
+    td.colSpan = 8;
     td.textContent = "회원이 없습니다.";
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -471,6 +506,10 @@ async function loadMembers(){
   tbody.innerHTML = "";
   data.forEach(function(m){
     const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+    tdName.textContent = m.name || "-";
+    tr.appendChild(tdName);
 
     const tdNickname = document.createElement("td");
     const nicknameLink = document.createElement("a");
@@ -673,6 +712,7 @@ var roleLabelsForModal = { admin: "관리자", silver: "실버", gold: "골드" 
 function openProfileModal(m){
   document.getElementById("profileModalTitle").textContent = m.nickname || "(별명 없음)";
   const rows = [
+    ["이름", m.name || "-"],
     ["별명", m.nickname || "(별명 없음)"],
     ["이메일", m.email || "-"],
     ["등급", roleLabelsForModal[m.role] || m.role || "-"],

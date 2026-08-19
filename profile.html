@@ -14,7 +14,7 @@
 </div>
 <div class="dash-wrap" style="max-width:640px;">
 <h1>프로필</h1>
-<p class="sub">별명을 설정하면 대시보드 등 화면에 이메일 대신 별명으로 표시됩니다.</p>
+<p class="sub">별명을 설정하면 대시보드 등 화면에 이메일 대신 별명으로 표시됩니다. 이름은 관리자가 회원 관리 화면에서 확인할 수 있습니다.</p>
 
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
   <h2 style="font-size:16px;margin:0 0 16px;color:var(--navy-950);">기본 정보</h2>
@@ -24,8 +24,12 @@
 </div>
 
 <div class="auth-card" style="max-width:100%;">
-  <h2 style="font-size:16px;margin:0 0 16px;color:var(--navy-950);">별명 설정</h2>
+  <h2 style="font-size:16px;margin:0 0 16px;color:var(--navy-950);">이름 / 별명 설정</h2>
   <form id="nicknameForm">
+    <div class="field">
+      <label>이름</label>
+      <input type="text" id="nameInput" maxlength="20" placeholder="예: 홍길동">
+    </div>
     <div class="field">
       <label>별명</label>
       <input type="text" id="nicknameInput" maxlength="20" placeholder="예: 김대박 설계사">
@@ -114,6 +118,7 @@ async function selectCoverStyle(styleId){
     document.getElementById('infoRole').value = roleLabels[profile.role] || profile.role || '-';
     document.getElementById('infoJoined').value = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ko-KR') : '-';
     document.getElementById('nicknameInput').value = profile.nickname || '';
+    document.getElementById('nameInput').value = profile.name || '';
     coverStylesCache = await getCoverStyles();
     renderStyleGallery();
   }
@@ -124,18 +129,27 @@ document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{
   const btn = document.getElementById('saveBtn');
   const msg = document.getElementById('msg');
   msg.className = 'msg'; msg.textContent = '';
-  const val = document.getElementById('nicknameInput').value.trim();
-  if(val.length > 20){
+  const nameVal = document.getElementById('nameInput').value.trim();
+  const nicknameVal = document.getElementById('nicknameInput').value.trim();
+  if(nameVal.length > 20){
+    msg.className = 'msg err show';
+    msg.textContent = '이름은 20자 이내로 입력해주세요.';
+    return;
+  }
+  if(nicknameVal.length > 20){
     msg.className = 'msg err show';
     msg.textContent = '별명은 20자 이내로 입력해주세요.';
     return;
   }
   btn.disabled = true; btn.textContent = '저장 중...';
-  const result = await updateMyNickname(val);
+  const [nameResult, nicknameResult] = await Promise.all([
+    updateMyName(nameVal),
+    updateMyNickname(nicknameVal),
+  ]);
   btn.disabled = false; btn.textContent = '저장';
-  if(!result.ok){
+  if(!nameResult.ok || !nicknameResult.ok){
     msg.className = 'msg err show';
-    msg.textContent = '저장 실패: ' + result.message;
+    msg.textContent = '저장 실패: ' + (nameResult.message || nicknameResult.message);
     return;
   }
   msg.className = 'msg ok show';
