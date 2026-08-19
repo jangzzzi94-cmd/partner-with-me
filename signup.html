@@ -18,6 +18,14 @@
     <p class="sub">이메일로 간편하게 가입하세요</p>
     <form id="signupForm">
       <div class="field">
+        <label>이름</label>
+        <input type="text" id="name" required maxlength="20" placeholder="예: 홍길동">
+      </div>
+      <div class="field">
+        <label>별명</label>
+        <input type="text" id="nickname" required maxlength="20" placeholder="예: 김대박 설계사">
+      </div>
+      <div class="field">
         <label>이메일</label>
         <input type="email" id="email" required placeholder="you@example.com">
       </div>
@@ -44,9 +52,16 @@ document.getElementById('signupForm').addEventListener('submit', async (e)=>{
   const btn = document.getElementById('submitBtn');
   const msg = document.getElementById('msg');
   msg.className='msg'; msg.textContent='';
+  const name = document.getElementById('name').value.trim();
+  const nickname = document.getElementById('nickname').value.trim();
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const password2 = document.getElementById('password2').value;
+  if(!name || !nickname){
+    msg.className='msg err show';
+    msg.textContent = '이름과 별명을 모두 입력해주세요.';
+    return;
+  }
   if(password !== password2){
     msg.className='msg err show';
     msg.textContent = '비밀번호가 일치하지 않습니다.';
@@ -58,7 +73,12 @@ document.getElementById('signupForm').addEventListener('submit', async (e)=>{
   // Authentication > URL Configuration > Redirect URLs 허용 목록에 이 주소가 등록되어
   // 있어야 실제로 적용된다.)
   const emailRedirectTo = window.location.origin + window.location.pathname.replace('signup.html', 'email-confirmed.html');
-  const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo } });
+  // 이름/별명은 auth 메타데이터(options.data)로 함께 보내서, 이메일 인증 전이라도(세션이
+  // 아직 없어도) DB의 가입 트리거(handle_new_user)가 profiles 행을 만들 때 바로 채워 넣는다.
+  const { data, error } = await supabaseClient.auth.signUp({
+    email, password,
+    options: { emailRedirectTo, data: { name, nickname } },
+  });
   btn.disabled = false; btn.textContent='가입하기';
   if(error){
     msg.className='msg err show';

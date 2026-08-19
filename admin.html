@@ -91,6 +91,11 @@
   </div>
 </div>
 
+<div class="field" style="max-width:320px;">
+  <label>회원 검색 (이름 또는 별명)</label>
+  <input type="text" id="memberSearchInput" placeholder="이름 또는 별명으로 검색">
+</div>
+
 <table class="admin-table" id="memberTable">
 <thead>
 <tr>
@@ -146,6 +151,8 @@ function wireCollapsibleSection(btnId, bodyId){
 }
 wireCollapsibleSection("toggleStyleSectionBtn", "styleSectionBody");
 wireCollapsibleSection("togglePointLogBtn", "pointLogSectionBody");
+
+document.getElementById("memberSearchInput").addEventListener("input", applyMemberSearch);
 
 /* =========================================================================
    보장분석표 표지 스타일 관리 -- 스타일 목록(썸네일 + 이름 위치 미리보기) 표시,
@@ -467,8 +474,10 @@ async function loadPointCosts(){
 }
 
 // 포인트 로그 화면에서 user_id/actor_id를 사람이 읽을 수 있는 이름(별명/이메일)으로
-// 바꿔 보여주기 위해 최근에 불러온 회원 목록을 기억해둔다.
+// 바꿔 보여주기 위해 최근에 불러온 회원 목록을 기억해둔다. 검색창 필터링에도 이 캐시를
+// 그대로 사용한다(다시 서버에 요청하지 않고 화면에서만 걸러서 다시 그림).
 let memberCache = [];
+let memberLoadError = null;
 function memberLabel(id){
   if(!id) return "-";
   const m = memberCache.find(function(x){ return x.id === id; });
@@ -482,29 +491,49 @@ async function loadMembers(){
     .select("id, email, role, approval_status, points, created_at, nickname, name")
     .order("created_at", { ascending: false });
   memberCache = data || [];
+  memberLoadError = error ? error.message : null;
+  applyMemberSearch();
+}
+
+// 검색창(이름/별명)에 입력한 값으로 memberCache를 걸러서 다시 그린다. 서버에 다시
+// 요청하지 않고 이미 불러온 목록 안에서만 검색하므로 타이핑할 때마다 즉시 반영된다.
+function applyMemberSearch(){
+  const input = document.getElementById("memberSearchInput");
+  const q = input ? input.value.trim().toLowerCase() : "";
+  let list = memberCache;
+  if(q){
+    list = memberCache.filter(function(m){
+      return String(m.name || "").toLowerCase().includes(q)
+        || String(m.nickname || "").toLowerCase().includes(q);
+    });
+  }
+  renderMemberRows(list, !!q);
+}
+
+function renderMemberRows(list, isSearching){
   const tbody = document.getElementById("memberRows");
-  if(error){
+  if(memberLoadError){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = 8;
-    td.textContent = "불러오기 실패: " + error.message;
+    td.textContent = "불러오기 실패: " + memberLoadError;
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
   }
-  if(!data || data.length === 0){
+  if(!list || list.length === 0){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = 8;
-    td.textContent = "회원이 없습니다.";
+    td.textContent = isSearching ? "검색 결과가 없습니다." : "회원이 없습니다.";
     tr.appendChild(td);
     tbody.appendChild(tr);
     return;
   }
   tbody.innerHTML = "";
-  data.forEach(function(m){
+  list.forEach(function(m){
     const tr = document.createElement("tr");
 
     const tdName = document.createElement("td");
