@@ -126,9 +126,12 @@
 </div>
 <script src="assets/supabase-client.js"></script>
 <script>
+let currentAdminId = null;
+
 (async ()=>{
   const profile = await requireAdmin();
   if(!profile) return;
+  currentAdminId = profile.id;
   // 섹션 하나가 실패해도(예: 스크립트 캐시 문제로 함수가 아직 없는 경우) 다른 섹션까지
   // 전부 멈추지 않도록 각 단계를 따로 try/catch로 감싼다.
   try{ await loadPointCosts(); }catch(e){ console.error("기능별 포인트 차감 설정 불러오기 실패", e); }
@@ -660,8 +663,34 @@ function renderMemberRows(list, isSearching){
     rejectBtn.addEventListener("click", async function(){
       await updateMember(m.id, { approval_status: "rejected" });
     });
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "btn-ghost";
+    deleteBtn.textContent = "탈퇴";
+    deleteBtn.style.marginLeft = "6px";
+    deleteBtn.style.color = "#c0392b";
+    deleteBtn.style.borderColor = "#c0392b";
+    deleteBtn.addEventListener("click", async function(){
+      if(m.id === currentAdminId){
+        alert("본인 계정은 이 버튼으로 삭제할 수 없습니다. 본인 계정을 삭제하려면 프로필 페이지의 회원 탈퇴 기능을 이용해주세요.");
+        return;
+      }
+      const label = (m.name || m.nickname || m.email || "이 회원");
+      if(!window.confirm(label + " 계정을 삭제하시겠습니까?\n프로필, 포인트, 저장된 데이터가 모두 영구적으로 삭제되며 되돌릴 수 없습니다.\n(삭제 후 같은 이메일로 재가입은 가능합니다)")) return;
+      deleteBtn.disabled = true;
+      const res = await adminDeleteAccount(m.id);
+      deleteBtn.disabled = false;
+      if(!res.ok){
+        alert("탈퇴 처리 실패: " + res.message);
+        return;
+      }
+      await loadMembers();
+      await loadPointLogs();
+    });
+
     tdAction.appendChild(approveBtn);
     tdAction.appendChild(rejectBtn);
+    tdAction.appendChild(deleteBtn);
     tr.appendChild(tdAction);
 
     tbody.appendChild(tr);
