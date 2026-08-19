@@ -45,6 +45,17 @@
   <div id="styleGallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:14px;"></div>
   <div class="msg" id="coverMsg"></div>
 </div>
+
+<div class="auth-card" style="max-width:100%;margin-top:20px;border:1px solid #d64545;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:#c0392b;">회원 탈퇴</h2>
+  <p class="sub" style="margin:0 0 16px;">계정을 삭제하면 프로필, 포인트, 저장된 마스터 데이터 등 모든 정보가 영구적으로 삭제되며 복구할 수 없습니다. 탈퇴 후에는 같은 이메일로 다시 가입하실 수 있습니다.</p>
+  <div class="field">
+    <label>계속하려면 아래 입력창에 "탈퇴합니다"를 입력해주세요</label>
+    <input type="text" id="deleteConfirmInput" placeholder="탈퇴합니다">
+  </div>
+  <button type="button" class="btn-primary" id="deleteAccountBtn" style="background:#c0392b;" disabled>회원 탈퇴</button>
+  <div class="msg" id="deleteMsg"></div>
+</div>
 <!-- 앞으로 프로필에 더 적고 싶은 내용이 생기면 위 카드들처럼 새 <div class="auth-card"> 섹션을 추가하면 됩니다. -->
 </div>
 <script src="assets/supabase-client.js"></script>
@@ -159,6 +170,29 @@ document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{
 document.getElementById('logoutLink').addEventListener('click', async (e)=>{
   e.preventDefault();
   await logout();
+});
+
+document.getElementById('deleteConfirmInput').addEventListener('input', function(){
+  document.getElementById('deleteAccountBtn').disabled = (this.value.trim() !== '탈퇴합니다');
+});
+
+document.getElementById('deleteAccountBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('deleteAccountBtn');
+  const msg = document.getElementById('deleteMsg');
+  msg.className = 'msg'; msg.textContent = '';
+  if(!window.confirm('정말로 계정을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
+  btn.disabled = true;
+  btn.textContent = '탈퇴 처리 중...';
+  const result = await deleteMyAccount();
+  if(!result.ok){
+    msg.className = 'msg err show';
+    msg.textContent = '탈퇴 처리 실패: ' + result.message;
+    btn.disabled = false;
+    btn.textContent = '회원 탈퇴';
+    return;
+  }
+  alert('탈퇴가 완료되었습니다. 그동안 이용해주셔서 감사합니다.');
+  window.location.href = 'index.html';
 });
 </script>
 </body>
