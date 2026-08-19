@@ -54,6 +54,26 @@
   </div>
 </div>
 
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">포인트 지급/사용 로그</h2>
+  <p class="sub" style="margin:0 0 16px;">관리자가 지급한 포인트와 회원이 병력정리/보장분석표 등을 이용하며 차감된 포인트 내역입니다(최근 200건, 최신순).</p>
+  <table class="admin-table" id="pointLogTable">
+  <thead>
+  <tr>
+  <th>일시</th>
+  <th>회원</th>
+  <th>구분</th>
+  <th>포인트</th>
+  <th>내용</th>
+  <th>담당 관리자</th>
+  </tr>
+  </thead>
+  <tbody id="pointLogRows">
+  <tr><td colspan="6">불러오는 중...</td></tr>
+  </tbody>
+  </table>
+</div>
+
 <table class="admin-table" id="memberTable">
 <thead>
 <tr>
@@ -88,6 +108,7 @@
   if(!profile) return;
   await loadPointCosts();
   await loadMembers();
+  await loadPointLogs();
   await loadCoverStyles();
 })();
 
@@ -410,11 +431,22 @@ async function loadPointCosts(){
   });
 }
 
+// 포인트 로그 화면에서 user_id/actor_id를 사람이 읽을 수 있는 이름(별명/이메일)으로
+// 바꿔 보여주기 위해 최근에 불러온 회원 목록을 기억해둔다.
+let memberCache = [];
+function memberLabel(id){
+  if(!id) return "-";
+  const m = memberCache.find(function(x){ return x.id === id; });
+  if(!m) return id.slice(0, 8) + "…";
+  return m.nickname || m.email || "(알 수 없음)";
+}
+
 async function loadMembers(){
   const { data, error } = await supabaseClient
     .from("profiles")
     .select("id, email, role, approval_status, points, created_at, nickname")
     .order("created_at", { ascending: false });
+  memberCache = data || [];
   const tbody = document.getElementById("memberRows");
   if(error){
     tbody.innerHTML = "";
@@ -473,6 +505,12 @@ async function loadMembers(){
     tr.appendChild(tdRole);
 
     const tdPoints = document.createElement("td");
+    const pointsWrap = document.createElement("div");
+    pointsWrap.style.display = "flex";
+    pointsWrap.style.alignItems = "flex-start";
+    pointsWrap.style.gap = "8px";
+
+    const pointsEditWrap = document.createElement("div");
     const pointsInput = document.createElement("input");
     pointsInput.type = "number";
     pointsInput.min = "0";
@@ -491,8 +529,41 @@ async function loadMembers(){
       }
       await updateMember(m.id, { points: val });
     });
-    tdPoints.appendChild(pointsInput);
-    tdPoints.appendChild(pointsBtn);
+    pointsEditWrap.appendChild(pointsInput);
+    pointsEditWrap.appendChild(pointsBtn);
+
+    // 자주 쓰는 지급 단위(1000P/5000P/10000P)를 세로 버튼으로 눌러서 바로 지급.
+    // 값을 절대값으로 덮어쓰는 위 "저장"과 달리, 지금 있는 포인트에 더해서 지급하고
+    // point_logs 테이블에 지급 기록을 자동으로 남긴다(admin_add_points 함수).
+    const pointsQuickWrap = document.createElement("div");
+    pointsQuickWrap.style.display = "flex";
+    pointsQuickWrap.style.flexDirection = "column";
+    pointsQuickWrap.style.gap = "3px";
+    [1000, 5000, 10000].forEach(function(amt){
+      const quickBtn = document.createElement("button");
+      quickBtn.type = "button";
+      quickBtn.className = "btn-ghost";
+      quickBtn.style.fontSize = "11px";
+      quickBtn.style.padding = "2px 8px";
+      quickBtn.style.whiteSpace = "nowrap";
+      quickBtn.textContent = "+" + amt.toLocaleString() + "P";
+      quickBtn.addEventListener("click", async function(){
+        quickBtn.disabled = true;
+        const res = await adminAddPoints(m.id, amt);
+        quickBtn.disabled = false;
+        if(!res.ok){
+          alert("포인트 지급 실패: " + res.message);
+          return;
+        }
+        await loadMembers();
+        await loadPointLogs();
+      });
+      pointsQuickWrap.appendChild(quickBtn);
+    });
+
+    pointsWrap.appendChild(pointsEditWrap);
+    pointsWrap.appendChild(pointsQuickWrap);
+    tdPoints.appendChild(pointsWrap);
     tr.appendChild(tdPoints);
 
     const tdStatus = document.createElement("td");
@@ -539,6 +610,59 @@ async function updateMember(id, changes){
     return;
   }
   await loadMembers();
+}
+
+/* =========================================================================
+   포인트 지급/사용 로그 -- point_logs 테이블(관리자만 조회 가능하도록 RLS로 보호됨)을
+   최신순으로 읽어와서 보여준다. 지급(admin_add_points로 남긴 기록)과 사용(spend_points가
+   실제로 포인트를 차감할 때 자동으로 남기는 기록)이 함께 표시된다.
+   ========================================================================= */
+var FEATURE_LABELS = { coverage: "보장분석표", history: "병력정리" };
+function featureLabelFromReason(reason){
+  var feature = String(reason || "").replace(/^usage:/, "");
+  return FEATURE_LABELS[feature] || feature || "-";
+}
+
+async function loadPointLogs(){
+  const tbody = document.getElementById("pointLogRows");
+  const logs = await getPointLogs(200);
+  tbody.innerHTML = "";
+  if(!logs.length){
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 6;
+    td.textContent = "기록이 없습니다.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  logs.forEach(function(log){
+    const tr = document.createElement("tr");
+    const isAdd = log.reason === "admin_add";
+
+    const tdDate = document.createElement("td");
+    tdDate.textContent = log.created_at ? new Date(log.created_at).toLocaleString("ko-KR") : "-";
+
+    const tdMember = document.createElement("td");
+    tdMember.textContent = memberLabel(log.user_id);
+
+    const tdType = document.createElement("td");
+    tdType.textContent = isAdd ? "지급" : "사용";
+
+    const tdDelta = document.createElement("td");
+    tdDelta.textContent = (log.delta > 0 ? "+" : "") + Number(log.delta).toLocaleString() + "P";
+    tdDelta.style.color = log.delta > 0 ? "var(--navy-600)" : "#c0392b";
+    tdDelta.style.fontWeight = "600";
+
+    const tdReason = document.createElement("td");
+    tdReason.textContent = isAdd ? (log.note || "관리자 지급") : featureLabelFromReason(log.reason);
+
+    const tdActor = document.createElement("td");
+    tdActor.textContent = isAdd ? memberLabel(log.actor_id) : "-";
+
+    [tdDate, tdMember, tdType, tdDelta, tdReason, tdActor].forEach(function(td){ tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
 }
 
 // 회원의 별명(이름)을 클릭하면 상세 정보를 모달로 보여준다.
