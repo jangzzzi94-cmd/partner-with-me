@@ -21,7 +21,7 @@ async function getMyProfile(){
     if(!session) return null;
     const { data, error } = await supabaseClient
         .from("profiles")
-        .select("id, email, role, approval_status, points, nickname, created_at, cover_style_id")
+        .select("id, email, role, approval_status, points, nickname, name, created_at, cover_style_id")
         .eq("id", session.user.id)
         .single();
     if(error){
@@ -51,6 +51,33 @@ async function spendPoints(feature){
     return data === true;
 }
 
+/* ---- 아래 두 함수는 관리자 전용(admin.html)입니다 ---- */
+
+// 관리자가 특정 회원에게 포인트를 지급한다(기존 값을 덮어쓰는 게 아니라 더해서 지급).
+// DB 함수(admin_add_points)가 지급과 동시에 point_logs 테이블에 기록을 남기고,
+// 호출한 사람이 관리자가 아니면 서버 쪽에서 거부한다.
+async function adminAddPoints(userId, amount, note){
+    const { data, error } = await supabaseClient.rpc("admin_add_points", {
+        p_user_id: userId, p_amount: amount, p_note: note || null,
+    });
+    if(error) return { ok:false, message: error.message };
+    return { ok:true, points: data };
+}
+
+// 포인트 지급/사용 로그를 최신순으로 가져온다(point_logs 테이블, RLS로 관리자만 조회 가능).
+async function getPointLogs(limit){
+    const { data, error } = await supabaseClient
+        .from("point_logs")
+        .select("id, user_id, delta, reason, note, actor_id, created_at")
+        .order("created_at", { ascending:false })
+        .limit(limit || 200);
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
 // 기능별 1회 이용 시 차감되는 포인트를 DB(point_costs 테이블, 관리자가 admin.html에서 수정)에서
 // 읽어온다. 조회에 실패하면(테이블이 아직 없거나 네트워크 오류 등) 화면이 깨지지 않도록
 // 기존 기본값(병력정리 1,000P / 보장분석표 3,000P)으로 대신한다.
@@ -69,6 +96,16 @@ async function getPointCosts(){
 // 내 별명(닉네임)만 안전하게 저장한다 (등급/포인트 등 다른 항목은 이 함수로 바꿀 수 없음).
 async function updateMyNickname(nickname){
     const { error } = await supabaseClient.rpc("update_my_nickname", { p_nickname: nickname });
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
+// 내 이름(실명)만 안전하게 저장한다. 별명과 별개 항목이며, 관리자 화면에서 별명 왼쪽에 표시된다.
+async function updateMyName(name){
+    const { error } = await supabaseClient.rpc("update_my_name", { p_name: name });
     if(error){
         console.error(error);
         return { ok:false, message: error.message };
