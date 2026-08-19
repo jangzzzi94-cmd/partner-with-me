@@ -113,6 +113,15 @@ async function updateMyName(name){
     return { ok:true };
 }
 
+async function adminDeleteAccount(userId){
+    const { error } = await supabaseClient.rpc("admin_delete_account", { p_user_id: userId });
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
 async function deleteMyAccount(){
     const { error } = await supabaseClient.rpc("delete_my_account");
     if(error){
