@@ -22,14 +22,13 @@
   <div id="pointCostRows">불러오는 중...</div>
 </div>
 
-<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">이용 규칙 관리</h2>
-      <p class="sub" style="margin:0;">대시보드의 "규칙" 버튼을 눌렀을 때 회원에게 보여지는 이용 규칙/안내 목록입니다.</p>
-    </div>
-    <button type="button" class="btn-ghost" id="toggleSiteRulesSectionBtn" style="flex:none;">펼치기</button>
-  </div>
+<div id="adminSectionGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;">
+
+<div class="auth-card admin-section-card" style="max-width:100%;">
+  <div class="icon" style="font-size:24px;margin-bottom:10px;">📋</div>
+  <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">이용 규칙 관리</h2>
+  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드의 "규칙" 버튼을 눌렀을 때 회원에게 보여지는 이용 규칙/안내 목록입니다.</p>
+  <button type="button" class="btn-ghost" id="toggleSiteRulesSectionBtn">펼치기</button>
 
   <div id="siteRulesSectionBody" style="display:none;margin-top:16px;">
     <div id="siteRulesRows">불러오는 중...</div>
@@ -49,14 +48,11 @@
   </div>
 </div>
 
-<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">Market J 상품 관리</h2>
-      <p class="sub" style="margin:0;">대시보드의 "Market J" 버튼을 눌렀을 때 회원에게 보여지는 상품 목록입니다. 몇 포인트로 살 수 있는지 여기서 정하면 바로 반영됩니다.</p>
-    </div>
-    <button type="button" class="btn-ghost" id="toggleMarketItemsSectionBtn" style="flex:none;">펼치기</button>
-  </div>
+<div class="auth-card admin-section-card" style="max-width:100%;">
+  <div class="icon" style="font-size:24px;margin-bottom:10px;">🛒</div>
+  <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">Market J 상품 관리</h2>
+  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드의 "Market J" 버튼을 눌렀을 때 회원에게 보여지는 상품 목록입니다. 몇 포인트로 살 수 있는지 여기서 정하면 바로 반영됩니다.</p>
+  <button type="button" class="btn-ghost" id="toggleMarketItemsSectionBtn">펼치기</button>
 
   <div id="marketItemsSectionBody" style="display:none;margin-top:16px;">
     <div id="marketItemRows">불러오는 중...</div>
@@ -80,14 +76,11 @@
   </div>
 </div>
 
-<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">Market J 구매 내역</h2>
-      <p class="sub" style="margin:0;">회원이 Market J에서 상품을 구매하면 여기에 기록됩니다. 처리가 끝나면 "완료 처리"를 눌러주세요.</p>
-    </div>
-    <button type="button" class="btn-ghost" id="toggleMarketOrdersSectionBtn" style="flex:none;">펼치기</button>
-  </div>
+<div class="auth-card admin-section-card" style="max-width:100%;">
+  <div class="icon" style="font-size:24px;margin-bottom:10px;">🧾</div>
+  <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">Market J 구매 내역</h2>
+  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">회원이 Market J에서 상품을 구매하면 여기에 기록됩니다. 처리가 끝나면 "완료 처리"를 눌러주세요.</p>
+  <button type="button" class="btn-ghost" id="toggleMarketOrdersSectionBtn">펼치기</button>
 
   <div id="marketOrdersSectionBody" style="display:none;margin-top:16px;">
     <table class="admin-table" id="marketOrderTable">
@@ -108,14 +101,27 @@
   </div>
 </div>
 
-<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
-      <p class="sub" style="margin:0;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다.</p>
+<div class="auth-card admin-section-card" style="max-width:100%;">
+  <div class="icon" style="font-size:24px;margin-bottom:10px;">🎁</div>
+  <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">누적포인트 상품 관리</h2>
+  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드 누적 포인트 순위 카드의 "누적포인트 상품" 버튼을 눌렀을 때 회원에게 보여지는 안내 문구입니다. 특정 누적 포인트를 달성하면 무엇을 주는지 자유롭게 적어주세요.</p>
+  <button type="button" class="btn-ghost" id="toggleCumulativeRewardSectionBtn">펼치기</button>
+
+  <div id="cumulativeRewardSectionBody" style="display:none;margin-top:16px;">
+    <div class="field">
+      <label>안내 문구</label>
+      <textarea id="cumulativeRewardContent" rows="6" placeholder="예: 10,000P 달성 시 스타벅스 아메리카노 증정&#10;20,000P 달성 시 올리브영 상품권 증정" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
     </div>
-    <button type="button" class="btn-ghost" id="toggleStyleSectionBtn" style="flex:none;">펼치기</button>
+    <button type="button" class="btn-primary" id="saveCumulativeRewardBtn">저장</button>
+    <div class="msg" id="cumulativeRewardMsg"></div>
   </div>
+</div>
+
+<div class="auth-card admin-section-card" style="max-width:100%;">
+  <div class="icon" style="font-size:24px;margin-bottom:10px;">🎨</div>
+  <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
+  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다.</p>
+  <button type="button" class="btn-ghost" id="toggleStyleSectionBtn">펼치기</button>
 
   <div id="styleSectionBody" style="display:none;margin-top:16px;">
     <p class="sub" style="margin:0 0 16px;">회원이 프로필에서 스타일을 고르지 않으면 아래 "기본" 스타일이 자동으로 사용됩니다.</p>
@@ -149,14 +155,11 @@
   </div>
 </div>
 
-<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">포인트 지급/사용 로그</h2>
-      <p class="sub" style="margin:0;">관리자가 지급한 포인트와 회원이 병력정리/보장분석표 등을 이용하며 차감된 포인트 내역입니다(최근 200건, 최신순).</p>
-    </div>
-    <button type="button" class="btn-ghost" id="togglePointLogBtn" style="flex:none;">펼치기</button>
-  </div>
+<div class="auth-card admin-section-card" style="max-width:100%;">
+  <div class="icon" style="font-size:24px;margin-bottom:10px;">💰</div>
+  <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">포인트 지급/사용 로그</h2>
+  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">관리자가 지급한 포인트와 회원이 병력정리/보장분석표 등을 이용하며 차감된 포인트 내역입니다(최근 200건, 최신순).</p>
+  <button type="button" class="btn-ghost" id="togglePointLogBtn">펼치기</button>
 
   <div id="pointLogSectionBody" style="display:none;margin-top:16px;">
     <table class="admin-table" id="pointLogTable">
@@ -176,6 +179,8 @@
     </table>
   </div>
 </div>
+
+</div><!-- /adminSectionGrid -->
 
 <div class="field" style="max-width:320px;">
   <label>회원 검색 (이름 또는 별명)</label>
@@ -227,19 +232,26 @@ let currentAdminId = null;
   try{ await loadSiteRules(); }catch(e){ console.error("이용 규칙 불러오기 실패", e); }
   try{ await loadMarketItems(); }catch(e){ console.error("Market J 상품 불러오기 실패", e); }
   try{ await loadMarketOrders(); }catch(e){ console.error("Market J 구매 내역 불러오기 실패", e); }
+  try{ await loadCumulativeRewardInfo(); }catch(e){ console.error("누적포인트 상품 안내 불러오기 실패", e); }
 })();
 
-// 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그, 이용 규칙 관리)은 기본으로
+// 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그, 이용 규칙 관리 등)은 기본으로
 // 접어 두고 버튼을 눌러야 펼쳐지도록 한다 -- 항목이 많아질수록 스크롤이 길어지는 걸
 // 막기 위함이며, 화면을 열자마자 회원 목록부터 바로 보이게 하기 위함이기도 하다.
+// 이 카드들은 #adminSectionGrid 안에서 평소에는 네모박스(3열)로 보이다가, 펼치면
+// 표/폼이 잘리지 않도록 그 카드만 그리드 전체 너비로 넓어진다.
 function wireCollapsibleSection(btnId, bodyId){
   const btn = document.getElementById(btnId);
   const body = document.getElementById(bodyId);
   if(!btn || !body) return;
+  const card = body.closest(".admin-section-card");
   btn.addEventListener("click", function(){
     const isHidden = body.style.display === "none";
     body.style.display = isHidden ? "block" : "none";
     btn.textContent = isHidden ? "접기" : "펼치기";
+    if(card){
+      card.style.gridColumn = isHidden ? "1 / -1" : "";
+    }
   });
 }
 wireCollapsibleSection("toggleStyleSectionBtn", "styleSectionBody");
@@ -247,6 +259,7 @@ wireCollapsibleSection("togglePointLogBtn", "pointLogSectionBody");
 wireCollapsibleSection("toggleSiteRulesSectionBtn", "siteRulesSectionBody");
 wireCollapsibleSection("toggleMarketItemsSectionBtn", "marketItemsSectionBody");
 wireCollapsibleSection("toggleMarketOrdersSectionBtn", "marketOrdersSectionBody");
+wireCollapsibleSection("toggleCumulativeRewardSectionBtn", "cumulativeRewardSectionBody");
 
 document.getElementById("memberSearchInput").addEventListener("input", applyMemberSearch);
 
@@ -698,6 +711,30 @@ document.getElementById("addSiteRuleBtn").addEventListener("click", async functi
   msg.className = "msg ok show";
   msg.textContent = "규칙이 추가되었습니다.";
   await loadSiteRules();
+});
+
+// 누적포인트 상품 안내 -- 단일 텍스트 상자. 대시보드 누적 포인트 순위 카드의
+// "누적포인트 상품" 버튼을 눌렀을 때 회원에게 그대로 보여준다.
+async function loadCumulativeRewardInfo(){
+  const textarea = document.getElementById("cumulativeRewardContent");
+  const content = await getCumulativeRewardInfo();
+  textarea.value = content || "";
+}
+document.getElementById("saveCumulativeRewardBtn").addEventListener("click", async function(){
+  const saveBtn = this;
+  const textarea = document.getElementById("cumulativeRewardContent");
+  const msg = document.getElementById("cumulativeRewardMsg");
+  saveBtn.disabled = true;
+  const result = await adminSaveCumulativeRewardInfo(textarea.value);
+  saveBtn.disabled = false;
+  if(!result.ok){
+    msg.className = "msg err show";
+    msg.textContent = "저장 실패: " + result.message;
+    return;
+  }
+  msg.className = "msg ok show";
+  msg.textContent = "저장되었습니다.";
+  setTimeout(function(){ msg.className = "msg"; msg.textContent = ""; }, 2000);
 });
 
 // Market J 상품 관리 -- market_items 테이블을 직접 읽고 쓴다.

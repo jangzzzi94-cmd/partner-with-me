@@ -38,13 +38,13 @@
 </div>
 
 <div style="margin-top:36px;">
-<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;">
-  <h2 style="font-size:18px;color:var(--navy-950);margin:0;">포인트 순위</h2>
-  <button type="button" class="btn-ghost" id="showProductsBtn">🛍️ 상품보기</button>
-</div>
+<h2 style="font-size:18px;color:var(--navy-950);margin:0 0 14px;">포인트 순위</h2>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;">
   <div class="auth-card" style="max-width:100%;padding:24px 22px;">
-    <h3 style="font-size:15px;margin:0 0 4px;color:var(--navy-950);">🏆 누적 포인트 순위</h3>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+      <h3 style="font-size:15px;margin:0 0 4px;color:var(--navy-950);">🏆 누적 포인트 순위</h3>
+      <button type="button" class="btn-ghost" id="showCumulativeRewardBtn" style="flex:none;font-size:12px;padding:6px 10px;">🎁 누적포인트 상품</button>
+    </div>
     <p class="sub" style="margin:0 0 12px;font-size:12.5px;">여태까지 쌓은 포인트(사용한 포인트도 포함) 기준입니다. 5위까지 바로 보이고, 스크롤하면 전체 회원을 볼 수 있습니다.</p>
     <div id="cumulativeRankingList" style="max-height:224px;overflow-y:auto;">불러오는 중...</div>
   </div>
@@ -69,15 +69,14 @@
   </div>
 </div>
 
-<div id="productModalOverlay" class="modal-overlay" style="display:none">
-  <div class="modal-card" style="max-width:520px;">
+<div id="cumulativeRewardModalOverlay" class="modal-overlay" style="display:none">
+  <div class="modal-card" style="max-width:480px;">
     <div class="modal-header">
-      <h2>Market J 상품</h2>
-      <button type="button" class="modal-close" id="productModalClose" aria-label="닫기">&times;</button>
+      <h2>누적포인트 상품</h2>
+      <button type="button" class="modal-close" id="cumulativeRewardModalClose" aria-label="닫기">&times;</button>
     </div>
     <div class="modal-body">
-      <div id="productModalRows">불러오는 중...</div>
-      <a href="jmarket.html" style="display:block;box-sizing:border-box;width:100%;padding:12px;background:var(--navy-900);color:#fff;border-radius:9px;font-size:14.5px;font-weight:700;text-align:center;text-decoration:none;margin-top:16px;">Market J에서 구매하기</a>
+      <div id="cumulativeRewardModalContent" style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--navy-950);">불러오는 중...</div>
     </div>
   </div>
 </div>
@@ -194,79 +193,29 @@ document.getElementById('ruleModalOverlay').addEventListener('click', function(e
   if(e.target === this) closeRuleModal();
 });
 
-// "상품보기" 버튼 -- Market J에 등록된(판매중인) 상품을 미리보기로 보여준다.
-// 실제 구매는 이 모달에서 하지 않고, Market J 페이지로 이동해서 진행한다.
-function renderProductRows(rows){
-  const wrap = document.getElementById('productModalRows');
-  wrap.innerHTML = '';
-  const activeRows = (rows || []).filter(function(r){ return r.is_active !== false; });
-  if(activeRows.length === 0){
-    wrap.textContent = '등록된 상품이 없습니다.';
-    return;
-  }
-  activeRows.forEach(function(row){
-    const item = document.createElement('div');
-    item.className = 'modal-info-row';
-    item.style.flexDirection = 'column';
-    item.style.alignItems = 'flex-start';
-    item.style.gap = '4px';
-
-    const topRow = document.createElement('div');
-    topRow.style.display = 'flex';
-    topRow.style.justifyContent = 'space-between';
-    topRow.style.width = '100%';
-    topRow.style.gap = '8px';
-
-    const label = document.createElement('div');
-    label.className = 'modal-info-label';
-    label.textContent = row.name;
-
-    const cost = document.createElement('div');
-    cost.className = 'modal-info-label';
-    cost.style.color = 'var(--navy-600)';
-    cost.style.flex = 'none';
-    cost.textContent = (row.point_cost || 0).toLocaleString() + 'P';
-
-    topRow.appendChild(label);
-    topRow.appendChild(cost);
-
-    item.appendChild(topRow);
-
-    if(row.description){
-      const desc = document.createElement('div');
-      desc.className = 'modal-info-value';
-      desc.style.textAlign = 'left';
-      desc.style.whiteSpace = 'pre-wrap';
-      desc.style.color = 'var(--muted)';
-      desc.style.fontSize = '13px';
-      desc.textContent = row.description;
-      item.appendChild(desc);
-    }
-
-    wrap.appendChild(item);
-  });
-}
-async function openProductModal(){
-  document.getElementById('productModalOverlay').style.display = 'flex';
-  const wrap = document.getElementById('productModalRows');
+// "누적포인트 상품" 버튼 -- 누적 포인트 순위 카드 안에 있으며, 관리자가 admin.html에서
+// 적어둔 안내 문구(특정 누적 포인트를 달성하면 무엇을 주는지)를 그대로 보여준다.
+async function openCumulativeRewardModal(){
+  document.getElementById('cumulativeRewardModalOverlay').style.display = 'flex';
+  const wrap = document.getElementById('cumulativeRewardModalContent');
   wrap.textContent = '불러오는 중...';
-  let rows = null;
+  let content = '';
   try{
-    if(typeof getMarketItems === 'function'){
-      rows = await getMarketItems();
+    if(typeof getCumulativeRewardInfo === 'function'){
+      content = await getCumulativeRewardInfo();
     }
   }catch(e){
-    console.error('상품 목록 불러오기 실패', e);
+    console.error('누적포인트 상품 안내 불러오기 실패', e);
   }
-  renderProductRows(rows);
+  wrap.textContent = content && content.trim() ? content : '등록된 안내가 없습니다.';
 }
-function closeProductModal(){
-  document.getElementById('productModalOverlay').style.display = 'none';
+function closeCumulativeRewardModal(){
+  document.getElementById('cumulativeRewardModalOverlay').style.display = 'none';
 }
-document.getElementById('showProductsBtn').addEventListener('click', openProductModal);
-document.getElementById('productModalClose').addEventListener('click', closeProductModal);
-document.getElementById('productModalOverlay').addEventListener('click', function(e){
-  if(e.target === this) closeProductModal();
+document.getElementById('showCumulativeRewardBtn').addEventListener('click', openCumulativeRewardModal);
+document.getElementById('cumulativeRewardModalClose').addEventListener('click', closeCumulativeRewardModal);
+document.getElementById('cumulativeRewardModalOverlay').addEventListener('click', function(e){
+  if(e.target === this) closeCumulativeRewardModal();
 });
 
 function renderRankingRows(containerId, rows, valueKey){
