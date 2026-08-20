@@ -1363,7 +1363,7 @@ async function loadPointLogs(){
     tdReason.appendChild(reasonSaveBtn);
 
     const tdActor = document.createElement("td");
-    tdActor.textContent = isAdd ? memberNameNickLabel(log.actor_id) : "-";
+    tdActor.textContent = isAdd ? memberLabel(log.actor_id) : "-";
 
     [tdDate, tdMember, tdType, tdDelta, tdReason, tdActor].forEach(function(td){ tr.appendChild(td); });
     tbody.appendChild(tr);

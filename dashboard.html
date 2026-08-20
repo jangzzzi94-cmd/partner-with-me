@@ -247,7 +247,21 @@ function renderRankingRows(containerId, rows, valueKey){
     rankSpan.textContent = (idx + 1) + '위';
 
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = row.nickname;
+    // 1~3등은 별명 앞에 금/은/동 왕관을 붙여 특별함을 더한다. 왕관 이모지 자체는
+    // 하나뿐이라 필터로 색을 입혀 금관/은관/동관 느낌을 낸다.
+    const CROWN_FILTERS = [
+      'none',                                              // 1등: 금관 (기본 금색)
+      'grayscale(1) brightness(1.5)',                       // 2등: 은관
+      'sepia(1) saturate(3) hue-rotate(-30deg) brightness(0.85)', // 3등: 동관
+    ];
+    if(idx < 3){
+      const crown = document.createElement('span');
+      crown.textContent = '👑';
+      crown.style.filter = CROWN_FILTERS[idx];
+      crown.style.marginRight = '4px';
+      nameSpan.appendChild(crown);
+    }
+    nameSpan.appendChild(document.createTextNode(row.nickname));
 
     left.appendChild(rankSpan);
     left.appendChild(nameSpan);
