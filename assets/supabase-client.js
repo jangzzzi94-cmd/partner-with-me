@@ -415,6 +415,56 @@ async function getAdminMasterPlans(){
     return data || [];
 }
 
+// 누적포인트 상품 안내 -- "특정 누적 포인트를 달성하면 무엇을 주는지"를 관리자가 자유
+// 텍스트로 적어두면, 대시보드의 누적 포인트 순위 카드에서 회원 누구나 볼 수 있다.
+// 행이 하나만 존재하는 단일 텍스트 상자이며, 없으면 빈 문자열을 반환한다.
+async function getCumulativeRewardInfo(){
+    const { data, error } = await supabaseClient
+        .from("cumulative_reward_info")
+        .select("id, content, updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    if(error){
+        console.error(error);
+        return "";
+    }
+    return (data && data.content) || "";
+}
+
+// 기존 행이 있으면 덮어쓰고, 없으면 새로 만든다(항상 한 행만 유지).
+async function adminSaveCumulativeRewardInfo(content){
+    const { data: existing, error: selErr } = await supabaseClient
+        .from("cumulative_reward_info")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+    if(selErr){
+        console.error(selErr);
+        return { ok:false, message: selErr.message };
+    }
+    if(existing && existing.id){
+        const { error } = await supabaseClient
+            .from("cumulative_reward_info")
+            .update({ content: content, updated_at: new Date().toISOString() })
+            .eq("id", existing.id);
+        if(error){
+            console.error(error);
+            return { ok:false, message: error.message };
+        }
+        return { ok:true };
+    } else {
+        const { error } = await supabaseClient
+            .from("cumulative_reward_info")
+            .insert({ content: content });
+        if(error){
+            console.error(error);
+            return { ok:false, message: error.message };
+        }
+        return { ok:true };
+    }
+}
+
 // ===== Market J (포인트로 상품을 구매하는 페이지) =====
 
 // 등록된 상품 전체 목록을 가져온다(관리자 관리 화면은 판매중지 상품도 함께 보여줘야 하므로
