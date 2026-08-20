@@ -30,6 +30,27 @@
 <p>가입된 보장 내역을 업로드해 보장분석표(전)/(후)를 자동으로 만들고, 종합비교·보장차이까지 한 번에 확인합니다.</p>
 <span class="badge-soon" id="coverageBadge" style="display:none">1회 3,000P</span>
 </a>
+<a href="jmarket.html" class="feature-card">
+<div class="icon">🛒</div>
+<h3>J마켓</h3>
+<p>모은 포인트로 상품을 구매할 수 있는 J마켓입니다.</p>
+</a>
+</div>
+
+<div style="margin-top:36px;">
+<h2 style="font-size:18px;color:var(--navy-950);margin:0 0 14px;">포인트 순위</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;">
+  <div class="auth-card" style="max-width:100%;padding:24px 22px;">
+    <h3 style="font-size:15px;margin:0 0 4px;color:var(--navy-950);">🏆 누적 포인트 순위</h3>
+    <p class="sub" style="margin:0 0 12px;font-size:12.5px;">여태까지 쌓은 포인트(사용한 포인트도 포함) 기준입니다. 5위까지 바로 보이고, 스크롤하면 전체 회원을 볼 수 있습니다.</p>
+    <div id="cumulativeRankingList" style="max-height:224px;overflow-y:auto;">불러오는 중...</div>
+  </div>
+  <div class="auth-card" style="max-width:100%;padding:24px 22px;">
+    <h3 style="font-size:15px;margin:0 0 4px;color:var(--navy-950);">💰 현재 포인트 순위</h3>
+    <p class="sub" style="margin:0 0 12px;font-size:12.5px;">지금 보유하고 있는 포인트 기준입니다. 5위까지 바로 보이고, 스크롤하면 전체 회원을 볼 수 있습니다.</p>
+    <div id="currentRankingList" style="max-height:224px;overflow-y:auto;">불러오는 중...</div>
+  </div>
+</div>
 </div>
 </div>
 
@@ -156,6 +177,67 @@ document.getElementById('ruleModalClose').addEventListener('click', closeRuleMod
 document.getElementById('ruleModalOverlay').addEventListener('click', function(e){
   if(e.target === this) closeRuleModal();
 });
+
+function renderRankingRows(containerId, rows, valueKey){
+  const wrap = document.getElementById(containerId);
+  wrap.innerHTML = '';
+  if(!rows || rows.length === 0){
+    wrap.textContent = '표시할 순위가 없습니다.';
+    return;
+  }
+  rows.forEach(function(row, idx){
+    const item = document.createElement('div');
+    item.style.display = 'flex';
+    item.style.alignItems = 'center';
+    item.style.justifyContent = 'space-between';
+    item.style.gap = '10px';
+    item.style.padding = '9px 2px';
+    item.style.borderBottom = '1px solid var(--line)';
+    item.style.fontSize = '13.5px';
+
+    const left = document.createElement('div');
+    left.style.display = 'flex';
+    left.style.alignItems = 'center';
+    left.style.gap = '10px';
+
+    const rankSpan = document.createElement('span');
+    rankSpan.style.fontWeight = '700';
+    rankSpan.style.color = (idx < 3) ? 'var(--navy-900)' : 'var(--muted)';
+    rankSpan.style.minWidth = '26px';
+    rankSpan.textContent = (idx + 1) + '위';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = row.nickname;
+
+    left.appendChild(rankSpan);
+    left.appendChild(nameSpan);
+
+    const valueSpan = document.createElement('span');
+    valueSpan.style.fontWeight = '600';
+    valueSpan.style.color = 'var(--navy-700)';
+    valueSpan.textContent = (row[valueKey] || 0).toLocaleString() + 'P';
+
+    item.appendChild(left);
+    item.appendChild(valueSpan);
+    wrap.appendChild(item);
+  });
+}
+
+async function loadRankings(){
+  let rows = [];
+  try{
+    if(typeof getPointRankings === 'function'){
+      rows = await getPointRankings();
+    }
+  }catch(e){
+    console.error('포인트 순위 불러오기 실패', e);
+  }
+  const cumulative = (rows || []).slice().sort(function(a,b){ return (b.cumulative_points||0) - (a.cumulative_points||0); });
+  const current = (rows || []).slice().sort(function(a,b){ return (b.points||0) - (a.points||0); });
+  renderRankingRows('cumulativeRankingList', cumulative, 'cumulative_points');
+  renderRankingRows('currentRankingList', current, 'points');
+}
+loadRankings();
 
 document.getElementById('logoutLink').addEventListener('click', async (e)=>{
   e.preventDefault();

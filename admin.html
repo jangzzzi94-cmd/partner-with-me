@@ -52,6 +52,65 @@
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <div>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">J마켓 상품 관리</h2>
+      <p class="sub" style="margin:0;">대시보드의 "J마켓" 버튼을 눌렀을 때 회원에게 보여지는 상품 목록입니다. 몇 포인트로 살 수 있는지 여기서 정하면 바로 반영됩니다.</p>
+    </div>
+    <button type="button" class="btn-ghost" id="toggleMarketItemsSectionBtn" style="flex:none;">펼치기</button>
+  </div>
+
+  <div id="marketItemsSectionBody" style="display:none;margin-top:16px;">
+    <div id="marketItemRows">불러오는 중...</div>
+    <div style="border-top:1px solid var(--line);padding-top:16px;margin-top:6px;">
+      <h3 style="font-size:14px;margin:0 0 12px;color:var(--navy-950);">새 상품 추가</h3>
+      <div class="field">
+        <label>상품명</label>
+        <input type="text" id="newMarketItemName" placeholder="예: 스타벅스 아메리카노 기프티콘">
+      </div>
+      <div class="field">
+        <label>설명 (선택)</label>
+        <textarea id="newMarketItemDescription" rows="2" placeholder="상품에 대한 설명" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      <div class="field">
+        <label>가격 (포인트)</label>
+        <input type="number" id="newMarketItemCost" min="0" step="100" placeholder="예: 5000">
+      </div>
+      <button type="button" class="btn-primary" id="addMarketItemBtn">추가</button>
+      <div class="msg" id="marketItemAddMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">J마켓 구매 내역</h2>
+      <p class="sub" style="margin:0;">회원이 J마켓에서 상품을 구매하면 여기에 기록됩니다. 처리가 끝나면 "완료 처리"를 눌러주세요.</p>
+    </div>
+    <button type="button" class="btn-ghost" id="toggleMarketOrdersSectionBtn" style="flex:none;">펼치기</button>
+  </div>
+
+  <div id="marketOrdersSectionBody" style="display:none;margin-top:16px;">
+    <table class="admin-table" id="marketOrderTable">
+    <thead>
+    <tr>
+    <th>일시</th>
+    <th>구매자</th>
+    <th>상품</th>
+    <th>포인트</th>
+    <th>상태</th>
+    <th>작업</th>
+    </tr>
+    </thead>
+    <tbody id="marketOrderRows">
+    <tr><td colspan="6">불러오는 중...</td></tr>
+    </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
       <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
       <p class="sub" style="margin:0;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다.</p>
     </div>
@@ -123,7 +182,8 @@
   <input type="text" id="memberSearchInput" placeholder="이름 또는 별명으로 검색">
 </div>
 
-<table class="admin-table" id="memberTable">
+<div style="overflow-x:auto;">
+<table class="admin-table" id="memberTable" style="min-width:1000px;">
 <thead>
 <tr>
 <th>이름</th>
@@ -131,15 +191,17 @@
 <th>이메일</th>
 <th>등급</th>
 <th>포인트</th>
+<th>누적 포인트</th>
 <th>승인 상태</th>
 <th>가입일</th>
 <th>작업</th>
 </tr>
 </thead>
 <tbody id="memberRows">
-<tr><td colspan="8">불러오는 중...</td></tr>
+<tr><td colspan="9">불러오는 중...</td></tr>
 </tbody>
 </table>
+</div>
 </div>
 
 <div id="profileModalOverlay" class="modal-overlay" style="display:none">
@@ -166,6 +228,8 @@ let currentAdminId = null;
   try{ await loadPointLogs(); }catch(e){ console.error("포인트 로그 불러오기 실패", e); }
   try{ await loadCoverStyles(); }catch(e){ console.error("표지 스타일 불러오기 실패", e); }
   try{ await loadSiteRules(); }catch(e){ console.error("이용 규칙 불러오기 실패", e); }
+  try{ await loadMarketItems(); }catch(e){ console.error("J마켓 상품 불러오기 실패", e); }
+  try{ await loadMarketOrders(); }catch(e){ console.error("J마켓 구매 내역 불러오기 실패", e); }
 })();
 
 // 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그, 이용 규칙 관리)은 기본으로
@@ -184,6 +248,8 @@ function wireCollapsibleSection(btnId, bodyId){
 wireCollapsibleSection("toggleStyleSectionBtn", "styleSectionBody");
 wireCollapsibleSection("togglePointLogBtn", "pointLogSectionBody");
 wireCollapsibleSection("toggleSiteRulesSectionBtn", "siteRulesSectionBody");
+wireCollapsibleSection("toggleMarketItemsSectionBtn", "marketItemsSectionBody");
+wireCollapsibleSection("toggleMarketOrdersSectionBtn", "marketOrdersSectionBody");
 
 document.getElementById("memberSearchInput").addEventListener("input", applyMemberSearch);
 
@@ -637,6 +703,248 @@ document.getElementById("addSiteRuleBtn").addEventListener("click", async functi
   await loadSiteRules();
 });
 
+// J마켓 상품 관리 -- market_items 테이블을 직접 읽고 쓴다.
+// RLS 정책상 조회는 로그인한 회원 누구나, 추가/수정/삭제는 관리자만 가능하다.
+async function loadMarketItems(){
+  const wrap = document.getElementById("marketItemRows");
+  const rows = await getMarketItems();
+  if(!rows || rows.length === 0){
+    wrap.textContent = "등록된 상품이 없습니다.";
+    return;
+  }
+  wrap.innerHTML = "";
+  rows.forEach(function(row){
+    const box = document.createElement("div");
+    box.style.border = "1px solid var(--line)";
+    box.style.borderRadius = "10px";
+    box.style.padding = "14px";
+    box.style.marginBottom = "12px";
+    if(row.is_active === false){ box.style.opacity = "0.55"; }
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = row.name;
+    nameInput.style.width = "100%";
+    nameInput.style.padding = "9px 11px";
+    nameInput.style.border = "1px solid var(--line)";
+    nameInput.style.borderRadius = "8px";
+    nameInput.style.fontSize = "14px";
+    nameInput.style.fontWeight = "600";
+    nameInput.style.marginBottom = "8px";
+    nameInput.style.boxSizing = "border-box";
+    box.appendChild(nameInput);
+
+    const descInput = document.createElement("textarea");
+    descInput.rows = 2;
+    descInput.value = row.description || "";
+    descInput.placeholder = "상품 설명 (선택)";
+    descInput.style.width = "100%";
+    descInput.style.padding = "9px 11px";
+    descInput.style.border = "1px solid var(--line)";
+    descInput.style.borderRadius = "8px";
+    descInput.style.fontSize = "14px";
+    descInput.style.fontFamily = "inherit";
+    descInput.style.resize = "vertical";
+    descInput.style.boxSizing = "border-box";
+    descInput.style.marginBottom = "8px";
+    box.appendChild(descInput);
+
+    const metaRow = document.createElement("div");
+    metaRow.style.display = "flex";
+    metaRow.style.alignItems = "center";
+    metaRow.style.gap = "10px";
+    metaRow.style.marginBottom = "10px";
+    metaRow.style.flexWrap = "wrap";
+
+    const costLabel = document.createElement("span");
+    costLabel.style.fontSize = "13px";
+    costLabel.style.color = "var(--muted)";
+    costLabel.textContent = "가격(P)";
+    metaRow.appendChild(costLabel);
+
+    const costInput = document.createElement("input");
+    costInput.type = "number";
+    costInput.min = "0";
+    costInput.step = "100";
+    costInput.value = row.point_cost;
+    costInput.style.width = "110px";
+    costInput.style.padding = "9px 11px";
+    costInput.style.border = "1px solid var(--line)";
+    costInput.style.borderRadius = "8px";
+    costInput.style.fontSize = "14px";
+    metaRow.appendChild(costInput);
+
+    const activeLabel = document.createElement("label");
+    activeLabel.style.display = "flex";
+    activeLabel.style.alignItems = "center";
+    activeLabel.style.gap = "6px";
+    activeLabel.style.fontSize = "13px";
+    activeLabel.style.color = "var(--muted)";
+    const activeCheckbox = document.createElement("input");
+    activeCheckbox.type = "checkbox";
+    activeCheckbox.checked = row.is_active !== false;
+    activeLabel.appendChild(activeCheckbox);
+    activeLabel.appendChild(document.createTextNode("판매중"));
+    metaRow.appendChild(activeLabel);
+
+    box.appendChild(metaRow);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.gap = "10px";
+    btnRow.style.alignItems = "center";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "btn-ghost";
+    saveBtn.textContent = "저장";
+    saveBtn.addEventListener("click", async function(){
+      const nameVal = nameInput.value.trim();
+      const costVal = parseInt(costInput.value, 10);
+      if(!nameVal || isNaN(costVal) || costVal < 0){
+        alert("상품명과 올바른 가격을 입력해주세요.");
+        return;
+      }
+      saveBtn.disabled = true;
+      const result = await adminSaveMarketItem(row.id, nameVal, descInput.value.trim(), costVal, activeCheckbox.checked);
+      saveBtn.disabled = false;
+      if(!result.ok){
+        alert("저장 실패: " + result.message);
+        return;
+      }
+      const savedMsg = document.createElement("span");
+      savedMsg.style.color = "var(--navy-600)";
+      savedMsg.style.fontSize = "13px";
+      savedMsg.textContent = "저장됨";
+      btnRow.appendChild(savedMsg);
+      setTimeout(function(){ savedMsg.remove(); }, 2000);
+      await loadMarketItems();
+    });
+    btnRow.appendChild(saveBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "btn-ghost";
+    delBtn.style.color = "#c0392b";
+    delBtn.style.borderColor = "#c0392b";
+    delBtn.textContent = "삭제";
+    delBtn.addEventListener("click", async function(){
+      if(!window.confirm('"' + row.name + '" 상품을 삭제할까요?')){
+        return;
+      }
+      delBtn.disabled = true;
+      const result = await adminDeleteMarketItem(row.id);
+      delBtn.disabled = false;
+      if(!result.ok){
+        alert("삭제 실패: " + result.message);
+        return;
+      }
+      await loadMarketItems();
+    });
+    btnRow.appendChild(delBtn);
+
+    box.appendChild(btnRow);
+    wrap.appendChild(box);
+  });
+}
+
+document.getElementById("addMarketItemBtn").addEventListener("click", async function(){
+  const addBtn = this;
+  const nameInput = document.getElementById("newMarketItemName");
+  const descInput = document.getElementById("newMarketItemDescription");
+  const costInput = document.getElementById("newMarketItemCost");
+  const msg = document.getElementById("marketItemAddMsg");
+  const nameVal = nameInput.value.trim();
+  const costVal = parseInt(costInput.value, 10);
+  if(!nameVal || isNaN(costVal) || costVal < 0){
+    msg.className = "msg err show";
+    msg.textContent = "상품명과 올바른 가격을 입력해주세요.";
+    return;
+  }
+  addBtn.disabled = true;
+  const existing = await getMarketItems();
+  const nextSortOrder = (existing && existing.length ? existing.length : 0) + 1;
+  const result = await adminAddMarketItem(nameVal, descInput.value.trim(), costVal, nextSortOrder);
+  addBtn.disabled = false;
+  if(!result.ok){
+    msg.className = "msg err show";
+    msg.textContent = "추가 실패: " + result.message;
+    return;
+  }
+  nameInput.value = "";
+  descInput.value = "";
+  costInput.value = "";
+  msg.className = "msg ok show";
+  msg.textContent = "상품이 추가되었습니다.";
+  await loadMarketItems();
+});
+
+// J마켓 구매 내역 -- market_orders 테이블을 관리자 화면에서 조회한다.
+// 구매자 이름은 회원 목록 캐시(memberCache/memberLabel)를 그대로 재사용해서 표시한다.
+var marketOrderStatusLabels = { pending: "대기중", fulfilled: "완료" };
+async function loadMarketOrders(){
+  const tbody = document.getElementById("marketOrderRows");
+  const rows = await getAllMarketOrders();
+  if(!rows || rows.length === 0){
+    tbody.innerHTML = "";
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 6;
+    td.textContent = "구매 내역이 없습니다.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  tbody.innerHTML = "";
+  rows.forEach(function(row){
+    const tr = document.createElement("tr");
+
+    const tdDate = document.createElement("td");
+    tdDate.textContent = row.created_at ? new Date(row.created_at).toLocaleString("ko-KR") : "-";
+    tr.appendChild(tdDate);
+
+    const tdBuyer = document.createElement("td");
+    tdBuyer.textContent = memberLabel(row.user_id);
+    tr.appendChild(tdBuyer);
+
+    const tdItem = document.createElement("td");
+    tdItem.textContent = row.item_name;
+    tr.appendChild(tdItem);
+
+    const tdCost = document.createElement("td");
+    tdCost.textContent = (row.point_cost || 0).toLocaleString() + "P";
+    tr.appendChild(tdCost);
+
+    const tdStatus = document.createElement("td");
+    tdStatus.textContent = marketOrderStatusLabels[row.status] || row.status;
+    tr.appendChild(tdStatus);
+
+    const tdAction = document.createElement("td");
+    if(row.status === "pending"){
+      const fulfillBtn = document.createElement("button");
+      fulfillBtn.type = "button";
+      fulfillBtn.className = "btn-ghost";
+      fulfillBtn.textContent = "완료 처리";
+      fulfillBtn.addEventListener("click", async function(){
+        fulfillBtn.disabled = true;
+        const result = await adminUpdateMarketOrderStatus(row.id, "fulfilled");
+        fulfillBtn.disabled = false;
+        if(!result.ok){
+          alert("처리 실패: " + result.message);
+          return;
+        }
+        await loadMarketOrders();
+      });
+      tdAction.appendChild(fulfillBtn);
+    } else {
+      tdAction.textContent = "-";
+    }
+    tr.appendChild(tdAction);
+
+    tbody.appendChild(tr);
+  });
+}
+
 // 포인트 로그 화면에서 user_id/actor_id를 사람이 읽을 수 있는 이름(별명/이메일)으로
 // 바꿔 보여주기 위해 최근에 불러온 회원 목록을 기억해둔다. 검색창 필터링에도 이 캐시를
 // 그대로 사용한다(다시 서버에 요청하지 않고 화면에서만 걸러서 다시 그림).
@@ -652,7 +960,7 @@ function memberLabel(id){
 async function loadMembers(){
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("id, email, role, approval_status, points, created_at, nickname, name")
+    .select("id, email, role, approval_status, points, cumulative_points, created_at, nickname, name")
     .order("created_at", { ascending: false });
   memberCache = data || [];
   memberLoadError = error ? error.message : null;
@@ -680,7 +988,7 @@ function renderMemberRows(list, isSearching){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 8;
+    td.colSpan = 9;
     td.textContent = "불러오기 실패: " + memberLoadError;
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -690,7 +998,7 @@ function renderMemberRows(list, isSearching){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 8;
+    td.colSpan = 9;
     td.textContent = isSearching ? "검색 결과가 없습니다." : "회원이 없습니다.";
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -701,10 +1009,12 @@ function renderMemberRows(list, isSearching){
     const tr = document.createElement("tr");
 
     const tdName = document.createElement("td");
+    tdName.style.whiteSpace = "nowrap";
     tdName.textContent = m.name || "-";
     tr.appendChild(tdName);
 
     const tdNickname = document.createElement("td");
+    tdNickname.style.whiteSpace = "nowrap";
     const nicknameLink = document.createElement("a");
     nicknameLink.href = "#";
     nicknameLink.className = "member-name-link";
@@ -717,6 +1027,7 @@ function renderMemberRows(list, isSearching){
     tr.appendChild(tdNickname);
 
     const tdEmail = document.createElement("td");
+    tdEmail.style.whiteSpace = "nowrap";
     tdEmail.textContent = m.email || "-";
     tr.appendChild(tdEmail);
 
@@ -797,6 +1108,32 @@ function renderMemberRows(list, isSearching){
     pointsWrap.appendChild(pointsQuickWrap);
     tdPoints.appendChild(pointsWrap);
     tr.appendChild(tdPoints);
+
+    // 누적 포인트: "여태까지 쌓았던 포인트"(사용해서 차감된 것도 포함) 값을 관리자가
+    // 직접 고쳐 쓸 수 있게 한다. 지급 버튼(+1000P 등)을 누르면 자동으로 함께 올라가지만,
+    // 관리자가 잘못 기입했을 때 오류를 바로잡을 수 있도록 절대값 수정 기능을 별도로 둔다.
+    const tdCumulative = document.createElement("td");
+    const cumulativeInput = document.createElement("input");
+    cumulativeInput.type = "number";
+    cumulativeInput.min = "0";
+    cumulativeInput.step = "100";
+    cumulativeInput.value = m.cumulative_points || 0;
+    cumulativeInput.style.width = "80px";
+    const cumulativeBtn = document.createElement("button");
+    cumulativeBtn.className = "btn-ghost";
+    cumulativeBtn.style.marginLeft = "6px";
+    cumulativeBtn.textContent = "저장";
+    cumulativeBtn.addEventListener("click", async function(){
+      const val = parseInt(cumulativeInput.value, 10);
+      if(isNaN(val) || val < 0){
+        alert("올바른 누적 포인트 값을 입력해주세요.");
+        return;
+      }
+      await updateMember(m.id, { cumulative_points: val });
+    });
+    tdCumulative.appendChild(cumulativeInput);
+    tdCumulative.appendChild(cumulativeBtn);
+    tr.appendChild(tdCumulative);
 
     const tdStatus = document.createElement("td");
     const statusBadge = document.createElement("span");
@@ -936,6 +1273,7 @@ function openProfileModal(m){
     ["이메일", m.email || "-"],
     ["등급", roleLabelsForModal[m.role] || m.role || "-"],
     ["포인트", (m.points || 0).toLocaleString() + "P"],
+    ["누적 포인트", (m.cumulative_points || 0).toLocaleString() + "P"],
     ["승인 상태", statusLabelsForModal[m.approval_status] || m.approval_status || "-"],
     ["가입일", m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR") : "-"],
   ];
