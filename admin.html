@@ -52,8 +52,8 @@
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">J마켓 상품 관리</h2>
-      <p class="sub" style="margin:0;">대시보드의 "J마켓" 버튼을 눌렀을 때 회원에게 보여지는 상품 목록입니다. 몇 포인트로 살 수 있는지 여기서 정하면 바로 반영됩니다.</p>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">Market J 상품 관리</h2>
+      <p class="sub" style="margin:0;">대시보드의 "Market J" 버튼을 눌렀을 때 회원에게 보여지는 상품 목록입니다. 몇 포인트로 살 수 있는지 여기서 정하면 바로 반영됩니다.</p>
     </div>
     <button type="button" class="btn-ghost" id="toggleMarketItemsSectionBtn" style="flex:none;">펼치기</button>
   </div>
@@ -83,8 +83,8 @@
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <div>
-      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">J마켓 구매 내역</h2>
-      <p class="sub" style="margin:0;">회원이 J마켓에서 상품을 구매하면 여기에 기록됩니다. 처리가 끝나면 "완료 처리"를 눌러주세요.</p>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">Market J 구매 내역</h2>
+      <p class="sub" style="margin:0;">회원이 Market J에서 상품을 구매하면 여기에 기록됩니다. 처리가 끝나면 "완료 처리"를 눌러주세요.</p>
     </div>
     <button type="button" class="btn-ghost" id="toggleMarketOrdersSectionBtn" style="flex:none;">펼치기</button>
   </div>
@@ -225,8 +225,8 @@ let currentAdminId = null;
   try{ await loadPointLogs(); }catch(e){ console.error("포인트 로그 불러오기 실패", e); }
   try{ await loadCoverStyles(); }catch(e){ console.error("표지 스타일 불러오기 실패", e); }
   try{ await loadSiteRules(); }catch(e){ console.error("이용 규칙 불러오기 실패", e); }
-  try{ await loadMarketItems(); }catch(e){ console.error("J마켓 상품 불러오기 실패", e); }
-  try{ await loadMarketOrders(); }catch(e){ console.error("J마켓 구매 내역 불러오기 실패", e); }
+  try{ await loadMarketItems(); }catch(e){ console.error("Market J 상품 불러오기 실패", e); }
+  try{ await loadMarketOrders(); }catch(e){ console.error("Market J 구매 내역 불러오기 실패", e); }
 })();
 
 // 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그, 이용 규칙 관리)은 기본으로
@@ -700,22 +700,28 @@ document.getElementById("addSiteRuleBtn").addEventListener("click", async functi
   await loadSiteRules();
 });
 
-// J마켓 상품 관리 -- market_items 테이블을 직접 읽고 쓴다.
+// Market J 상품 관리 -- market_items 테이블을 직접 읽고 쓴다.
 // RLS 정책상 조회는 로그인한 회원 누구나, 추가/수정/삭제는 관리자만 가능하다.
 async function loadMarketItems(){
   const wrap = document.getElementById("marketItemRows");
   const rows = await getMarketItems();
   if(!rows || rows.length === 0){
     wrap.textContent = "등록된 상품이 없습니다.";
+    wrap.style.display = "block";
     return;
   }
   wrap.innerHTML = "";
+  // 한 줄에 3개씩, 네모박스 형태의 그리드로 배치.
+  wrap.style.display = "grid";
+  wrap.style.gridTemplateColumns = "repeat(3, 1fr)";
+  wrap.style.gap = "12px";
   rows.forEach(function(row){
     const box = document.createElement("div");
     box.style.border = "1px solid var(--line)";
     box.style.borderRadius = "10px";
     box.style.padding = "14px";
-    box.style.marginBottom = "12px";
+    box.style.display = "flex";
+    box.style.flexDirection = "column";
     if(row.is_active === false){ box.style.opacity = "0.55"; }
 
     const nameInput = document.createElement("input");
@@ -876,7 +882,7 @@ document.getElementById("addMarketItemBtn").addEventListener("click", async func
   await loadMarketItems();
 });
 
-// J마켓 구매 내역 -- market_orders 테이블을 관리자 화면에서 조회한다.
+// Market J 구매 내역 -- market_orders 테이블을 관리자 화면에서 조회한다.
 // 구매자 이름은 회원 목록 캐시(memberCache/memberLabel)를 그대로 재사용해서 표시한다.
 var marketOrderStatusLabels = { pending: "대기중", fulfilled: "완료" };
 async function loadMarketOrders(){
@@ -1152,19 +1158,27 @@ function renderMemberRows(list, isSearching){
     tr.appendChild(tdStatusDate);
 
     // 작업: 승인/거절/탈퇴 버튼을 세로로 한 줄씩 쌓아서 배치.
+    // 버튼 너비가 글자 폭보다 좁아지면 한글이 한 글자씩 줄바꿈되므로,
+    // 각 버튼에 white-space:nowrap + 최소 너비를 줘서 "승인"/"거절"/"탈퇴"가
+    // 항상 한 줄로 표시되게 한다.
     const tdAction = document.createElement("td");
     tdAction.style.display = "flex";
     tdAction.style.flexDirection = "column";
+    tdAction.style.alignItems = "flex-start";
     tdAction.style.gap = "4px";
     const approveBtn = document.createElement("button");
     approveBtn.className = "btn-ghost";
     approveBtn.textContent = "승인";
+    approveBtn.style.whiteSpace = "nowrap";
+    approveBtn.style.minWidth = "56px";
     approveBtn.addEventListener("click", async function(){
       await updateMember(m.id, { approval_status: "approved" });
     });
     const rejectBtn = document.createElement("button");
     rejectBtn.className = "btn-ghost";
     rejectBtn.textContent = "거절";
+    rejectBtn.style.whiteSpace = "nowrap";
+    rejectBtn.style.minWidth = "56px";
     rejectBtn.addEventListener("click", async function(){
       await updateMember(m.id, { approval_status: "rejected" });
     });
@@ -1172,6 +1186,8 @@ function renderMemberRows(list, isSearching){
     deleteBtn.type = "button";
     deleteBtn.className = "btn-ghost";
     deleteBtn.textContent = "탈퇴";
+    deleteBtn.style.whiteSpace = "nowrap";
+    deleteBtn.style.minWidth = "56px";
     deleteBtn.style.color = "#c0392b";
     deleteBtn.style.borderColor = "#c0392b";
     deleteBtn.addEventListener("click", async function(){
