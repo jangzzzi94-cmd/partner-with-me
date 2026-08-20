@@ -177,7 +177,10 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
   <div class="card" id="masterCard">
     <div class="row" style="justify-content:space-between;">
       <h2>마스터 — 내 플랜 라이브러리</h2>
-      <div class="status" id="masterStatus" style="margin:0;"></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="importAdminMasterBtn" class="secondary" type="button" style="font-size:12px;padding:7px 12px;">📥 관리자 마스터 불러오기</button>
+        <div class="status" id="masterStatus" style="margin:0;"></div>
+      </div>
     </div>
     <div class="sub" style="margin-bottom:8px;">엑셀 마스터 시트처럼 아래 표에 바로 기입하세요. 별도의 "저장" 버튼 없이, 입력하면 잠시 후 자동으로 저장됩니다. 맨 오른쪽은 항상 새 플랜을 적을 수 있는 빈 열입니다.</div>
     <div class="scrollwrap"><table class="grid" id="masterTable"></table></div>
@@ -1512,6 +1515,53 @@ async function refreshPlans(){
   renderAfterSheet(); // 마스터가 바뀌면 (후) 시트 자동완성도 다시 계산
 }
 
+// 관리자(wkdwlstn3@naver.com)가 등록해둔 마스터 플랜을 불러와 내 마스터 라이브러리에
+// 새 플랜으로 추가한다. 기존 내 플랜은 건드리지 않고 뒤에 이어 붙인다.
+async function importAdminMasterPlans(){
+  if(!confirm("관리자가 등록해둔 마스터 플랜을 불러와 내 마스터에 추가할까요?\n(기존 내 플랜은 그대로 유지되고, 관리자 플랜이 새 열로 추가됩니다)")) return;
+  const btn = document.getElementById("importAdminMasterBtn");
+  const statusEl = document.getElementById("masterStatus");
+  if(btn) btn.disabled = true;
+  try{
+    const adminPlans = await getAdminMasterPlans();
+    if(!adminPlans.length){
+      alert("불러올 수 있는 관리자 마스터 데이터가 없습니다.");
+      return;
+    }
+    if(plans.length && !plans[plans.length-1].id){
+      plans.pop(); // 맨 뒤 빈 신규 작성용 열은 잠시 떼어두고, 불러온 플랜들을 채운 뒤 다시 자동으로 붙는다
+    }
+    let importedCount = 0;
+    for(const p of adminPlans){
+      const newPlan = {
+        id: null,
+        plan_name: p.plan_name || "",
+        insurer: p.insurer || "",
+        duration: p.duration || "",
+        term: p.term || "",
+        premium: p.premium || "",
+        holder: p.holder || "",
+        items: p.items ? JSON.parse(JSON.stringify(p.items)) : {},
+      };
+      if(!newPlan.plan_name.trim()) continue; // 상품명 없는 플랜은 저장 규칙상 건너뜀
+      const result = await store.savePlan(currentUserId, newPlan);
+      newPlan.id = result.id;
+      plans.push(newPlan);
+      importedCount++;
+    }
+    renderMasterTable();
+    renderAfterSheet();
+    statusEl.className = "status ok";
+    statusEl.textContent = "관리자 마스터 " + importedCount + "건을 불러왔습니다 (" + new Date().toLocaleTimeString() + ")";
+  }catch(err){
+    statusEl.className = "status err";
+    statusEl.textContent = "불러오기 오류: " + err.message;
+    alert("불러오기 실패: " + err.message);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
 /* =========================================================================
    보장분석표(후) 탭
    - 열은 두 종류: "carryover"(보장분석표(전)에서 해지하지 않은 상품이 순서대로
@@ -2049,6 +2099,8 @@ document.getElementById("logoutLink").addEventListener("click", async (e)=>{
   e.preventDefault();
   await logout();
 });
+
+document.getElementById("importAdminMasterBtn").addEventListener("click", importAdminMasterPlans);
 </script>
 </body>
 </html>
