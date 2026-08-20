@@ -78,6 +78,21 @@ async function getPointLogs(limit){
     return data || [];
 }
 
+// 관리자가 포인트 로그의 "내용"을 직접 기록/수정할 수 있게 한다(note 컬럼을 덮어씀).
+// 원래 "사용" 로그는 note가 비어있고 화면에 reason으로부터 자동 계산한 문구를 보여주는데,
+// 관리자가 여기서 한 번 저장하면 그 다음부터는 이 note가 우선 표시된다.
+async function adminUpdatePointLogNote(id, note){
+    const { error } = await supabaseClient
+        .from("point_logs")
+        .update({ note: note })
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
 // 기능별 1회 이용 시 차감되는 포인트를 DB(point_costs 테이블, 관리자가 admin.html에서 수정)에서
 // 읽어온다. 조회에 실패하면(테이블이 아직 없거나 네트워크 오류 등) 화면이 깨지지 않도록
 // 기존 기본값(병력정리 1,000P / 보장분석표 3,000P)으로 대신한다.
