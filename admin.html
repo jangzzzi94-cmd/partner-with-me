@@ -997,6 +997,20 @@ function memberLabel(id){
   return m.nickname || m.email || "(알 수 없음)";
 }
 
+// 포인트 지급/사용 로그에서는 별명만으로는 누구인지 헷갈릴 수 있어 이름도 함께
+// "이름/별명" 형식으로 보여준다(둘 중 하나가 없으면 있는 것만, 둘 다 없으면 이메일).
+function memberNameNickLabel(id){
+  if(!id) return "-";
+  const m = memberCache.find(function(x){ return x.id === id; });
+  if(!m) return id.slice(0, 8) + "…";
+  const name = (m.name || "").trim();
+  const nick = (m.nickname || "").trim();
+  if(name && nick) return name + "/" + nick;
+  if(name) return name;
+  if(nick) return nick;
+  return m.email || "(알 수 없음)";
+}
+
 async function loadMembers(){
   const { data, error } = await supabaseClient
     .from("profiles")
@@ -1298,7 +1312,7 @@ async function loadPointLogs(){
     tdDate.textContent = log.created_at ? new Date(log.created_at).toLocaleString("ko-KR") : "-";
 
     const tdMember = document.createElement("td");
-    tdMember.textContent = memberLabel(log.user_id);
+    tdMember.textContent = memberNameNickLabel(log.user_id);
 
     const tdType = document.createElement("td");
     tdType.textContent = isAdd ? "지급" : "사용";
@@ -1308,11 +1322,48 @@ async function loadPointLogs(){
     tdDelta.style.color = log.delta > 0 ? "var(--navy-600)" : "#c0392b";
     tdDelta.style.fontWeight = "600";
 
+    // 내용: 관리자가 직접 기록/수정할 수 있게 입력창 + 저장 버튼으로 보여준다.
+    // note가 저장되어 있으면 그걸 우선 보여주고, 없으면 기존처럼 자동 계산한 문구를 기본값으로 보여준다.
     const tdReason = document.createElement("td");
-    tdReason.textContent = isAdd ? (log.note || "관리자 지급") : featureLabelFromReason(log.reason);
+    tdReason.style.whiteSpace = "nowrap";
+    const reasonDefault = isAdd ? "관리자 지급" : featureLabelFromReason(log.reason);
+    const reasonInput = document.createElement("input");
+    reasonInput.type = "text";
+    reasonInput.value = (log.note != null && log.note !== "") ? log.note : reasonDefault;
+    reasonInput.style.width = "140px";
+    reasonInput.style.padding = "6px 8px";
+    reasonInput.style.border = "1px solid var(--line)";
+    reasonInput.style.borderRadius = "6px";
+    reasonInput.style.fontSize = "13px";
+    const reasonSaveBtn = document.createElement("button");
+    reasonSaveBtn.type = "button";
+    reasonSaveBtn.className = "btn-ghost";
+    reasonSaveBtn.textContent = "저장";
+    reasonSaveBtn.style.marginLeft = "6px";
+    reasonSaveBtn.style.padding = "6px 10px";
+    reasonSaveBtn.style.fontSize = "12px";
+    reasonSaveBtn.addEventListener("click", async function(){
+      reasonSaveBtn.disabled = true;
+      const result = await adminUpdatePointLogNote(log.id, reasonInput.value);
+      reasonSaveBtn.disabled = false;
+      if(!result.ok){
+        alert("저장 실패: " + result.message);
+        return;
+      }
+      log.note = reasonInput.value;
+      const savedMsg = document.createElement("span");
+      savedMsg.style.color = "var(--navy-600)";
+      savedMsg.style.fontSize = "12px";
+      savedMsg.style.marginLeft = "6px";
+      savedMsg.textContent = "저장됨";
+      tdReason.appendChild(savedMsg);
+      setTimeout(function(){ savedMsg.remove(); }, 2000);
+    });
+    tdReason.appendChild(reasonInput);
+    tdReason.appendChild(reasonSaveBtn);
 
     const tdActor = document.createElement("td");
-    tdActor.textContent = isAdd ? memberLabel(log.actor_id) : "-";
+    tdActor.textContent = isAdd ? memberNameNickLabel(log.actor_id) : "-";
 
     [tdDate, tdMember, tdType, tdDelta, tdReason, tdActor].forEach(function(td){ tr.appendChild(td); });
     tbody.appendChild(tr);
