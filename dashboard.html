@@ -16,6 +16,7 @@
 <h1>안녕하세요<span id="userEmail"></span> 👋</h1>
 <p class="sub">이용하실 기능을 선택해주세요</p>
 <p class="sub" id="pointsLine" style="display:none"></p>
+<button type="button" class="btn-ghost" id="showRulesBtn" style="margin-bottom:24px;">📌 이용 규칙 보기</button>
 <div class="card-grid">
 <a href="history.html" class="feature-card" id="historyCard">
 <div class="icon">📋</div>
@@ -31,6 +32,19 @@
 </a>
 </div>
 </div>
+
+<div id="ruleModalOverlay" class="modal-overlay" style="display:none">
+  <div class="modal-card" style="max-width:520px;">
+    <div class="modal-header">
+      <h2>이용 규칙</h2>
+      <button type="button" class="modal-close" id="ruleModalClose" aria-label="닫기">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="ruleModalRows">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
 <script src="assets/supabase-client.js"></script>
 <script>
 (async ()=>{
@@ -88,6 +102,60 @@
   }
   }
 })();
+
+function renderRuleRows(rows){
+  const wrap = document.getElementById('ruleModalRows');
+  wrap.innerHTML = '';
+  if(!rows || rows.length === 0){
+    wrap.textContent = '등록된 규칙이 없습니다.';
+    return;
+  }
+  rows.forEach(function(row){
+    const item = document.createElement('div');
+    item.className = 'modal-info-row';
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'flex-start';
+    item.style.gap = '4px';
+
+    const label = document.createElement('div');
+    label.className = 'modal-info-label';
+    label.textContent = row.title;
+
+    const value = document.createElement('div');
+    value.className = 'modal-info-value';
+    value.style.textAlign = 'left';
+    value.style.whiteSpace = 'pre-wrap';
+    value.style.color = 'var(--muted)';
+    value.style.fontSize = '13px';
+    value.textContent = row.content;
+
+    item.appendChild(label);
+    item.appendChild(value);
+    wrap.appendChild(item);
+  });
+}
+async function openRuleModal(){
+  document.getElementById('ruleModalOverlay').style.display = 'flex';
+  const wrap = document.getElementById('ruleModalRows');
+  wrap.textContent = '불러오는 중...';
+  let rows = null;
+  try{
+    if(typeof getSiteRules === 'function'){
+      rows = await getSiteRules();
+    }
+  }catch(e){
+    console.error('규칙 불러오기 실패', e);
+  }
+  renderRuleRows(rows);
+}
+function closeRuleModal(){
+  document.getElementById('ruleModalOverlay').style.display = 'none';
+}
+document.getElementById('showRulesBtn').addEventListener('click', openRuleModal);
+document.getElementById('ruleModalClose').addEventListener('click', closeRuleModal);
+document.getElementById('ruleModalOverlay').addEventListener('click', function(e){
+  if(e.target === this) closeRuleModal();
+});
 
 document.getElementById('logoutLink').addEventListener('click', async (e)=>{
   e.preventDefault();

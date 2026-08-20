@@ -25,6 +25,33 @@
 <div class="auth-card" style="max-width:100%;margin-bottom:20px;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <div>
+      <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">이용 규칙 관리</h2>
+      <p class="sub" style="margin:0;">대시보드의 "규칙" 버튼을 눌렀을 때 회원에게 보여지는 이용 규칙/안내 목록입니다.</p>
+    </div>
+    <button type="button" class="btn-ghost" id="toggleSiteRulesSectionBtn" style="flex:none;">펼치기</button>
+  </div>
+
+  <div id="siteRulesSectionBody" style="display:none;margin-top:16px;">
+    <div id="siteRulesRows">불러오는 중...</div>
+    <div style="border-top:1px solid var(--line);padding-top:16px;margin-top:6px;">
+      <h3 style="font-size:14px;margin:0 0 12px;color:var(--navy-950);">새 규칙 추가</h3>
+      <div class="field">
+        <label>제목</label>
+        <input type="text" id="newSiteRuleTitle" placeholder="예: 이용 안내">
+      </div>
+      <div class="field">
+        <label>내용</label>
+        <textarea id="newSiteRuleContent" rows="4" placeholder="회원에게 보여줄 규칙 내용을 입력하세요." style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+      <button type="button" class="btn-primary" id="addSiteRuleBtn">추가</button>
+      <div class="msg" id="siteRuleAddMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="auth-card" style="max-width:100%;margin-bottom:20px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
       <h2 style="font-size:16px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
       <p class="sub" style="margin:0;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다.</p>
     </div>
@@ -138,10 +165,12 @@ let currentAdminId = null;
   try{ await loadMembers(); }catch(e){ console.error("회원 목록 불러오기 실패", e); }
   try{ await loadPointLogs(); }catch(e){ console.error("포인트 로그 불러오기 실패", e); }
   try{ await loadCoverStyles(); }catch(e){ console.error("표지 스타일 불러오기 실패", e); }
+  try{ await loadSiteRules(); }catch(e){ console.error("이용 규칙 불러오기 실패", e); }
 })();
 
-// 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그)은 기본으로 접어 두고
-// 버튼을 눌러야 펼쳐지도록 한다 -- 화면을 열자마자 회원 목록부터 바로 보이게 하기 위함.
+// 자주 쓰지 않는 관리 섹션(표지 스타일 관리, 포인트 로그, 이용 규칙 관리)은 기본으로
+// 접어 두고 버튼을 눌러야 펼쳐지도록 한다 -- 항목이 많아질수록 스크롤이 길어지는 걸
+// 막기 위함이며, 화면을 열자마자 회원 목록부터 바로 보이게 하기 위함이기도 하다.
 function wireCollapsibleSection(btnId, bodyId){
   const btn = document.getElementById(btnId);
   const body = document.getElementById(bodyId);
@@ -154,6 +183,7 @@ function wireCollapsibleSection(btnId, bodyId){
 }
 wireCollapsibleSection("toggleStyleSectionBtn", "styleSectionBody");
 wireCollapsibleSection("togglePointLogBtn", "pointLogSectionBody");
+wireCollapsibleSection("toggleSiteRulesSectionBtn", "siteRulesSectionBody");
 
 document.getElementById("memberSearchInput").addEventListener("input", applyMemberSearch);
 
@@ -475,6 +505,137 @@ async function loadPointCosts(){
     wrap.appendChild(line);
   });
 }
+
+// 이용 규칙 관리 -- site_rules 테이블을 직접 읽고 쓴다.
+// RLS 정책상 조회는 로그인한 회원 누구나, 추가/수정/삭제는 관리자만 가능하다.
+async function loadSiteRules(){
+  const wrap = document.getElementById("siteRulesRows");
+  const rows = await getSiteRules();
+  if(!rows || rows.length === 0){
+    wrap.textContent = "등록된 규칙이 없습니다.";
+    return;
+  }
+  wrap.innerHTML = "";
+  rows.forEach(function(row){
+    const box = document.createElement("div");
+    box.style.border = "1px solid var(--line)";
+    box.style.borderRadius = "10px";
+    box.style.padding = "14px";
+    box.style.marginBottom = "12px";
+
+    const titleInput = document.createElement("input");
+    titleInput.type = "text";
+    titleInput.value = row.title;
+    titleInput.style.width = "100%";
+    titleInput.style.padding = "9px 11px";
+    titleInput.style.border = "1px solid var(--line)";
+    titleInput.style.borderRadius = "8px";
+    titleInput.style.fontSize = "14px";
+    titleInput.style.fontWeight = "600";
+    titleInput.style.marginBottom = "8px";
+    titleInput.style.boxSizing = "border-box";
+    box.appendChild(titleInput);
+
+    const contentInput = document.createElement("textarea");
+    contentInput.rows = 4;
+    contentInput.value = row.content;
+    contentInput.style.width = "100%";
+    contentInput.style.padding = "9px 11px";
+    contentInput.style.border = "1px solid var(--line)";
+    contentInput.style.borderRadius = "8px";
+    contentInput.style.fontSize = "14px";
+    contentInput.style.fontFamily = "inherit";
+    contentInput.style.resize = "vertical";
+    contentInput.style.boxSizing = "border-box";
+    contentInput.style.marginBottom = "10px";
+    box.appendChild(contentInput);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.gap = "10px";
+    btnRow.style.alignItems = "center";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "btn-ghost";
+    saveBtn.textContent = "저장";
+    saveBtn.addEventListener("click", async function(){
+      const titleVal = titleInput.value.trim();
+      const contentVal = contentInput.value.trim();
+      if(!titleVal || !contentVal){
+        alert("제목과 내용을 모두 입력해주세요.");
+        return;
+      }
+      saveBtn.disabled = true;
+      const result = await adminSaveSiteRule(row.id, titleVal, contentVal);
+      saveBtn.disabled = false;
+      if(!result.ok){
+        alert("저장 실패: " + result.message);
+        return;
+      }
+      const savedMsg = document.createElement("span");
+      savedMsg.style.color = "var(--navy-600)";
+      savedMsg.style.fontSize = "13px";
+      savedMsg.textContent = "저장됨";
+      btnRow.appendChild(savedMsg);
+      setTimeout(function(){ savedMsg.remove(); }, 2000);
+    });
+    btnRow.appendChild(saveBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "btn-ghost";
+    delBtn.style.color = "#c0392b";
+    delBtn.style.borderColor = "#c0392b";
+    delBtn.textContent = "삭제";
+    delBtn.addEventListener("click", async function(){
+      if(!window.confirm('"' + row.title + '" 규칙을 삭제할까요?')){
+        return;
+      }
+      delBtn.disabled = true;
+      const result = await adminDeleteSiteRule(row.id);
+      delBtn.disabled = false;
+      if(!result.ok){
+        alert("삭제 실패: " + result.message);
+        return;
+      }
+      await loadSiteRules();
+    });
+    btnRow.appendChild(delBtn);
+
+    box.appendChild(btnRow);
+    wrap.appendChild(box);
+  });
+}
+
+document.getElementById("addSiteRuleBtn").addEventListener("click", async function(){
+  const addBtn = this;
+  const titleInput = document.getElementById("newSiteRuleTitle");
+  const contentInput = document.getElementById("newSiteRuleContent");
+  const msg = document.getElementById("siteRuleAddMsg");
+  const titleVal = titleInput.value.trim();
+  const contentVal = contentInput.value.trim();
+  if(!titleVal || !contentVal){
+    msg.className = "msg err show";
+    msg.textContent = "제목과 내용을 모두 입력해주세요.";
+    return;
+  }
+  addBtn.disabled = true;
+  const existing = await getSiteRules();
+  const nextSortOrder = (existing && existing.length ? existing.length : 0) + 1;
+  const result = await adminAddSiteRule(titleVal, contentVal, nextSortOrder);
+  addBtn.disabled = false;
+  if(!result.ok){
+    msg.className = "msg err show";
+    msg.textContent = "추가 실패: " + result.message;
+    return;
+  }
+  titleInput.value = "";
+  contentInput.value = "";
+  msg.className = "msg ok show";
+  msg.textContent = "규칙이 추가되었습니다.";
+  await loadSiteRules();
+});
 
 // 포인트 로그 화면에서 user_id/actor_id를 사람이 읽을 수 있는 이름(별명/이메일)으로
 // 바꿔 보여주기 위해 최근에 불러온 회원 목록을 기억해둔다. 검색창 필터링에도 이 캐시를
