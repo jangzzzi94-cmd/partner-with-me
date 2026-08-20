@@ -402,6 +402,19 @@ async function getPointRankings(){
     return data || [];
 }
 
+// 관리자(wkdwlstn3@naver.com)가 등록해둔 마스터 플랜 목록을 가져온다.
+// 회원이 자신의 마스터 탭에서 "관리자 마스터 불러오기" 버튼을 눌렀을 때 사용한다.
+// (coverage_master_plans는 본인 소유 행만 조회 가능한 RLS이므로, 이 RPC를 통해
+// 관리자 계정의 플랜만 안전하게 조회한다.)
+async function getAdminMasterPlans(){
+    const { data, error } = await supabaseClient.rpc("get_admin_master_plans");
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
 // ===== J마켓 (포인트로 상품을 구매하는 페이지) =====
 
 // 등록된 상품 전체 목록을 가져온다(관리자 관리 화면은 판매중지 상품도 함께 보여줘야 하므로
