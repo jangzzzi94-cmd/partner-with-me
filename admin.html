@@ -183,22 +183,19 @@
 </div>
 
 <div style="overflow-x:auto;">
-<table class="admin-table" id="memberTable" style="min-width:1000px;">
+<table class="admin-table" id="memberTable" style="min-width:760px;">
 <thead>
 <tr>
-<th>이름</th>
-<th>별명</th>
+<th>이름/별명</th>
 <th>이메일</th>
-<th>등급</th>
-<th>포인트</th>
+<th>등급/포인트</th>
 <th>누적 포인트</th>
-<th>승인 상태</th>
-<th>가입일</th>
+<th>승인상태/가입일</th>
 <th>작업</th>
 </tr>
 </thead>
 <tbody id="memberRows">
-<tr><td colspan="9">불러오는 중...</td></tr>
+<tr><td colspan="6">불러오는 중...</td></tr>
 </tbody>
 </table>
 </div>
@@ -988,7 +985,7 @@ function renderMemberRows(list, isSearching){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 9;
+    td.colSpan = 6;
     td.textContent = "불러오기 실패: " + memberLoadError;
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -998,7 +995,7 @@ function renderMemberRows(list, isSearching){
     tbody.innerHTML = "";
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.colSpan = 9;
+    td.colSpan = 6;
     td.textContent = isSearching ? "검색 결과가 없습니다." : "회원이 없습니다.";
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -1008,13 +1005,13 @@ function renderMemberRows(list, isSearching){
   list.forEach(function(m){
     const tr = document.createElement("tr");
 
-    const tdName = document.createElement("td");
-    tdName.style.whiteSpace = "nowrap";
-    tdName.textContent = m.name || "-";
-    tr.appendChild(tdName);
-
-    const tdNickname = document.createElement("td");
-    tdNickname.style.whiteSpace = "nowrap";
+    // 이름/별명: 한 칸에 이름을 위, 별명(클릭하면 상세 모달)을 아래에 줄바꿈으로 표시.
+    const tdNameNick = document.createElement("td");
+    tdNameNick.style.whiteSpace = "nowrap";
+    const nameDiv = document.createElement("div");
+    nameDiv.textContent = m.name || "-";
+    const nickDiv = document.createElement("div");
+    nickDiv.style.marginTop = "2px";
     const nicknameLink = document.createElement("a");
     nicknameLink.href = "#";
     nicknameLink.className = "member-name-link";
@@ -1023,15 +1020,19 @@ function renderMemberRows(list, isSearching){
       e.preventDefault();
       openProfileModal(m);
     });
-    tdNickname.appendChild(nicknameLink);
-    tr.appendChild(tdNickname);
+    nickDiv.appendChild(nicknameLink);
+    tdNameNick.appendChild(nameDiv);
+    tdNameNick.appendChild(nickDiv);
+    tr.appendChild(tdNameNick);
 
     const tdEmail = document.createElement("td");
     tdEmail.style.whiteSpace = "nowrap";
     tdEmail.textContent = m.email || "-";
     tr.appendChild(tdEmail);
 
-    const tdRole = document.createElement("td");
+    // 등급/포인트: 등급 선택을 위에, 포인트 수정(직접 입력 + 빠른 지급 버튼)을 아래에 배치.
+    const tdRolePoints = document.createElement("td");
+
     const roleSelect = document.createElement("select");
     var roleLabels = { admin: "관리자", silver: "실버", gold: "골드" };
     ["admin","silver","gold"].forEach(function(r){
@@ -1044,10 +1045,9 @@ function renderMemberRows(list, isSearching){
     roleSelect.addEventListener("change", async function(){
       await updateMember(m.id, { role: roleSelect.value });
     });
-    tdRole.appendChild(roleSelect);
-    tr.appendChild(tdRole);
+    roleSelect.style.marginBottom = "8px";
+    tdRolePoints.appendChild(roleSelect);
 
-    const tdPoints = document.createElement("td");
     const pointsWrap = document.createElement("div");
     pointsWrap.style.display = "flex";
     pointsWrap.style.alignItems = "flex-start";
@@ -1106,8 +1106,8 @@ function renderMemberRows(list, isSearching){
 
     pointsWrap.appendChild(pointsEditWrap);
     pointsWrap.appendChild(pointsQuickWrap);
-    tdPoints.appendChild(pointsWrap);
-    tr.appendChild(tdPoints);
+    tdRolePoints.appendChild(pointsWrap);
+    tr.appendChild(tdRolePoints);
 
     // 누적 포인트: "여태까지 쌓았던 포인트"(사용해서 차감된 것도 포함) 값을 관리자가
     // 직접 고쳐 쓸 수 있게 한다. 지급 버튼(+1000P 등)을 누르면 자동으로 함께 올라가지만,
@@ -1135,19 +1135,25 @@ function renderMemberRows(list, isSearching){
     tdCumulative.appendChild(cumulativeBtn);
     tr.appendChild(tdCumulative);
 
-    const tdStatus = document.createElement("td");
+    // 승인상태/가입일: 승인 상태 배지를 위, 가입일을 아래에 표시.
+    const tdStatusDate = document.createElement("td");
+    tdStatusDate.style.whiteSpace = "nowrap";
     const statusBadge = document.createElement("span");
     var statusLabels = { approved: "승인됨", pending: "대기중", rejected: "거절됨" };
     statusBadge.className = "status-badge status-" + m.approval_status;
     statusBadge.textContent = statusLabels[m.approval_status] || m.approval_status;
-    tdStatus.appendChild(statusBadge);
-    tr.appendChild(tdStatus);
+    const dateDiv = document.createElement("div");
+    dateDiv.style.marginTop = "6px";
+    dateDiv.style.fontSize = "12px";
+    dateDiv.style.color = "var(--muted)";
+    dateDiv.textContent = m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR") : "-";
+    tdStatusDate.appendChild(statusBadge);
+    tdStatusDate.appendChild(dateDiv);
+    tr.appendChild(tdStatusDate);
 
-    const tdDate = document.createElement("td");
-    tdDate.textContent = m.created_at ? new Date(m.created_at).toLocaleDateString("ko-KR") : "-";
-    tr.appendChild(tdDate);
-
+    // 작업: 승인/거절/탈퇴 버튼을 세로로 쌓이지 않고 한 줄에 가로로 나란히 배치.
     const tdAction = document.createElement("td");
+    tdAction.style.whiteSpace = "nowrap";
     const approveBtn = document.createElement("button");
     approveBtn.className = "btn-ghost";
     approveBtn.textContent = "승인";
