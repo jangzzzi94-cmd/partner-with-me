@@ -51,6 +51,51 @@ async function spendPoints(feature){
     return data === true;
 }
 
+/* ---- 아래 세 함수는 coverage.html의 "보장분석표 다운로드 작업(coverage_jobs)"
+   에서 씁니다. 저장해둔 파일을 다시 불러와 이어서 수정할 때, 실제로 결제(포인트
+   차감)했던 작업인지를 서버에 물어서 재차감 없이 이어갈 수 있는지 판단하는 데 쓴다. ---- */
+
+// 보장분석표 다운로드 1건을 결제(포인트 차감)하고, 성공했을 때만 새 작업(job)을 만들어
+// 그 id를 돌려준다. DB 함수(create_coverage_job) 안에서 결제와 작업 생성이 하나의
+// 트랜잭션으로 묶여 있어서, 결제 없이 job id만 만들어내는 것은 불가능하다.
+// 실패(포인트 부족/미승인 등)하면 null을 돌려준다.
+async function createCoverageJob(){
+    const { data, error } = await supabaseClient.rpc("create_coverage_job");
+    if(error){
+        console.error(error);
+        return null;
+    }
+    return data || null;
+}
+
+// 이미 결제된 작업을 이어서 다운로드할 때, 마지막으로 쓴 시각만 갱신한다(재차감 없음).
+async function touchCoverageJob(jobId){
+    if(!jobId) return false;
+    const { data, error } = await supabaseClient.rpc("touch_coverage_job", { p_job_id: jobId });
+    if(error){
+        console.error(error);
+        return false;
+    }
+    return data === true;
+}
+
+// 불러온 파일의 숨김 시트에 담긴 job id가 실제로 내 소유인지 확인한다.
+// coverage_jobs 테이블은 RLS로 본인 행만 조회할 수 있게 되어 있어서, 다른 사람의
+// job id를 넣어도(또는 값을 지어내도) 여기서 걸러진다.
+async function getOwnCoverageJob(jobId){
+    if(!jobId) return null;
+    const { data, error } = await supabaseClient
+        .from("coverage_jobs")
+        .select("id")
+        .eq("id", jobId)
+        .maybeSingle();
+    if(error){
+        console.error(error);
+        return null;
+    }
+    return data;
+}
+
 /* ---- 아래 두 함수는 관리자 전용(admin.html)입니다 ---- */
 
 // 관리자가 특정 회원에게 포인트를 지급한다(기존 값을 덮어쓰는 게 아니라 더해서 지급).
