@@ -183,7 +183,7 @@
 </div>
 
 <div style="overflow-x:auto;">
-<table class="admin-table" id="memberTable" style="min-width:760px;">
+<table class="admin-table" id="memberTable" style="min-width:700px;">
 <thead>
 <tr>
 <th>이름/별명</th>
@@ -1151,9 +1151,11 @@ function renderMemberRows(list, isSearching){
     tdStatusDate.appendChild(dateDiv);
     tr.appendChild(tdStatusDate);
 
-    // 작업: 승인/거절/탈퇴 버튼을 세로로 쌓이지 않고 한 줄에 가로로 나란히 배치.
+    // 작업: 승인/거절/탈퇴 버튼을 세로로 한 줄씩 쌓아서 배치.
     const tdAction = document.createElement("td");
-    tdAction.style.whiteSpace = "nowrap";
+    tdAction.style.display = "flex";
+    tdAction.style.flexDirection = "column";
+    tdAction.style.gap = "4px";
     const approveBtn = document.createElement("button");
     approveBtn.className = "btn-ghost";
     approveBtn.textContent = "승인";
@@ -1163,7 +1165,6 @@ function renderMemberRows(list, isSearching){
     const rejectBtn = document.createElement("button");
     rejectBtn.className = "btn-ghost";
     rejectBtn.textContent = "거절";
-    rejectBtn.style.marginLeft = "6px";
     rejectBtn.addEventListener("click", async function(){
       await updateMember(m.id, { approval_status: "rejected" });
     });
@@ -1171,7 +1172,6 @@ function renderMemberRows(list, isSearching){
     deleteBtn.type = "button";
     deleteBtn.className = "btn-ghost";
     deleteBtn.textContent = "탈퇴";
-    deleteBtn.style.marginLeft = "6px";
     deleteBtn.style.color = "#c0392b";
     deleteBtn.style.borderColor = "#c0392b";
     deleteBtn.addEventListener("click", async function(){
