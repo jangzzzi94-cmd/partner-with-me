@@ -91,6 +91,8 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 #diffTable td.grouplabel{color:var(--ink-soft);font-size:11.5px;}
 [data-gridrow].range-selected{background:#cfe3ff !important;}
 .undo-delete-btn{white-space:nowrap;}
+#resumeDropZone{transition:border-color .15s,background .15s;}
+#resumeDropZone.drop-hover{border-color:var(--ink);background:#eef2f8;}
 </style>
 </head>
 <body>
@@ -120,10 +122,10 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
       <button id="dlBtn" class="secondary" disabled>전체 다운로드 (원본 서식 .xlsx)</button>
     </div>
     <div class="status" id="status">파일을 선택하세요. (PDF 또는 .xlsx/.xlsm)</div>
-    <div class="row" style="margin-top:10px;">
+    <div id="resumeDropZone" class="row" style="margin-top:10px;border:1px dashed var(--line);border-radius:8px;padding:10px 12px;background:#fafbfd;">
       <input type="file" id="resumeFileInput" accept=".xlsx" style="display:none;">
       <button type="button" id="resumeUploadBtn" class="secondary">📂 이전 보장분석표 불러오기 (이어서 수정)</button>
-      <div class="status" id="resumeStatus" style="margin:0;">With Partners에서 내려받았던 .xlsx를 텍스트만 고쳐서 다시 올리면, 그 내용 그대로 화면에서 이어서 수정할 수 있습니다.</div>
+      <div class="status" id="resumeStatus" style="margin:0;">파일을 여기로 끌어다 놓거나 버튼을 눌러 골라주세요. With Partners에서 내려받았던 .xlsx를 텍스트만 고쳐서 다시 올리면, "유지" 표시했던 상품까지 그대로 화면에서 이어서 수정할 수 있습니다.</div>
     </div>
   </div>
 
@@ -811,10 +813,9 @@ runBtn.addEventListener("click", async ()=>{
 const resumeFileInput = document.getElementById("resumeFileInput");
 const resumeUploadBtn = document.getElementById("resumeUploadBtn");
 const resumeStatus = document.getElementById("resumeStatus");
-resumeUploadBtn.addEventListener("click", ()=> resumeFileInput.click());
-resumeFileInput.addEventListener("change", async ()=>{
-  const file = resumeFileInput.files[0];
-  resumeFileInput.value = ""; // 같은 파일을 다시 골라도 change 이벤트가 뜨도록 초기화
+const resumeDropZone = document.getElementById("resumeDropZone");
+
+async function loadResumeFile(file){
   if(!file) return;
   resumeUploadBtn.disabled = true;
   resumeStatus.className = "status";
@@ -831,29 +832,44 @@ resumeFileInput.addEventListener("change", async ()=>{
     const afterRaw = readColumnsFromWorksheet(wsAfter);
     if(!beforeRaw.length) throw new Error("보장분석표(전) 시트에서 상품 데이터를 찾지 못했습니다.");
 
+    const beforeColumns = beforeRaw.map(c=>({
+      header: { insurer:c.insurer, productName:c.productName, duration:c.duration, term:c.term, premium:c.premium, holder:c.holder },
+      amounts: c.amounts,
+      textTags: c.text45 ? c.text45.split(",").map(s=>s.trim()).filter(Boolean) : [],
+      kept: !!c.wasKept, // 저장 당시 "유지" 표시(연한 노란 배경)돼 있던 상품은 그대로 유지 상태로 복원
+      id: "b" + (nextBeforeColId++),
+    }));
     lastResult = {
-      columns: beforeRaw.map(c=>({
-        header: { insurer:c.insurer, productName:c.productName, duration:c.duration, term:c.term, premium:c.premium, holder:c.holder },
-        amounts: c.amounts,
-        textTags: c.text45 ? c.text45.split(",").map(s=>s.trim()).filter(Boolean) : [],
-        kept: false,
-        id: "b" + (nextBeforeColId++),
-      })),
+      columns: beforeColumns,
       customerName: cellText(wsBefore.getCell("C2").value),
       baseName: file.name.replace(/\.(xlsx|xlsm)$/i,""),
     };
 
-    afterColumns = afterRaw.map(c=>{
+    const rawAfterColumns = afterRaw.map(c=>{
       const items = { ...c.amounts };
       if(c.text45) items["45"] = c.text45;
-      return { source:"manual", sourceId:null, alias:"", lastMatchedPlanId:null,
+      // 저장 당시 자동연동(=(전)에서 유지 중이던 상품) 표시가 돼 있던 열은 일단 "carryover"로
+      // 표시해두고, 아래에서 어떤 (전) 상품과 짝인지 순서대로 다시 연결한다.
+      return { source: c.wasKept ? "carryover" : "manual", sourceId:null, alias:"", lastMatchedPlanId:null,
         productName:c.productName, insurer:c.insurer, duration:c.duration, term:c.term,
         premium:c.premium, holder:c.holder, items };
     });
+    // 자동연동은 항상 "(전)에서 유지 체크한 순서대로" 만들어지므로, 유지 표시였던 (전) 상품과
+    // 자동연동 표시였던 (후) 상품을 나온 순서 그대로 짝지어 다시 연결한다(엑셀 파일 자체에는
+    // 어떤 (전) 상품과 연결돼 있었는지 id까지는 저장돼 있지 않고 색으로만 표시돼 있었기 때문).
+    const keptBeforeCols = beforeColumns.filter(c=>c.kept);
+    const carryoverAfterCols = rawAfterColumns.filter(c=>c.source==="carryover");
+    const pairCount = Math.min(keptBeforeCols.length, carryoverAfterCols.length);
+    for(let i=0;i<pairCount;i++) carryoverAfterCols[i].sourceId = keptBeforeCols[i].id;
+    // 개수가 서로 안 맞아 짝을 못 찾은 나머지가 있다면(드문 경우) 일반 열로 되돌려둔다 --
+    // sourceId 없이 "carryover"로 남겨두면 다음 유지 체크 변경 때 고아 열로 보고 지워질 수 있다.
+    for(let i=pairCount;i<carryoverAfterCols.length;i++) carryoverAfterCols[i].source = "manual";
+
+    afterColumns = rawAfterColumns;
     if(!afterColumns.length) afterColumns = [blankAfterColumn(), blankAfterColumn()];
 
     renderPreview(lastResult);
-    buildAfterSheetSkeleton();
+    syncAfterCarryoverFromBefore(); // 위에서 짝지어둔 sourceId를 그대로 이어받아 렌더링(내부에서 renderAfterSheet 호출)
     dlBtn.disabled = false;
     deleteHistory = [];
     updateUndoButtons();
@@ -883,8 +899,8 @@ resumeFileInput.addEventListener("change", async ()=>{
 
     resumeStatus.className = "status ok";
     resumeStatus.textContent = resumedFree
-      ? `불러왔습니다 (상품 ${lastResult.columns.length}건). 내가 결제했던 작업으로 확인되어, 다음 다운로드는 포인트 차감 없이 받을 수 있습니다.`
-      : `불러왔습니다 (상품 ${lastResult.columns.length}건). 다만 이 파일이 결제했던 작업인지 확인되지 않아, 다음 다운로드는 새 작업으로 처리되어 포인트가 차감됩니다.`;
+      ? `불러왔습니다 (상품 ${lastResult.columns.length}건, 유지 표시 포함). 내가 결제했던 작업으로 확인되어, 다음 다운로드는 포인트 차감 없이 받을 수 있습니다.`
+      : `불러왔습니다 (상품 ${lastResult.columns.length}건, 유지 표시 포함). 다만 이 파일이 결제했던 작업인지 확인되지 않아, 다음 다운로드는 새 작업으로 처리되어 포인트가 차감됩니다.`;
   }catch(err){
     console.error(err);
     resumeStatus.className = "status err";
@@ -892,6 +908,32 @@ resumeFileInput.addEventListener("change", async ()=>{
   }finally{
     resumeUploadBtn.disabled = false;
   }
+}
+
+resumeUploadBtn.addEventListener("click", ()=> resumeFileInput.click());
+resumeFileInput.addEventListener("change", ()=>{
+  const file = resumeFileInput.files[0];
+  resumeFileInput.value = ""; // 같은 파일을 다시 골라도 change 이벤트가 뜨도록 초기화
+  loadResumeFile(file);
+});
+
+// 처음 분석용 파일 선택(fileInput)처럼, 이 영역에도 파일을 그냥 끌어다 놓을 수 있게 한다.
+["dragenter","dragover"].forEach(evt=>{
+  resumeDropZone.addEventListener(evt, (e)=>{
+    e.preventDefault();
+    resumeDropZone.classList.add("drop-hover");
+  });
+});
+["dragleave","drop"].forEach(evt=>{
+  resumeDropZone.addEventListener(evt, (e)=>{
+    e.preventDefault();
+    if(evt === "dragleave" && resumeDropZone.contains(e.relatedTarget)) return; // 자식 요소 사이를 지나갈 때는 무시
+    resumeDropZone.classList.remove("drop-hover");
+  });
+});
+resumeDropZone.addEventListener("drop", (e)=>{
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(file) loadResumeFile(file);
 });
 
 // 원본 서식지 D7의 SUMPRODUCT(--IFERROR(VALUE(SUBSTITUTE(...,"원","")),0)) 수식과
@@ -1084,18 +1126,14 @@ function fillSheetColumns(ws, columns, getField){
   });
 }
 
-// ExcelJS 셀 값을 화면/입력창에 쓸 수 있는 순수 문자열로 변환한다.
-// (수식 결과 셀이나 rich text 셀도 다룰 수 있도록 방어적으로 처리)
-function cellText(v){
-  if(v === null || v === undefined) return "";
-  if(typeof v === "object"){
-    if(Array.isArray(v.richText)) return v.richText.map(rt=>rt.text||"").join("");
-    if(v.result !== undefined) return cellText(v.result);
-    if(v.text !== undefined) return String(v.text);
-    if(v instanceof Date) return v.toISOString();
-    return "";
-  }
-  return String(v);
+// 셀의 채우기 색이 "유지"/자동연동 표시용 KEPT_CELL_FILL(연한 노랑, FFF6E8B5)과
+// 같은지 확인한다. "이전 보장분석표 불러오기"에서 어떤 상품이 유지 중이었는지
+// 알아내는 데 쓴다(엑셀 파일 자체에는 그 값을 별도로 저장해두지 않고, 화면에
+// 보이는 것과 똑같은 색으로만 표시해두었기 때문에 색을 보고 역으로 판단한다).
+function isKeptFillCell(cell){
+  const fill = cell && cell.style && cell.style.fill;
+  if(!fill || fill.type !== "pattern" || !fill.fgColor) return false;
+  return String(fill.fgColor.argb || "").toUpperCase() === "FFF6E8B5";
 }
 
 // fillSheetColumns()의 역방향: 이미 채워진 보장분석표(전)/(후) 시트에서
@@ -1108,20 +1146,30 @@ function readColumnsFromWorksheet(ws){
   let emptyStreak = 0;
   for(let col = startCol; emptyStreak < 5; col++){
     const insurer = cellText(ws.getCell(3, col).value);
-    const productName = cellText(ws.getCell(4, col).value);
+    const productNameCell = ws.getCell(4, col);
+    const productName = cellText(productNameCell.value);
     const duration = cellText(ws.getCell(5, col).value).replace(/\n/g, ""); // formatDurationBreak() 역변환
     const term = cellText(ws.getCell(6, col).value);
     const premiumCellVal = ws.getCell(7, col).value;
     const premium = typeof premiumCellVal === "number" ? String(premiumCellVal) : cellText(premiumCellVal);
     const holder = cellText(ws.getCell(8, col).value);
+    // "유지"(전) 또는 자동연동(후) 상품 열은 저장 시 4~8행에 연한 노란 배경이 칠해져 있었다.
+    // 상품명 칸(4행)의 색만 확인해도 충분하다(applyKeptFillToMetaCells가 5개 행에 항상 같이 칠함).
+    const wasKept = isKeptFillCell(productNameCell);
 
     const amounts = {};
     let hasAmount = false;
     ROW_DEFS.forEach(([row])=>{
       if(TEXT_ROWS.has(row)) return;
-      const v = ws.getCell(row, col).value;
-      if(v === null || v === undefined || v === "") return;
-      amounts[row] = typeof v === "number" ? v : cellText(v);
+      const raw = ws.getCell(row, col).value;
+      if(raw === null || raw === undefined || raw === "") return;
+      // 원본 템플릿에는 웹에서 한 번도 채운 적 없는 뒤쪽 상품 칸에도 "마스터에서 별칭으로
+      // 자동완성" 하는 옛 엑셀 수식이 미리 깔려 있다(계산된 결과값 없이 수식만). 그런 셀은
+      // typeof가 "object"라 raw는 값이 있는 것처럼 보이지만, 실제 텍스트로 바꿔보면 빈 문자열이라
+      // 진짜 입력값과 구별된다 -- 빈 문자열이면 진짜 데이터가 아니므로 건너뛴다.
+      const val = typeof raw === "number" ? raw : cellText(raw);
+      if(val === "" || val === null || val === undefined) return;
+      amounts[row] = val;
       hasAmount = true;
     });
     const text45 = cellText(ws.getCell(45, col).value);
@@ -1132,7 +1180,7 @@ function readColumnsFromWorksheet(ws){
       continue;
     }
     emptyStreak = 0;
-    out.push({ insurer, productName, duration, term, premium, holder, amounts, text45 });
+    out.push({ insurer, productName, duration, term, premium, holder, amounts, text45, wasKept });
   }
   return out;
 }
