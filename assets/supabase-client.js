@@ -182,6 +182,110 @@ function getCoverImageUrl(path){
 }
 
 // 등록된 표지 스타일 전체 목록을 가져온다(관리자 관리 화면 + 회원 선택 화면 공용).
+// "5년내 중대질환" 진단코드 분류 규칙. 병력정리(history.html)의 실제 판정 로직이 이 값을
+// 읽어서 쓴다(관리자 화면에서 직접 수정하는 UI는 없고, 필요 시 DB에서 직접 관리한다).
+// 실패 시 빈 배열을 반환하며, 호출하는 쪽에서 기본값으로 대체한다.
+async function getCriticalIllnessRules(){
+    const { data, error } = await supabaseClient
+        .from("critical_illness_rules")
+        .select("id, category_name, codes, sort_order, updated_at")
+        .order("sort_order", { ascending: true });
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+async function adminSaveCriticalIllnessRule(id, categoryName, codes){
+    const { error } = await supabaseClient
+        .from("critical_illness_rules")
+        .update({ category_name: categoryName, codes: codes, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
+async function adminAddCriticalIllnessRule(categoryName, codes, sortOrder){
+    const { data, error } = await supabaseClient
+        .from("critical_illness_rules")
+        .insert({ category_name: categoryName, codes: codes, sort_order: sortOrder })
+        .select("id, category_name, codes, sort_order")
+        .single();
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true, row:data };
+}
+
+async function adminDeleteCriticalIllnessRule(id){
+    const { error } = await supabaseClient
+        .from("critical_illness_rules")
+        .delete()
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
+// 이용 규칙(사이트 이용 안내/규칙) -- 대시보드 "규칙" 버튼으로 회원 누구나 볼 수 있고,
+// 관리자 페이지에서 추가/수정/삭제할 수 있다. "5년내 중대질환" 코드 분류와는 완전히
+// 별개의 일반 안내문 목록이다.
+async function getSiteRules(){
+    const { data, error } = await supabaseClient
+        .from("site_rules")
+        .select("id, title, content, sort_order, updated_at")
+        .order("sort_order", { ascending: true });
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+async function adminSaveSiteRule(id, title, content){
+    const { error } = await supabaseClient
+        .from("site_rules")
+        .update({ title: title, content: content, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
+async function adminAddSiteRule(title, content, sortOrder){
+    const { data, error } = await supabaseClient
+        .from("site_rules")
+        .insert({ title: title, content: content, sort_order: sortOrder })
+        .select("id, title, content, sort_order")
+        .single();
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true, row:data };
+}
+
+async function adminDeleteSiteRule(id){
+    const { error } = await supabaseClient
+        .from("site_rules")
+        .delete()
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
 async function getCoverStyles(){
     const { data, error } = await supabaseClient
         .from("cover_styles")
