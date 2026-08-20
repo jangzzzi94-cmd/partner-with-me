@@ -389,3 +389,120 @@ async function setDefaultCoverStyle(styleId){
     if(error) return { ok:false, message: error.message };
     return { ok:true };
 }
+
+// 포인트 순위(누적/현재) -- 대시보드에서 회원 누구나 볼 수 있도록, profiles 테이블을
+// 직접 열람할 수 없는 일반 회원도 별명+포인트만 안전하게 조회할 수 있는 전용 함수를 쓴다.
+// (profiles 테이블 자체는 RLS상 본인 것 또는 관리자만 조회 가능하다.)
+async function getPointRankings(){
+    const { data, error } = await supabaseClient.rpc("get_point_rankings");
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+// ===== J마켓 (포인트로 상품을 구매하는 페이지) =====
+
+// 등록된 상품 전체 목록을 가져온다(관리자 관리 화면은 판매중지 상품도 함께 보여줘야 하므로
+// 활성/비활성 구분 없이 전부 반환한다 -- 회원용 화면에서는 호출하는 쪽에서 is_active로 걸러쓴다).
+async function getMarketItems(){
+    const { data, error } = await supabaseClient
+        .from("market_items")
+        .select("id, name, description, point_cost, is_active, sort_order, updated_at")
+        .order("sort_order", { ascending: true });
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+async function adminAddMarketItem(name, description, pointCost, sortOrder){
+    const { data, error } = await supabaseClient
+        .from("market_items")
+        .insert({ name: name, description: description, point_cost: pointCost, sort_order: sortOrder })
+        .select("id, name, description, point_cost, is_active, sort_order")
+        .single();
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true, row:data };
+}
+
+async function adminSaveMarketItem(id, name, description, pointCost, isActive){
+    const { error } = await supabaseClient
+        .from("market_items")
+        .update({ name: name, description: description, point_cost: pointCost, is_active: isActive, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
+async function adminDeleteMarketItem(id){
+    const { error } = await supabaseClient
+        .from("market_items")
+        .delete()
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
+// 회원이 상품을 구매한다. 포인트 확인/차감과 주문 기록/포인트 로그 기록을 서버(DB 함수)에서
+// 한번에 안전하게 처리한다(클라이언트에서 포인트를 직접 깎지 않음).
+async function purchaseMarketItem(itemId){
+    const { data, error } = await supabaseClient.rpc("purchase_market_item", { p_item_id: itemId });
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return data; // { ok, message } 또는 { ok:true, order_id }
+}
+
+// 내가 구매한 내역(J마켓 페이지 하단에 표시).
+async function getMyMarketOrders(){
+    const { data:{ session } } = await supabaseClient.auth.getSession();
+    if(!session) return [];
+    const { data, error } = await supabaseClient
+        .from("market_orders")
+        .select("id, item_name, point_cost, status, created_at")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+// 관리자용: 전체 구매 내역(누가 무엇을 구매했는지 확인 + 처리 상태 변경).
+async function getAllMarketOrders(){
+    const { data, error } = await supabaseClient
+        .from("market_orders")
+        .select("id, item_name, point_cost, status, created_at, user_id")
+        .order("created_at", { ascending: false });
+    if(error){
+        console.error(error);
+        return [];
+    }
+    return data || [];
+}
+
+async function adminUpdateMarketOrderStatus(id, status){
+    const { error } = await supabaseClient
+        .from("market_orders")
+        .update({ status: status })
+        .eq("id", id);
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
