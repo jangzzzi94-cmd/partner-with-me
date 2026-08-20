@@ -415,7 +415,7 @@ async function getAdminMasterPlans(){
     return data || [];
 }
 
-// ===== J마켓 (포인트로 상품을 구매하는 페이지) =====
+// ===== Market J (포인트로 상품을 구매하는 페이지) =====
 
 // 등록된 상품 전체 목록을 가져온다(관리자 관리 화면은 판매중지 상품도 함께 보여줘야 하므로
 // 활성/비활성 구분 없이 전부 반환한다 -- 회원용 화면에서는 호출하는 쪽에서 is_active로 걸러쓴다).
@@ -479,7 +479,7 @@ async function purchaseMarketItem(itemId){
     return data; // { ok, message } 또는 { ok:true, order_id }
 }
 
-// 내가 구매한 내역(J마켓 페이지 하단에 표시).
+// 내가 구매한 내역(Market J 페이지 하단에 표시).
 async function getMyMarketOrders(){
     const { data:{ session } } = await supabaseClient.auth.getSession();
     if(!session) return [];
