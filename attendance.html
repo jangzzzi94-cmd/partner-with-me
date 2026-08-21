@@ -1,0 +1,2664 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#ffffff">
+<title>출근보고·근태 | With Partners</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --card2:#fbfcfd; --line:#e6e9ef; --line2:#d3d9e3;
+  --tx:#171b23; --tx2:#5c6577; --tx3:#8b94a6;
+  --pri:#2f6bff; --pri2:#1e55e0; --pri-soft:#eaf0ff;
+  --ok:#0f9d58; --ok-soft:#e6f6ed;
+  --warn:#c77700; --warn-soft:#fff3e0;
+  --dan:#d92d20; --dan-soft:#fdeceb;
+  --pur:#7c4dff; --pur-soft:#f0eaff;
+  --cy:#0a8fa3; --cy-soft:#e3f6f9;
+  --r:14px; --rs:10px;
+  --sh:0 1px 2px rgba(16,24,40,.05), 0 6px 20px rgba(16,24,40,.07);
+  --sh-s:0 1px 2px rgba(16,24,40,.06);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--tx);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",system-ui,sans-serif;
+  font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:var(--pri);text-decoration:none}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#ccd2dc;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---------- layout ---------- */
+#app{min-height:100vh;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:40;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);padding:10px 16px;
+  display:flex;align-items:center;gap:10px;min-height:56px;
+}
+.topbar .logo{font-weight:800;font-size:16px;letter-spacing:-.4px;display:flex;align-items:center;gap:8px}
+.topbar .logo .dot{width:9px;height:9px;border-radius:50%;background:var(--pri)}
+.topbar .sp{flex:1}
+.chip-user{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line2);
+  border-radius:999px;padding:5px 12px 5px 5px;font-size:13px;font-weight:700;box-shadow:var(--sh-s)}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--pri);display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:800;color:#fff;flex:0 0 auto}
+.main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:16px 16px 104px}
+
+/* ---------- nav ---------- */
+.nav{
+  position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(255,255,255,.97);
+  backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  display:flex;padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  overflow-x:auto;scrollbar-width:none;box-shadow:0 -2px 12px rgba(16,24,40,.05);
+}
+.nav::-webkit-scrollbar{display:none}
+.nav button{flex:1 0 auto;min-width:60px;padding:7px 5px;border-radius:var(--rs);display:flex;
+  flex-direction:column;align-items:center;gap:3px;color:var(--tx3);font-size:10.5px;font-weight:700;
+  transition:.15s;white-space:nowrap}
+.nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.nav button.on{color:var(--pri);background:var(--pri-soft)}
+
+/* ---------- cards ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;
+  margin-bottom:12px;box-shadow:var(--sh-s)}
+.card.pad0{padding:0;overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.card-h h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.3px}
+.card-h .sp{flex:1}
+.sec-t{font-size:12px;font-weight:800;color:var(--tx3);letter-spacing:.3px;margin:22px 0 10px}
+.sec-t:first-child{margin-top:0}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:760px){.g3,.g4{grid-template-columns:repeat(2,1fr)}}
+
+/* ---------- stat ---------- */
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;box-shadow:var(--sh-s)}
+.stat .lb{font-size:11.5px;color:var(--tx3);font-weight:700;margin-bottom:7px}
+.stat .vl{font-size:23px;font-weight:800;letter-spacing:-1px;line-height:1.15}
+.stat .sub{font-size:11.5px;color:var(--tx3);margin-top:5px}
+.stat.acc-r{border-color:#f7c9c5;background:linear-gradient(180deg,var(--dan-soft),#fff)}
+.stat.acc-r .vl{color:var(--dan)}
+.stat.acc-g{border-color:#b8e3ca;background:linear-gradient(180deg,var(--ok-soft),#fff)}
+.stat.acc-g .vl{color:var(--ok)}
+.stat.acc-b{border-color:#c3d5ff;background:linear-gradient(180deg,var(--pri-soft),#fff)}
+.stat.acc-b .vl{color:var(--pri)}
+.stat.acc-p{border-color:#d9c9ff;background:linear-gradient(180deg,var(--pur-soft),#fff)}
+.stat.acc-p .vl{color:var(--pur)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--card);
+  border:1px solid var(--line2);color:var(--tx);border-radius:var(--rs);padding:9px 14px;
+  font-size:13.5px;font-weight:700;transition:.14s;white-space:nowrap;box-shadow:var(--sh-s)}
+.btn:hover{background:#f7f9fc;border-color:#c2cad6}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.pri:hover{background:var(--pri2);border-color:var(--pri2)}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.dan{background:var(--dan);border-color:var(--dan);color:#fff}
+.btn.gho{background:transparent;box-shadow:none}
+.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
+.btn.xs{padding:4px 9px;font-size:11.5px;border-radius:7px}
+.btn.full{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- forms ---------- */
+.fld{margin-bottom:13px}
+.fld label{display:block;font-size:12px;font-weight:700;color:var(--tx2);margin-bottom:6px}
+.inp{width:100%;background:#fff;border:1px solid var(--line2);border-radius:var(--rs);
+  padding:11px 13px;font-size:14.5px;transition:.14s;outline:none;color:var(--tx)}
+.inp:focus{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-soft)}
+.inp::placeholder{color:#a9b2c1}
+select.inp{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235c6577' stroke-width='2.4' stroke-linecap='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
+textarea.inp{resize:vertical;min-height:70px}
+.hint{font-size:11.5px;color:var(--tx3);margin-top:5px;line-height:1.45}
+
+/* ---------- badges ---------- */
+.bdg{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;
+  padding:3px 9px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.bdg.b{background:var(--pri-soft);color:var(--pri);border-color:#cfdcff}
+.bdg.g{background:var(--ok-soft);color:var(--ok);border-color:#bfe6cf}
+.bdg.r{background:var(--dan-soft);color:var(--dan);border-color:#f7cdc9}
+.bdg.y{background:var(--warn-soft);color:var(--warn);border-color:#ffe0b3}
+.bdg.p{background:var(--pur-soft);color:var(--pur);border-color:#ddcdff}
+.bdg.c{background:var(--cy-soft);color:var(--cy);border-color:#bfe9ef}
+.bdg.n{background:#f0f2f6;color:var(--tx2);border-color:var(--line)}
+
+.seg{display:flex;background:#eef1f6;border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;padding:8px 6px;border-radius:8px;font-size:12.5px;font-weight:700;color:var(--tx2);transition:.14s}
+.seg button.on{background:#fff;color:var(--pri);box-shadow:var(--sh-s)}
+.seg.sm button{padding:6px 4px;font-size:11.5px}
+
+.tpick{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.tpick button{border:1.5px solid var(--line2);background:#fff;border-radius:var(--r);padding:14px 10px;
+  text-align:left;transition:.15s}
+.tpick button .tt{font-size:15px;font-weight:800;margin-bottom:3px}
+.tpick button .td{font-size:11px;color:var(--tx3);line-height:1.4}
+.tpick button.on{border-color:var(--pri);background:var(--pri-soft);box-shadow:0 0 0 3px rgba(47,107,255,.1)}
+.tpick button.on .tt{color:var(--pri)}
+.tpick button:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- table ---------- */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:520px}
+th{text-align:left;padding:10px 12px;font-size:11.5px;font-weight:800;color:var(--tx3);
+  background:#f7f9fc;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#fafbfd}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.empty{padding:34px 16px;text-align:center;color:var(--tx3);font-size:13px}
+
+.row{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:none}
+.row .sp{flex:1;min-width:0}
+.row .nm{font-weight:700;font-size:14px}
+.row .ds{font-size:11.5px;color:var(--tx3);margin-top:2px}
+
+.rk{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:12.5px;font-weight:800;background:#eef1f6;color:var(--tx2);flex:0 0 auto}
+.rk.r1{background:linear-gradient(135deg,#ffd66b,#f0a500);color:#4a2f00}
+.rk.r2{background:linear-gradient(135deg,#e2e8f0,#b6c0cf);color:#2b3444}
+.rk.r3{background:linear-gradient(135deg,#f0b787,#d08850);color:#3d2100}
+
+/* ---------- calendar ---------- */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;align-items:start}
+.cal .dw{text-align:center;font-size:10.5px;font-weight:800;color:var(--tx3);padding:6px 0}
+.cal .dw.s{color:var(--dan)}.cal .dw.u{color:var(--pri)}
+.cel{min-height:64px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px;
+  display:flex;flex-direction:column;gap:3px;cursor:pointer;transition:.13s}
+.cel:hover{border-color:var(--line2);background:#fafbfd}
+.cel.off{background:#f4f6f9;opacity:.7}
+.cel.tod{border-color:var(--pri);box-shadow:0 0 0 2px var(--pri-soft)}
+.cel.hol{background:#fff7f6}
+.cel .dn{font-size:11px;font-weight:800;color:var(--tx2)}
+.cel .dn.s{color:var(--dan)}.cel .dn.u{color:var(--pri)}
+.cel .ev{font-size:9.5px;font-weight:700;padding:2px 4px;border-radius:4px;line-height:1.35;
+  white-space:normal;word-break:break-all}
+.ev.r{background:var(--dan-soft);color:var(--dan)}
+.ev.y{background:var(--warn-soft);color:var(--warn)}
+.ev.g{background:var(--ok-soft);color:var(--ok)}
+.ev.p{background:var(--pur-soft);color:var(--pur)}
+.ev.b{background:var(--pri-soft);color:var(--pri)}
+@media(max-width:560px){.cel{min-height:52px;padding:3px}.cel .ev{font-size:8px;padding:1px 3px}}
+
+/* ---------- modal ---------- */
+.ovl{position:fixed;inset:0;z-index:100;background:rgba(16,24,40,.45);backdrop-filter:blur(2px);
+  display:flex;align-items:center;justify-content:center;padding:16px;animation:fi .16s}
+@keyframes fi{from{opacity:0}}
+.mod{background:#fff;border-radius:18px;width:100%;max-width:480px;
+  max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(16,24,40,.25);animation:su .2s cubic-bezier(.2,.9,.3,1)}
+.mod.wide{max-width:760px}
+@keyframes su{from{transform:translateY(18px);opacity:0}}
+.mod-h{position:sticky;top:0;background:#fff;padding:16px 18px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;z-index:2}
+.mod-h h3{margin:0;font-size:16px;font-weight:800;letter-spacing:-.3px}
+.mod-h .sp{flex:1}
+.mod-b{padding:18px}
+.mod-f{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:8px;
+  position:sticky;bottom:0;background:#fff}
+.mod-f .btn{flex:1}
+.xbtn{width:30px;height:30px;border-radius:9px;background:#f0f2f6;display:flex;align-items:center;
+  justify-content:center;color:var(--tx2);font-size:17px;line-height:1}
+
+/* ---------- auth ---------- */
+.auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:radial-gradient(900px 480px at 50% -10%,#e6eeff,transparent 70%)}
+.auth-box{width:100%;max-width:392px}
+.auth-logo{text-align:center;margin-bottom:26px}
+.auth-logo .ic{width:58px;height:58px;border-radius:17px;background:linear-gradient(135deg,var(--pri),var(--pur));
+  display:flex;align-items:center;justify-content:center;margin:0 auto 13px;font-size:27px;
+  box-shadow:0 8px 26px rgba(47,107,255,.28)}
+.auth-logo h1{margin:0 0 5px;font-size:21px;font-weight:800;letter-spacing:-.6px}
+.auth-logo p{margin:0;font-size:12.5px;color:var(--tx3)}
+
+/* ---------- misc ---------- */
+.upl{border:1.5px dashed var(--line2);border-radius:var(--r);padding:22px 14px;text-align:center;
+  cursor:pointer;transition:.14s;background:#fafbfd}
+.upl:hover{border-color:var(--pri);background:var(--pri-soft)}
+.upl .ic{font-size:26px;margin-bottom:7px;opacity:.7}
+.upl .t{font-size:13px;font-weight:700}
+.upl .s{font-size:11px;color:var(--tx3);margin-top:3px}
+.thumb{width:100%;border-radius:var(--rs);border:1px solid var(--line);display:block}
+.thumb.sm{width:64px;height:64px;object-fit:cover}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:92px;z-index:300;background:#171b23;
+  color:#fff;padding:11px 18px;border-radius:999px;font-size:13px;
+  font-weight:700;box-shadow:0 8px 24px rgba(16,24,40,.25);animation:tin .2s;max-width:88vw;text-align:center}
+@keyframes tin{from{transform:translate(-50%,14px);opacity:0}}
+.toast.ok{background:var(--ok)}
+.toast.err{background:var(--dan)}
+.divider{height:1px;background:var(--line);margin:14px 0}
+.mono{font-variant-numeric:tabular-nums}
+.acct{background:#f7f9fc;border:1px dashed var(--line2);border-radius:var(--rs);padding:12px 14px;
+  display:flex;align-items:center;gap:10px}
+.acct .t{flex:1;font-size:13.5px;font-weight:700;word-break:break-all}
+.sw{position:relative;width:42px;height:24px;flex:0 0 auto;display:inline-block}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw .tr{position:absolute;inset:0;background:#dfe4ec;border-radius:999px;transition:.16s}
+.sw .tr:before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;
+  border-radius:50%;transition:.16s;box-shadow:var(--sh-s)}
+.sw input:checked + .tr{background:var(--pri)}
+.sw input:checked + .tr:before{transform:translateX(18px)}
+.banner{border-radius:var(--r);padding:12px 14px;font-size:12.5px;line-height:1.55;margin-bottom:12px;border:1px solid}
+.banner.i{background:var(--pri-soft);border-color:#cfdcff;color:#1a4bc0}
+.banner.w{background:var(--warn-soft);border-color:#ffe0b3;color:#8a5300}
+.banner.d{background:var(--dan-soft);border-color:#f7cdc9;color:#9b2018}
+.banner.s{background:var(--ok-soft);border-color:#bfe6cf;color:#0b7a44}
+.banner b{color:inherit}
+.cnt{display:flex;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:var(--rs);overflow:hidden}
+.cnt button{width:40px;height:40px;font-size:18px;font-weight:700;color:var(--tx2);background:#f4f6f9}
+.cnt button:hover{color:var(--pri)}
+.cnt .v{flex:1;text-align:center;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.hide{display:none !important}
+.scroll-x{overflow-x:auto;display:flex;gap:8px;padding-bottom:4px;scrollbar-width:none}
+.scroll-x::-webkit-scrollbar{display:none}
+.ck{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:var(--rs);background:#fff;margin-bottom:7px;transition:.13s}
+.ck.done{background:var(--ok-soft);border-color:#bfe6cf}
+.ck .box{width:22px;height:22px;border-radius:7px;border:1.8px solid var(--line2);background:#fff;
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto;cursor:pointer;
+  font-size:13px;color:#fff;font-weight:900;margin-top:1px}
+.ck.done .box{background:var(--ok);border-color:var(--ok)}
+.ck .tx{flex:1;font-size:13.5px;line-height:1.45;word-break:break-word}
+.ck.done .tx{color:var(--ok);text-decoration:line-through;text-decoration-color:rgba(15,157,88,.4)}
+.ck .del{color:var(--tx3);font-size:15px;padding:0 3px;line-height:1}
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.photo-grid .ph{position:relative;aspect-ratio:1;border-radius:var(--rs);overflow:hidden;
+  border:1px solid var(--line);background:#f4f6f9}
+.photo-grid .ph img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-grid .ph .x{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;
+  background:rgba(0,0,0,.6);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
+.photo-grid .add{aspect-ratio:1;border:1.5px dashed var(--line2);border-radius:var(--rs);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  color:var(--tx3);font-size:11px;font-weight:700;background:#fafbfd}
+.photo-grid .add:hover{border-color:var(--pri);color:var(--pri)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-client.js"></script>
+<script>
+/* ============================================================================
+   팀 근태 · 벌금 관리 시스템 v2  (Supabase + GitHub + Vercel)
+   ============================================================================ */
+
+/* ============================ 등급 ============================ */
+const GRADES = {
+  "후보자": { fine: false, admin: false, tl: false, color: "n", desc: "시스템 사용 · 벌금 면제" },
+  "AP":    { fine: true,  admin: false, tl: false, color: "b", desc: "벌금 적용" },
+  "TL":    { fine: true,  admin: false, tl: true,  color: "p", desc: "벌금 적용 · 담당 인원 관리" },
+  "SM":    { fine: false, admin: true,  tl: true,  color: "g", desc: "관리자 전권 · 벌금 미적용" }
+};
+const GRADE_ORDER = ["후보자", "AP", "TL", "SM"];
+function gradeOf(u) { return (u && GRADES[u.grade]) ? u.grade : "후보자"; }
+function gradeInfo(u) { return GRADES[gradeOf(u)]; }
+
+/* ============================ 기본 설정값 ============================ */
+const DEFAULT_SETTINGS = {
+  checkinOpen: "05:00",        // 이 시각부터 출근 사진 등록 가능
+  workStart: "08:00",          // (기본) 출근 기준 시각
+  absentBy: "08:50",           // 이 시각까지 미출근이면 결근 처리
+  absentFine: 50000,           // 결근(미출근) 벌금
+  latePerMin: 1000,            // (기본) 지각 1분당
+  lateMax: 50000,              // (기본) 지각 상한
+  photoMin: 3,                 // 하루 최소 워킹사진 수
+  photoFine: 10000,
+  photoFrom: "10:00",          // 워킹사진 인정 시작
+  photoTo: "23:59",            // 워킹사진 인정 종료
+  closingFine: 10000,          // 일마감 미실행 벌금
+  closingFrom: "13:00",        // 일마감 인정 시작
+  closingTo: "23:59",          // 일마감 인정 종료
+  reportFine: 10000,           // 출근보고 미제출 벌금
+  reportDeadline: "22:00",     // 전날 마감
+  gaejikDeadline: "03:00",     // 개직은 당일 새벽 이 시각까지
+  reportRollover: "08:00",     // 이 시각이 지나면 대상일이 다음 근무일로 넘어감
+  monthlyGaejik: 1,            // 매월 1일 기본 지급
+  cleanBonus: 1,               // 전월 무벌금 보너스
+  birthdayGaejik: 1,           // 생일 달 지급
+  account: "은행명 000-0000-0000 예금주",
+  startDate: "",
+  typeRules: {
+    "출근":    { late: true,  photo: true,  start: "08:00", perMin: 1000,  max: 50000 },
+    "병원근무": { late: true,  photo: true,  start: "09:00", perMin: 10000, max: 100000 },
+    "직출":    { late: true,  photo: true,  start: "08:00", perMin: 1000,  max: 50000 },
+    "개직":    { late: false, photo: false, start: "08:00", perMin: 1000,  max: 50000 }
+  },
+  closingForAll: true,
+  reportForAll: true
+};
+
+const TYPES = {
+  "출근":    { icon: "🏢", desc: "회사로 출근 · 8시까지",        color: "b" },
+  "개직":    { icon: "🌴", desc: "휴가 · 당일 새벽3시까지",       color: "g" },
+  "병원근무": { icon: "🏥", desc: "병원 출근 · 9시까지 · 병원명", color: "c" },
+  "직출":    { icon: "🚗", desc: "상담처 이동 · 8시까지 · 증빙",  color: "p" }
+};
+
+const KINDS = {
+  absent:  { label: "미출근",   color: "r", icon: "🚫" },
+  late:    { label: "지각",     color: "r", icon: "⏰" },
+  closing: { label: "일마감",   color: "y", icon: "📋" },
+  photo:   { label: "사진보고", color: "p", icon: "📷" },
+  report:  { label: "출근보고", color: "b", icon: "🗓" },
+  etc:     { label: "기타",     color: "n", icon: "✏️" }
+};
+
+/* ============================ 유틸 ============================ */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const won = n => (n || 0).toLocaleString("ko-KR") + "원";
+const pad = n => String(n).padStart(2, "0");
+
+function dstr(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function today() { return dstr(new Date()); }
+function parseD(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+function addDays(s, n) { const d = parseD(s); d.setDate(d.getDate() + n); return dstr(d); }
+function dow(s) { return parseD(s).getDay(); }
+const DOWK = ["일", "월", "화", "수", "목", "금", "토"];
+function fmtD(s) { const d = parseD(s); return (d.getMonth() + 1) + "/" + d.getDate() + "(" + DOWK[d.getDay()] + ")"; }
+function fmtDL(s) { const d = parseD(s); return d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate()) + " (" + DOWK[d.getDay()] + ")"; }
+function hm2min(t) { if (!t) return null; const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function tsHM(ts) { if (!ts) return null; const d = new Date(ts); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function tsFmt(ts) { if (!ts) return "-"; const d = new Date(ts); return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+function tsFmtFull(ts) {
+  if (!ts) return "-";
+  const d = new Date(ts);
+  return d.getFullYear() + "." + pad(d.getMonth() + 1) + "." + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+/** 날짜 s 의 HH:MM 시각을 ms 로 */
+function atTime(s, hm) { const [h, m] = hm.split(":").map(Number); const d = parseD(s); d.setHours(h, m, 0, 0); return d.getTime(); }
+function initial(n) { return (n || "?").trim().slice(-2); }
+function uid8() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+function monthOf(s) { return s.slice(0, 7); }
+function prevMonth(ym) {
+  let [y, m] = ym.split("-").map(Number); m--; if (m < 1) { m = 12; y--; }
+  return y + "-" + pad(m);
+}
+
+function toast(msg, kind) {
+  $$(".toast").forEach(t => t.remove());
+  const el = document.createElement("div");
+  el.className = "toast " + (kind || "");
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+function compressImage(file, maxW, quality) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const sc = Math.min(1, (maxW || 900) / img.width);
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        let q = quality || 0.72, out = c.toDataURL("image/jpeg", q);
+        while (out.length > 700000 && q > 0.3) { q -= 0.12; out = c.toDataURL("image/jpeg", q); }
+        res(out);
+      };
+      img.onerror = rej; img.src = fr.result;
+    };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+
+/* ============================ 근무일 / 대상일 ============================ */
+function isWorkday(date, holidays) {
+  const h = holidays[date];
+  if (h && typeof h.work === "boolean") return h.work;
+  const w = dow(date);
+  return w >= 1 && w <= 5;
+}
+function holidayName(date, holidays) { const h = holidays[date]; return h && h.name ? h.name : ""; }
+
+/** 지금 보고해야 할 "다음 근무일" — 대상일 08:00 이 지나면 그 다음 근무일로 넘어감 */
+function nextReportDate(H, S) {
+  const roll = (S && S.reportRollover) || "08:00";
+  let d = today();
+  for (let i = 0; i < 40; i++) {
+    if (isWorkday(d, H) && Date.now() < atTime(d, roll)) return d;
+    d = addDays(d, 1);
+  }
+  return d;
+}
+
+/** 출근보고 마감 시각(ms) */
+function reportDeadlineTs(date, type, S) {
+  if (type === "개직") return atTime(date, S.gaejikDeadline || "03:00");
+  return atTime(addDays(date, -1), S.reportDeadline || "22:00");
+}
+
+/* ============================================================================
+   벌금 규칙 엔진 v2
+   ============================================================================ */
+function computeDay(date, daily, S, H, user) {
+  const out = [];
+  if (!isWorkday(date, H)) return out;
+  if (user && !gradeInfo(user).fine) return out;        // 후보자 등급은 전면 면제
+
+  const past = date < today();
+  const d = daily || {};
+  const type = d.type || null;
+  const rule = typeRule(S, type);
+
+  /* 1) 출근보고 — 전날 마감까지 다음날 근무유형 선택 */
+  if (S.reportForAll || type !== "개직") {
+    if (!type) {
+      out.push({ kind: "report", amount: S.reportFine, reason: past ? "출근보고 미제출" : "아직 미제출", pending: !past });
+    } else {
+      const dl = reportDeadlineTs(date, type, S);
+      if (d.reportAt && d.reportAt > dl)
+        out.push({ kind: "report", amount: S.reportFine, reason: "마감 후 제출 (" + tsFmt(d.reportAt) + ")" });
+    }
+  }
+
+  /* 2) 출근 — 사진 업로드 시각 기준 지각 / 미출근 */
+  if (rule.late) {
+    const upAt = d.checkinAt || null;
+    if (upAt) {
+      const hm = tsHM(upAt);
+      const diff = hm2min(hm) - hm2min(rule.start);
+      if (diff > 0)
+        out.push({ kind: "late", amount: Math.min(diff * rule.perMin, rule.max),
+                   reason: hm + " 등록 · 기준 " + rule.start + " 대비 " + diff + "분 초과" });
+    } else {
+      const cut = atTime(date, S.absentBy || "08:50");
+      if (Date.now() > cut)
+        out.push({ kind: "absent", amount: S.absentFine,
+                   reason: (S.absentBy || "08:50") + " 까지 출근사진 미등록" });
+    }
+  }
+
+  /* 3) 워킹사진 보고 */
+  if (rule.photo) {
+    const cnt = photoOkCount(d, date, S);
+    const dayEnd = atTime(date, S.photoTo || "23:59") + 59999;
+    if (cnt < S.photoMin && (past || Date.now() > dayEnd || cnt > 0))
+      out.push({ kind: "photo", amount: S.photoFine,
+                 reason: "워킹사진 " + cnt + "/" + S.photoMin + "장 (" + (S.photoFrom || "10:00") + "~" + (S.photoTo || "23:59") + " 인정)",
+                 pending: !past });
+  }
+
+  /* 4) 일마감 — 당일 13:00~23:59 사이에 저장 1회 이상이면 인정 */
+  if (S.closingForAll || type !== "개직") {
+    const from = atTime(date, S.closingFrom || "13:00");
+    const to = atTime(date, S.closingTo || "23:59") + 59000;
+    const saved = d.closingSavedAt || 0;
+    const ok = saved >= from && saved <= to;
+    if (!ok)
+      out.push({ kind: "closing", amount: S.closingFine,
+                 reason: past ? "일마감 미실행 (" + (S.closingFrom || "13:00") + "~" + (S.closingTo || "23:59") + ")"
+                              : "아직 미실행", pending: !past });
+  }
+  return out;
+}
+
+/** 유형별 출근 규칙 (기준시각 / 분당 / 상한) */
+function typeRule(S, type) {
+  const base = { late: true, photo: true, start: S.workStart, perMin: S.latePerMin, max: S.lateMax };
+  const r = (S.typeRules && S.typeRules[type]) || {};
+  return {
+    late: r.late !== undefined ? r.late : base.late,
+    photo: r.photo !== undefined ? r.photo : base.photo,
+    start: r.start || base.start,
+    perMin: Number(r.perMin || base.perMin),
+    max: Number(r.max || base.max)
+  };
+}
+/** 워킹사진 정규화 — 과거 문자열 배열도 지원 */
+function photoList(d) {
+  return ((d && d.photos) || []).map(x => (typeof x === "string" ? { u: x, at: null } : x)).filter(x => x && x.u);
+}
+/** 인정 시간대(기본 10:00~23:59) 안에 올린 사진 수 */
+function photoOkCount(d, date, S) {
+  const from = atTime(date, S.photoFrom || "10:00");
+  const to = atTime(date, S.photoTo || "23:59") + 59999;
+  return photoList(d).filter(x => x.at == null || (x.at >= from && x.at <= to)).length;
+}
+
+/** 이 사람의 벌금 집계 시작일 — 가입 시점 이후부터만 */
+function joinStart(u, S) {
+  if (!u || !u.joinedAt) return "";
+  const jd = dstr(new Date(u.joinedAt));
+  // 그날 출근 등록창(기본 05:00)이 열리기 전에 가입했다면 당일부터, 아니면 다음날부터
+  return u.joinedAt <= atTime(jd, (S && S.checkinOpen) || "05:00") ? jd : addDays(jd, 1);
+}
+
+function fineId(uid, date, kind) { return uid + "__" + date + "__" + kind; }
+function dayId(uid, date) { return uid + "__" + date; }
+
+/* ============================================================================
+   데이터 레이어
+   ============================================================================ */
+const TABLES = {
+  daily:    { table: "attendance_daily",    json: true },
+  fines:    { table: "attendance_fines",    json: true },
+  glog:     { table: "attendance_glog",     json: true },
+  holidays: { table: "attendance_holidays", json: true },
+  settings: { table: "attendance_settings", json: true }
+};
+
+/** r: { id, name, role, grade, birth, bday_year, gaejik, checklist, tl_members,
+ *        last_grant, disabled, joined_at } - merged from get_team_names() + attendance_profiles */
+function rowToUser(r) {
+  return {
+    id: r.id, uid: r.id, email: r.email || "", name: r.name,
+    birth: r.birth || "", grade: r.role === "admin" ? "SM" : (r.grade || "후보자"),
+    role: r.role, approved: true, disabled: !!r.disabled,
+    gaejik: Number(r.gaejik || 0), bdayYear: Number(r.bday_year || 0),
+    checklist: Array.isArray(r.checklist) ? r.checklist : [],
+    tlMembers: Array.isArray(r.tl_members) ? r.tl_members : [],
+    lastGrant: r.last_grant || "",
+    joinedAt: r.joined_at ? new Date(r.joined_at).getTime() : 0
+  };
+}
+/** attendance_profiles 컬럼으로만 매핑 (이름/이메일/포인트는 기존 profiles 테이블을 그대로 쓰므로 여기서 다루지 않음) */
+function userToAttendanceRow(d) {
+  const o = {};
+  if ("birth" in d) o.birth = d.birth || null;
+  if ("grade" in d) o.grade = d.grade;
+  if ("disabled" in d) o.disabled = !!d.disabled;
+  if ("gaejik" in d) o.gaejik = Number(d.gaejik || 0);
+  if ("bdayYear" in d) o.bday_year = Number(d.bdayYear || 0);
+  if ("checklist" in d) o.checklist = d.checklist || [];
+  if ("tlMembers" in d) o.tl_members = d.tlMembers || [];
+  if ("lastGrant" in d) o.last_grant = d.lastGrant || null;
+  return o;
+}
+function rowToDoc(r) { return Object.assign({}, r.data || {}, { id: r.id }); }
+
+const DB = {
+  mode: "demo", ready: false, sb: null,
+  cache: { users: {}, daily: {}, fines: {}, glog: {}, holidays: {}, settings: {} },
+  subs: [],
+  onChange(fn) { this.subs.push(fn); },
+  emit() { this.subs.forEach(f => { try { f(); } catch (e) { console.error(e); } }); }
+};
+
+DB.loadAll = async function () {
+  const jobs = Object.keys(TABLES).map(async col => {
+    const T = TABLES[col];
+    const { data, error } = await this.sb.from(T.table).select("*");
+    if (error) { console.warn("load " + col, error.message); return; }
+    const o = {};
+    (data || []).forEach(r => { const d = rowToDoc(r); o[d.id] = d; });
+    this.cache[col] = o;
+  });
+  jobs.push((async () => {
+    const [namesRes, attRes] = await Promise.all([
+      this.sb.rpc("get_team_names"),
+      this.sb.from("attendance_profiles").select("*"),
+    ]);
+    if (namesRes.error) { console.warn("load users", namesRes.error.message); return; }
+    const attByUid = {};
+    (attRes.data || []).forEach(r => { attByUid[r.uid] = r; });
+    const o = {};
+    (namesRes.data || []).forEach(n => {
+      const a = attByUid[n.id] || {};
+      const merged = rowToUser(Object.assign({}, a, { id: n.id, name: n.name, role: n.role }));
+      o[merged.id] = merged;
+    });
+    this.cache.users = o;
+  })());
+  await Promise.all(jobs);
+  this.ready = true;
+  this.emit();
+};
+
+DB.subscribeRT = function () {
+  const ch = this.sb.channel("teamfine");
+  Object.keys(TABLES).forEach(col => {
+    const T = TABLES[col];
+    ch.on("postgres_changes", { event: "*", schema: "public", table: T.table }, payload => {
+      try {
+        if (payload.eventType === "DELETE") {
+          const oid = payload.old && (T.json ? payload.old.id : payload.old.uid);
+          if (oid) delete this.cache[col][oid];
+        } else {
+          const d = T.json ? rowToDoc(payload.new) : rowToUser(payload.new);
+          this.cache[col][d.id] = d;
+        }
+        this.emit();
+      } catch (e) { console.error(e); }
+    });
+  });
+  ch.subscribe();
+};
+
+/** daily/fines/glog/holidays/settings 는 id 기준 upsert, users(attendance_profiles) 는 uid 기준 upsert */
+DB.set = async function (col, id, data) {
+  if (this.mode !== "sb") {
+    this.cache[col][id] = Object.assign({}, this.cache[col][id] || {}, data, { id });
+    this.emit(); return;
+  }
+  const prev = this.cache[col][id] || {};
+  const merged = Object.assign({}, prev, data, { id });
+  this.cache[col][id] = merged;
+  this.emit();
+
+  let error = null;
+  if (col === "users") {
+    const patch = userToAttendanceRow(data);
+    if (Object.keys(patch).length) {
+      const row = Object.assign({ uid: id }, patch);
+      ({ error } = await this.sb.from("attendance_profiles").upsert(row, { onConflict: "uid" }));
+    }
+  } else {
+    const T = TABLES[col];
+    const body = Object.assign({}, merged); delete body.id;
+    const row = { id, uid: body.uid || null, date: body.date || null, data: body };
+    ({ error } = await this.sb.from(T.table).upsert(row, { onConflict: "id" }));
+  }
+  if (error) {
+    if (prev.id) this.cache[col][id] = prev; else delete this.cache[col][id];
+    this.emit();
+    throw new Error(error.message);
+  }
+};
+
+DB.del = async function (col, id) {
+  if (this.mode !== "sb") { delete this.cache[col][id]; this.emit(); return; }
+  if (col === "users") {
+    const { error } = await this.sb.from("attendance_profiles").delete().eq("uid", id);
+    if (error) throw new Error(error.message);
+    delete this.cache[col][id]; this.emit(); return;
+  }
+  const T = TABLES[col];
+  const { error } = await this.sb.from(T.table).delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  delete this.cache[col][id]; this.emit();
+};
+DB.add = async function (col, data) {
+  const id = uid8();
+  await this.set(col, id, Object.assign({}, data, { id }));
+  return id;
+};
+DB.get = function (col, id) { return this.cache[col][id] || null; };
+DB.all = function (col) { return Object.values(this.cache[col]); };
+
+DB.uploadImage = async function (dataUrl, folder) {
+  if (this.mode !== "sb") return dataUrl;
+  try {
+    const bin = atob(dataUrl.split(",")[1]);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const path = (Auth.user ? Auth.user.uid : "anon") + "/" + (folder || "img") + "-" + uid8() + ".jpg";
+    const { error } = await this.sb.storage.from("attendance-proofs")
+      .upload(path, new Blob([arr], { type: "image/jpeg" }), { contentType: "image/jpeg" });
+    if (error) { console.warn("upload", error.message); return dataUrl; }
+    const { data } = await this.sb.storage.from("attendance-proofs").createSignedUrl(path, 60 * 60 * 24 * 365);
+    return (data && data.signedUrl) || dataUrl;
+  } catch (e) { console.warn(e); return dataUrl; }
+};
+
+/* ============================ 인증 ============================ */
+/* 로그인/회원가입/승인은 With Partners 본 사이트(login.html, signup.html, admin.html)가
+   그대로 담당한다 - 이 페이지는 이미 로그인된 세션을 그대로 이어받아 쓴다. */
+const Auth = {
+  user: null, profile: null, mainProfile: null,
+  async logout() { await logout(); /* assets/supabase-client.js: signOut 후 login.html로 이동 */ },
+  isAdmin() { return !!(this.profile && gradeInfo(this.profile).admin); },
+  isTL() { return !!(this.profile && gradeInfo(this.profile).tl); },
+  /** TL/SM 이 해당 팀원의 상세(일마감·직출사유)를 볼 수 있는가 */
+  canSee(uid) {
+    if (!this.profile) return false;
+    if (this.profile.uid === uid) return true;
+    if (this.isAdmin()) return true;
+    if (gradeInfo(this.profile).tl) return (this.profile.tlMembers || []).indexOf(uid) >= 0;
+    return false;
+  }
+};
+async function refreshMainProfile() { Auth.mainProfile = await getMyProfile(); }
+
+/* ============================ 파생 데이터 ============================ */
+function SET() { return Object.assign({}, DEFAULT_SETTINGS, DB.get("settings", "global") || {}); }
+function HOLIDAYS() { return DB.cache.holidays; }
+function USERS() { return DB.all("users").sort((a, b) => (a.name || "").localeCompare(b.name || "", "ko")); }
+function ACTIVE_USERS() { return USERS().filter(u => u.approved && !u.disabled); }
+
+function collectFines(opt) {
+  opt = opt || {};
+  const S = SET(), H = HOLIDAYS();
+  const users = opt.uid ? USERS().filter(u => u.uid === opt.uid) : ACTIVE_USERS();
+  const tdy = today();
+  let from = opt.from || S.startDate || "";
+  let to = opt.to || tdy;
+  if (to > tdy) to = tdy;
+  const list = [];
+
+  users.forEach(u => {
+    let start = from || addDays(tdy, -60);
+    const js = joinStart(u, S);
+    if (js && js > start) start = js;        // 가입 이전 기간은 절대 집계하지 않음
+    if (start > to) { return; }              // 가입 전 구간만 요청된 경우 → 벌금 없음
+    let d = start;
+    let guard = 0;
+    while (d <= to && guard++ < 800) {
+      const daily = DB.get("daily", dayId(u.uid, d));
+      computeDay(d, daily, S, H, u).forEach(f => {
+        const id = fineId(u.uid, d, f.kind);
+        const ov = DB.get("fines", id) || {};
+        if (ov.deleted) return;
+        list.push({
+          id, uid: u.uid, name: u.name, date: d, kind: f.kind,
+          amount: ov.amount != null ? ov.amount : f.amount,
+          reason: ov.memo || f.reason,
+          pending: !!f.pending, waived: !!ov.waived,
+          status: ov.status || "unpaid",
+          proof: ov.proof || null, proofAt: ov.proofAt || null,
+          confirmedAt: ov.confirmedAt || null, confirmedBy: ov.confirmedBy || null,
+          batch: ov.batch || null, auto: true, pointsDeducted: !!ov.pointsDeducted
+        });
+      });
+      d = addDays(d, 1);
+    }
+  });
+
+  DB.all("fines").filter(f => f.manual && !f.deleted).forEach(f => {
+    if (opt.uid && f.uid !== opt.uid) return;
+    if (f.date < (from || "0000") || f.date > to) return;
+    const u = DB.get("users", f.uid);
+    list.push({
+      id: f.id, uid: f.uid, name: (u && u.name) || "?", date: f.date,
+      kind: f.kind || "etc", amount: f.amount || 0, reason: f.memo || "관리자 추가",
+      pending: false, waived: !!f.waived, status: f.status || "unpaid",
+      proof: f.proof || null, proofAt: f.proofAt || null,
+      confirmedAt: f.confirmedAt || null, confirmedBy: f.confirmedBy || null,
+      batch: f.batch || null, auto: false, pointsDeducted: !!f.pointsDeducted
+    });
+  });
+
+  list.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name, "ko"));
+  return list;
+}
+function sumFines(list, filter) {
+  return list.filter(f => !f.waived && !f.pending).filter(filter || (() => true))
+    .reduce((s, f) => s + (f.amount || 0), 0);
+}
+/** 확정된 미납 벌금 (즉시 납부 알림 대상) */
+function unpaidOf(uid) {
+  return collectFines({ uid }).filter(f => !f.waived && !f.pending && f.status === "unpaid");
+}
+
+/* ============================================================================
+   앱 상태 · 라우팅
+   ============================================================================ */
+const App = {
+  view: "home",
+  month: today().slice(0, 7),
+  finesTab: "unpaid",
+  adminTab: "member",
+  rankTab: "fine",
+  checkDate: today(),
+  booting: true,
+  payShown: false
+};
+
+const ICONS = {
+  home: '<svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
+  checkin: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2.5"/><circle cx="12" cy="12.5" r="3.2"/><path d="M8.5 5l1.2-2h4.6l1.2 2"/></svg>',
+  report: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="m8.5 15 2 2 4-4"/></svg>',
+  fine: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9.2A3 3 0 0 0 9.5 10c0 2.8 5 1.7 5 4.2A3 3 0 0 1 9 15M12 6.5v11"/></svg>',
+  cal: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
+  rank: '<svg viewBox="0 0 24 24"><path d="M4 20v-6M12 20V6M20 20v-9"/></svg>',
+  admin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3.8 15H3.6a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 5 8.3l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.8 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.2a2 2 0 1 1 0 4h-.1Z"/></svg>'
+};
+
+function navItems() {
+  const base = [
+    { k: "home", t: "홈", i: "home" },
+    { k: "checkin", t: "출근", i: "checkin" },
+    { k: "report", t: "보고", i: "report" },
+    { k: "fines", t: "벌금", i: "fine" },
+    { k: "cal", t: "캘린더", i: "cal" },
+    { k: "rank", t: "순위", i: "rank" }
+  ];
+  if (Auth.isAdmin()) base.push({ k: "admin", t: "관리", i: "admin" });
+  return base;
+}
+function go(v) { App.view = v; window.scrollTo(0, 0); render(); }
+
+/* ============================ 개직 변동 ============================ */
+async function changeGaejik(uid, delta, reason, auto) {
+  const u = DB.get("users", uid); if (!u) return;
+  const after = Number(u.gaejik || 0) + delta;
+  await DB.set("users", uid, { gaejik: after });
+  await DB.add("glog", {
+    uid, name: u.name, delta, after, reason,
+    auto: !!auto, by: (Auth.profile && Auth.profile.name) || "시스템",
+    at: Date.now(), date: today()
+  });
+}
+
+/* ============================================================================
+   렌더링
+   ============================================================================ */
+function render() {
+  const root = $("#root");
+  if (App.booting || !Auth.user || !Auth.profile) { root.innerHTML = bootScreen(); return; }
+
+  const p = Auth.profile;
+  let body = "";
+  try {
+    switch (App.view) {
+      case "home": body = viewHome(); break;
+      case "checkin": body = viewCheckin(); break;
+      case "report": body = viewReport(); break;
+      case "fines": body = viewFines(); break;
+      case "cal": body = viewCal(); break;
+      case "rank": body = viewRank(); break;
+      case "admin": body = viewAdmin(); break;
+      default: body = viewHome();
+    }
+  } catch (e) { console.error(e); body = '<div class="card"><b>화면 오류</b><div class="hint">' + esc(e.message) + "</div></div>"; }
+
+  root.innerHTML =
+    '<div id="app">' +
+    '<div class="topbar">' +
+    '<a href="hub.html" class="logo" style="text-decoration:none;color:inherit"><span class="dot"></span>팀 근태 · 벌금</a>' +
+    '<div class="sp"></div>' +
+    '<span class="bdg b" style="margin-right:2px">' + won(Auth.mainProfile ? Auth.mainProfile.points : 0) + '</span>' +
+    '<button class="chip-user" data-act="me">' +
+    '<span class="avatar">' + esc(initial(p.name)) + "</span>" + esc(p.name) +
+    ' <span class="bdg ' + gradeInfo(p).color + '" style="margin-left:2px">' + esc(gradeOf(p)) + "</span>" +
+    "</button></div>" +
+    '<div class="main">' + body + "</div>" +
+    '<nav class="nav">' + navItems().map(n =>
+      '<button data-nav="' + n.k + '" class="' + (App.view === n.k ? "on" : "") + '">' +
+      ICONS[n.i] + "<span>" + n.t + "</span></button>").join("") +
+    "</nav></div>";
+
+  bindGlobal();
+  setTimeout(maybeShowPayAlert, 300);
+}
+
+function bootScreen() {
+  return '<div class="auth"><div class="auth-box" style="text-align:center">' +
+    '<div class="auth-logo"><div class="ic">⏱</div><h1>불러오는 중…</h1>' +
+    '<p>잠시만 기다려주세요</p></div></div></div>';
+}
+
+function cleanErr(e) {
+  const m = String((e && e.message) || e);
+  if (/already registered|already been registered|User already/i.test(m)) return "이미 가입된 이메일입니다.";
+  if (/Invalid login credentials/i.test(m)) return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  if (/Email not confirmed/i.test(m)) return "이메일 인증을 먼저 완료해주세요.";
+  if (/Password should be at least/i.test(m)) return "비밀번호는 6자 이상이어야 합니다.";
+  if (/Unable to validate email|invalid format/i.test(m)) return "이메일 형식이 올바르지 않습니다.";
+  if (/row-level security|permission denied|권한이 없습니다/i.test(m)) return "권한이 없습니다. 관리자만 가능한 작업입니다.";
+  if (/relation .* does not exist|schema cache|column .* does not exist/i.test(m))
+    return "데이터베이스 설정이 최신이 아닙니다. 관리자에게 문의해주세요.";
+  if (/Failed to fetch|NetworkError/i.test(m)) return "네트워크 연결을 확인해주세요.";
+  return m;
+}
+
+/* ============================ 모달 ============================ */
+function modal(o) {
+  closeModal();
+  const el = document.createElement("div");
+  el.className = "ovl"; el.id = "ovl";
+  el.innerHTML = '<div class="mod' + (o.wide ? " wide" : "") + '">' +
+    '<div class="mod-h"><h3>' + esc(o.title) + '</h3><div class="sp"></div>' +
+    (o.noClose ? "" : '<button class="xbtn" id="mX">✕</button>') + "</div>" +
+    '<div class="mod-b">' + o.body + "</div>" +
+    (o.noFooter ? "" :
+      '<div class="mod-f">' +
+      (o.noClose ? "" : '<button class="btn" id="mC">' + esc(o.cancelText || "닫기") + "</button>") +
+      (o.onOk ? '<button class="btn pri" id="mO">' + esc(o.okText || "저장") + "</button>" : "") +
+      "</div>") + "</div>";
+  document.body.appendChild(el);
+  if (!o.noClose) el.onclick = e => { if (e.target === el) closeModal(); };
+  const x = $("#mX"); if (x) x.onclick = closeModal;
+  const c = $("#mC"); if (c) c.onclick = closeModal;
+  const ok = $("#mO");
+  if (ok) ok.onclick = async () => {
+    ok.disabled = true;
+    try { const r = await o.onOk(); if (r !== false) closeModal(); else ok.disabled = false; }
+    catch (e) { toast(cleanErr(e), "err"); ok.disabled = false; }
+  };
+  if (o.after) o.after();
+  return el;
+}
+function closeModal() { const e = $("#ovl"); if (e) e.remove(); }
+function confirmM(msg, onYes) {
+  modal({ title: "확인", body: '<div style="font-size:14px;line-height:1.6">' + msg + "</div>",
+    okText: "확인", cancelText: "취소", onOk: async () => { await onYes(); } });
+}
+function openImage(src, title) {
+  modal({ title: title || "이미지", noFooter: true, body: '<img src="' + src + '" class="thumb">' });
+}
+
+/* ============================ 전역 바인딩 ============================ */
+function bindGlobal() {
+  $$("[data-nav]").forEach(b => b.onclick = () => go(b.dataset.nav));
+  const me = $('[data-act="me"]'); if (me) me.onclick = openMyModal;
+  $$("[data-open-fine]").forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+  $$("[data-open-day]").forEach(b => b.onclick = () => openDayModal(b.dataset.openDay, b.dataset.uid));
+  $$("[data-img]").forEach(b => b.onclick = () => openImage(b.dataset.img, b.dataset.imgt || ""));
+  try { bindView(); } catch (e) { console.error(e); }
+}
+
+function openMyModal() {
+  const p = Auth.profile, S = SET();
+  const mine = collectFines({ uid: p.uid });
+  const unpaid = sumFines(mine, f => f.status !== "paid");
+  const gi = gradeInfo(p);
+  const myEmail = (Auth.mainProfile && Auth.mainProfile.email) || "";
+  const myPoints = Auth.mainProfile ? Auth.mainProfile.points : 0;
+  modal({
+    title: "내 정보", noFooter: true,
+    body:
+      '<div class="row" style="padding:0 0 14px;border-bottom:1px solid var(--line)">' +
+      '<div class="avatar" style="width:44px;height:44px;font-size:16px">' + esc(initial(p.name)) + "</div>" +
+      '<div class="sp"><div class="nm" style="font-size:16px">' + esc(p.name) +
+      ' <span class="bdg ' + gi.color + '">' + esc(gradeOf(p)) + "</span></div>" +
+      '<div class="ds">' + esc(myEmail) + " · " + esc(gi.desc) + "</div></div></div>" +
+      '<div class="grid g3" style="margin:14px 0">' +
+      '<div class="stat acc-p"><div class="lb">개직 잔여</div><div class="vl">' + Number(p.gaejik || 0) + "</div></div>" +
+      '<div class="stat ' + (unpaid ? "acc-r" : "acc-g") + '"><div class="lb">미납 벌금</div>' +
+      '<div class="vl" style="font-size:19px">' + won(unpaid) + "</div></div>" +
+      '<div class="stat acc-b"><div class="lb">보유 포인트</div>' +
+      '<div class="vl" style="font-size:19px">' + won(myPoints) + "</div></div></div>" +
+      '<div class="fld"><label>생년월일</label><div class="inp">' + esc(p.birth || "-") + "</div></div>" +
+      '<div class="fld"><label>벌금 입금 계좌</label><div class="acct"><span class="t">' + esc(S.account) + "</span>" +
+      '<button class="btn xs" id="cpAcct">복사</button></div></div>' +
+      '<button class="btn full" id="logoutB" style="margin-top:8px">로그아웃</button>',
+    after: () => {
+      $("#logoutB").onclick = () => { closeModal(); Auth.logout(); };
+      $("#cpAcct").onclick = () => { copyText(SET().account); toast("계좌를 복사했습니다", "ok"); };
+    }
+  });
+}
+function copyText(t) { try { navigator.clipboard.writeText(t); } catch (e) { } }
+
+/* ============================================================================
+   벌금 즉시 납부 알림
+   ============================================================================ */
+function maybeShowPayAlert() {
+  if (App.payShown || !Auth.profile || !Auth.profile.approved) return;
+  if ($("#ovl")) return;
+  const list = unpaidOf(Auth.profile.uid);
+  if (!list.length) return;
+  App.payShown = true;
+  openPayModal(list, true);
+}
+
+/* ============================================================================
+   홈
+   ============================================================================ */
+function viewHome() {
+  const p = Auth.profile, S = SET(), H = HOLIDAYS(), tdy = today();
+  const admin = Auth.isAdmin();
+  const mine = collectFines({ uid: p.uid });
+  const mUnpaid = sumFines(mine, f => f.status === "unpaid");
+  const thisMonth = mine.filter(f => f.date.startsWith(monthOf(tdy)));
+  const dToday = DB.get("daily", dayId(p.uid, tdy)) || {};
+  const wToday = isWorkday(tdy, H);
+  const rDate = nextReportDate(H, S);
+  const dR = DB.get("daily", dayId(p.uid, rDate)) || {};
+  const gi = gradeInfo(p);
+
+  let h = "";
+  const hn = holidayName(tdy, H);
+
+  h += '<div class="card">' +
+    '<div style="display:flex;align-items:flex-start;gap:12px">' +
+    '<div style="flex:1">' +
+    '<div style="font-size:12px;color:var(--tx3);font-weight:700">' + fmtDL(tdy) + (hn ? " · " + esc(hn) : "") + "</div>" +
+    '<div style="font-size:19px;font-weight:800;letter-spacing:-.5px;margin-top:4px">' +
+    (wToday ? (dToday.type ? TYPES[dToday.type].icon + " 오늘은 <b style=\"color:var(--pri)\">" + dToday.type + "</b>" : "오늘 근무일") : "오늘은 휴무일") +
+    "</div>" +
+    (dToday.type === "직출" && dToday.reason ? '<div class="hint">사유: ' + esc(dToday.reason) + "</div>" : "") +
+    "</div>" +
+    '<div style="text-align:right"><div style="font-size:11px;color:var(--tx3);font-weight:700">개직 잔여</div>' +
+    '<div style="font-size:26px;font-weight:800;color:var(--pur);letter-spacing:-1px">' + Number(p.gaejik || 0) + "</div></div>" +
+    "</div></div>";
+
+  if (!gi.fine)
+    h += '<div class="banner s">✅ <b>' + esc(gradeOf(p)) + "</b> 등급은 벌금이 부과되지 않습니다. 보고와 기록은 평소대로 해주세요.</div>";
+
+  /* 다음 근무일 출근보고 */
+  if (!dR.type) {
+    const dl = reportDeadlineTs(rDate, "출근", S);
+    const left = dl - Date.now();
+    h += '<div class="banner ' + (left < 0 ? "d" : "w") + '">' +
+      (left < 0
+        ? "⚠️ <b>" + fmtD(rDate) + " 출근보고 마감이 지났습니다.</b> 지금 제출해도 " + won(S.reportFine) + " 벌금 대상입니다."
+        : "🗓 <b>" + fmtD(rDate) + " 출근보고</b>가 아직입니다. " + tsFmtFull(dl) + " 까지 선택해주세요." +
+          " (남은 시간 " + Math.floor(left / 3600000) + "시간 " + Math.floor(left % 3600000 / 60000) + "분)") +
+      '<div style="margin-top:9px"><button class="btn pri sm" data-nav="report">지금 선택하기</button></div></div>';
+  }
+
+  /* 오늘 체크리스트 */
+  if (wToday) {
+    const rule = typeRule(S, dToday.type);
+    const items = [];
+    if (rule.late) {
+      const at = dToday.checkinAt;
+      const hm = tsHM(at);
+      const diff = at ? hm2min(hm) - hm2min(rule.start) : null;
+      const absentCut = atTime(tdy, S.absentBy);
+      items.push({
+        t: "출근 사진", ic: "📸",
+        ok: at ? diff <= 0 : null,
+        bad: at ? diff > 0 : Date.now() > absentCut,
+        d: at ? (hm + " 등록" + (diff > 0 ? " · 기준 " + rule.start + " 초과 " + diff + "분 · " + won(Math.min(diff * rule.perMin, rule.max)) : " · 정상"))
+              : (Date.now() > absentCut ? "미출근 " + won(S.absentFine) + " 대상" : rule.start + " 까지 사진을 올려주세요"),
+        act: at ? null : "checkin"
+      });
+    }
+    if (rule.photo) {
+      const c = photoOkCount(dToday, tdy, S);
+      items.push({ t: "워킹사진 " + c + "/" + S.photoMin, ic: "🖼",
+        ok: c >= S.photoMin,
+        d: c >= S.photoMin ? "완료" : (S.photoFrom || "10:00") + "~" + (S.photoTo || "23:59") + " 인정 · 부족시 " + won(S.photoFine),
+        act: c >= S.photoMin ? null : "report" });
+    }
+    if (S.closingForAll || dToday.type !== "개직") {
+      const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
+      const saved = dToday.closingSavedAt || 0;
+      const ok = saved >= from && saved <= to;
+      items.push({ t: "일마감", ic: "📋", ok,
+        d: ok ? "완료 · " + tsFmt(saved) : S.closingFrom + "~" + S.closingTo + " 사이 저장 · 미실행시 " + won(S.closingFine),
+        act: ok ? null : "report" });
+    }
+    h += '<div class="card pad0"><div class="card-h" style="padding:16px 16px 0;margin-bottom:8px"><h3>오늘 할 일</h3></div>' +
+      items.map(it =>
+        '<div class="row">' +
+        '<span style="font-size:19px">' + it.ic + "</span>" +
+        '<div class="sp"><div class="nm">' + it.t + '</div><div class="ds">' + esc(it.d) + "</div></div>" +
+        (it.ok === true ? '<span class="bdg g">완료</span>'
+          : it.bad ? '<span class="bdg r">벌금</span>'
+          : it.act ? '<button class="btn sm pri" data-nav="' + it.act + '">하기</button>'
+          : '<span class="bdg n">대기</span>') +
+        "</div>").join("") + "</div>";
+  }
+
+  h += '<div class="grid g2">' +
+    '<div class="stat ' + (mUnpaid ? "acc-r" : "acc-g") + '"><div class="lb">미납 벌금</div><div class="vl">' + won(mUnpaid) + "</div>" +
+    '<div class="sub">' + mine.filter(f => !f.waived && !f.pending && f.status === "unpaid").length + "건</div></div>" +
+    '<div class="stat"><div class="lb">이번달 벌금</div><div class="vl">' + won(sumFines(thisMonth)) + "</div>" +
+    '<div class="sub">' + thisMonth.filter(f => !f.waived && !f.pending).length + "건</div></div></div>";
+
+  if (mUnpaid) h += '<button class="btn pri full" id="payNow" style="margin-bottom:12px">💸 지금 납부하고 캡쳐 올리기</button>';
+
+  if (admin) {
+    const all = collectFines({});
+    const pendingProof = all.filter(f => f.status === "submitted").length;
+    const pendingUsers = USERS().filter(u => !u.approved && !u.disabled).length;
+    const noCheckin = ACTIVE_USERS().filter(u => {
+      const d = DB.get("daily", dayId(u.uid, tdy)) || {};
+      const r = S.typeRules[d.type] || { late: true };
+      return wToday && r.late && gradeInfo(u).fine && !d.checkinAt;
+    }).length;
+    h += '<div class="sec-t">관리자 현황</div><div class="grid g2">' +
+      '<div class="stat acc-b"><div class="lb">팀 전체 미납</div><div class="vl" style="font-size:19px">' +
+      won(sumFines(all, f => f.status !== "paid")) + "</div></div>" +
+      '<div class="stat ' + (pendingProof ? "acc-g" : "") + '"><div class="lb">납부 확인 대기</div><div class="vl">' + pendingProof + "건</div></div>" +
+      '<div class="stat ' + (noCheckin ? "acc-r" : "") + '"><div class="lb">오늘 미출근</div><div class="vl">' + noCheckin + "명</div></div>" +
+      '<div class="stat ' + (pendingUsers ? "acc-p" : "") + '"><div class="lb">가입 승인 대기</div><div class="vl">' + pendingUsers + "명</div></div></div>" +
+      '<div class="btn-row" style="margin-top:4px">' +
+      '<button class="btn pri" data-nav="checkin">출근 현황</button>' +
+      '<button class="btn" data-nav="fines">벌금 관리</button>' +
+      (pendingUsers ? '<button class="btn" data-nav="admin">가입 승인 ' + pendingUsers + "</button>" : "") + "</div>";
+  }
+
+  const recent = mine.filter(f => !f.pending).slice(0, 6);
+  h += '<div class="sec-t">내 최근 벌금</div><div class="card pad0">' +
+    (recent.length ? recent.map(fineRow).join("") : '<div class="empty">아직 벌금 내역이 없습니다 👏</div>') + "</div>";
+  return h;
+}
+
+function fineRow(f) {
+  const K = KINDS[f.kind] || KINDS.etc;
+  return '<div class="row" data-open-fine="' + f.id + '" style="cursor:pointer">' +
+    '<span style="font-size:17px">' + K.icon + "</span>" +
+    '<div class="sp"><div class="nm">' + K.label +
+    (f.name && Auth.isAdmin() ? ' <span style="color:var(--tx3);font-weight:600">· ' + esc(f.name) + "</span>" : "") +
+    '</div><div class="ds">' + fmtD(f.date) + " · " + esc(f.reason) + "</div></div>" +
+    '<div style="text-align:right"><div class="nm mono" style="' + (f.waived ? "text-decoration:line-through;color:var(--tx3)" : "") + '">' + won(f.amount) + "</div>" +
+    '<div style="margin-top:3px">' + fineBadge(f) + "</div></div></div>";
+}
+function fineBadge(f) {
+  if (f.waived) return '<span class="bdg c">포인트납입</span>';
+  if (f.pending) return '<span class="bdg y">진행중</span>';
+  if (f.status === "paid") return '<span class="bdg g">납부완료</span>';
+  if (f.status === "submitted") return '<span class="bdg c">확인대기</span>';
+  return '<span class="bdg r">미납</span>';
+}
+
+/* ============================================================================
+   출근 — 사진 업로드로 출근 체크 · 전 회원 공개
+   ============================================================================ */
+function viewCheckin() {
+  const p = Auth.profile, S = SET(), H = HOLIDAYS();
+  const date = App.checkDate, tdy = today();
+  const admin = Auth.isAdmin();
+  const wd = isWorkday(date, H), hn = holidayName(date, H);
+  const me = DB.get("daily", dayId(p.uid, date)) || {};
+  const isToday = date === tdy;
+  const myRule = typeRule(S, me.type);
+
+  let h = "";
+
+  /* 날짜 이동 */
+  h += '<div class="card"><div class="btn-row" style="align-items:center">' +
+    '<button class="btn sm" id="ckPrev">‹</button>' +
+    '<input class="inp" type="date" id="ckDate" value="' + date + '" style="flex:1;min-width:140px">' +
+    '<button class="btn sm" id="ckNext" ' + (date >= tdy ? "disabled" : "") + '>›</button>' +
+    '<button class="btn sm" id="ckToday">오늘</button></div>' +
+    '<div class="btn-row" style="margin-top:11px;align-items:center">' +
+    '<span class="bdg ' + (wd ? "b" : "n") + '">' + fmtDL(date) + " · " + (wd ? "근무일" : "휴무일") + "</span>" +
+    (hn ? '<span class="bdg y">' + esc(hn) + "</span>" : "") +
+    '<div style="flex:1"></div>' +
+    (admin ? '<button class="btn sm" id="ckHol">' + (wd ? "휴무일로" : "근무일로") + "</button>" : "") + "</div>" +
+    '<div class="hint" style="margin-top:8px">등록 가능 ' + (S.checkinOpen || "05:00") + " 부터 · " +
+    Object.keys(TYPES).filter(t => typeRule(S, t).late).map(t => {
+      const r = typeRule(S, t);
+      return t + " " + r.start + "(분당 " + (r.perMin / 10000 >= 1 ? (r.perMin / 10000) + "만" : (r.perMin / 1000) + "천") + "원·최대 " + (r.max / 10000) + "만)";
+    }).join(" · ") + " · " + S.absentBy + " 미등록시 미출근 " + won(S.absentFine) + "</div></div>";
+
+  /* 내 출근 등록 */
+  if (wd && myRule.late) {
+    const at = me.checkinAt, hm = tsHM(at);
+    const diff = at ? hm2min(hm) - hm2min(myRule.start) : null;
+    const fine = diff > 0 ? Math.min(diff * myRule.perMin, myRule.max) : 0;
+    const overCut = Date.now() > atTime(date, S.absentBy);
+    const openTs = atTime(date, S.checkinOpen || "05:00");
+    const beforeOpen = isToday && Date.now() < openTs;
+
+    h += '<div class="card"><div class="card-h"><h3>📸 내 출근</h3><div class="sp"></div>' +
+      (at ? (diff > 0 ? '<span class="bdg r">' + diff + "분 지각</span>" : '<span class="bdg g">정상 출근</span>')
+          : (overCut ? '<span class="bdg r">미출근</span>' : '<span class="bdg y">미등록</span>')) + "</div>";
+
+    if (at) {
+      h += '<div class="banner ' + (diff > 0 ? "d" : "s") + '">' +
+        "등록 시각 <b>" + hm + "</b> · " + (me.type || "출근") + " 기준 <b>" + myRule.start + "</b>" +
+        (diff > 0 ? " 대비 <b>" + diff + "분</b> 초과 → 벌금 <b>" + won(fine) + "</b>"
+                  : " 내 정상 출근입니다 👍") + "</div>";
+      if (me.checkinPhoto)
+        h += '<img src="' + me.checkinPhoto + '" class="thumb" style="margin-bottom:10px" data-img="' + me.checkinPhoto + '" data-imgt="내 출근 · ' + hm + '">';
+      if (isToday) h += '<button class="btn full sm" id="ckReUp">사진 다시 올리기</button>';
+    } else if (isToday) {
+      h += (beforeOpen
+        ? '<div class="banner w">🕔 출근 등록은 <b>' + (S.checkinOpen || "05:00") + '</b> 부터 가능합니다.</div>'
+        : (overCut ? '<div class="banner d">⚠️ ' + S.absentBy + " 이 지났습니다. 지금 등록해도 <b>미출근 " + won(S.absentFine) + "</b> 대상입니다.</div>" : "")) +
+        '<div class="upl" id="ckUp" style="' + (beforeOpen ? "opacity:.5;pointer-events:none" : "") + '"><div class="ic">📷</div>' +
+        '<div class="t">' + (me.type === "병원근무" ? "병원 도착 사진 올리기" : me.type === "직출" ? "상담처 도착 사진 올리기" : "회사 도착 사진 올리기") + "</div>" +
+        '<div class="s">올린 시각이 출근 시각으로 기록됩니다 · 기준 ' + myRule.start + "</div></div>";
+    } else {
+      h += '<div class="banner d">이 날은 출근 사진이 등록되지 않았습니다.</div>';
+      if (admin) h += '<div class="hint">관리자는 아래 목록에서 시각을 직접 입력할 수 있습니다.</div>';
+    }
+    h += '<input type="file" accept="image/*" capture="environment" id="ckFile" class="hide"></div>';
+  }
+
+  /* 전체 출근 현황 — 모든 회원 공개 */
+  const users = ACTIVE_USERS();
+  const rows = users.map(u => {
+    const d = DB.get("daily", dayId(u.uid, date)) || {};
+    const r = typeRule(S, d.type);
+    const at = d.checkinAt, hm = tsHM(at);
+    const diff = at ? hm2min(hm) - hm2min(r.start) : null;
+    return { u, d, r, at, hm, diff };
+  }).sort((a, b) => (a.at || 9e15) - (b.at || 9e15));
+
+  h += '<div class="sec-t">' + fmtD(date) + " 출근 현황 (" + rows.filter(r => r.at).length + "/" + users.length + ")</div>" +
+    '<div class="card pad0">' +
+    (rows.length ? rows.map(r => {
+      const late = r.diff > 0;
+      const exempt = !r.r.late || !gradeInfo(r.u).fine;
+      const extra = [];
+      if (r.d.type === "병원근무" && r.d.hospital) extra.push("🏥 " + esc(r.d.hospital));
+      if (r.d.type === "직출" && r.d.reason) extra.push("🚗 " + esc(r.d.reason));
+      return '<div style="border-bottom:1px solid var(--line)"><div class="row" style="border-bottom:none">' +
+        (r.d.checkinPhoto
+          ? '<img src="' + r.d.checkinPhoto + '" class="thumb sm" style="cursor:pointer" data-img="' + r.d.checkinPhoto + '" data-imgt="' + esc(r.u.name) + ' 출근 · ' + (r.hm || "") + '">'
+          : '<div class="thumb sm" style="display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:20px">—</div>') +
+        '<div class="sp"><div class="nm">' + esc(r.u.name) +
+        (r.d.type ? ' <span class="bdg ' + TYPES[r.d.type].color + '">' + r.d.type + "</span>" : "") + "</div>" +
+        '<div class="ds">' + (r.at ? "등록 " + r.hm + " · 기준 " + r.r.start + (late ? " · " + r.diff + "분 초과" : " · 정상") : "미등록") + "</div></div>" +
+        '<div style="text-align:right">' +
+        (exempt ? '<span class="bdg n">미적용</span>'
+          : r.at ? (late ? '<span class="bdg r">' + won(Math.min(r.diff * r.r.perMin, r.r.max)) + "</span>" : '<span class="bdg g">정상</span>')
+          : (Date.now() > atTime(date, S.absentBy) ? '<span class="bdg r">미출근</span>' : '<span class="bdg y">대기</span>')) +
+        (admin ? '<div style="margin-top:5px"><input class="inp" type="time" style="padding:4px 6px;font-size:11.5px;width:98px" value="' +
+          (r.hm || "") + '" data-ct="' + r.u.uid + '"></div>' : "") +
+        "</div></div>" +
+        (extra.length || r.d.reasonPhoto
+          ? '<div style="padding:0 14px 12px 14px">' +
+            (extra.length ? '<div class="banner i" style="margin:0 0 8px;font-size:12px">' + extra.join("<br>") + "</div>" : "") +
+            (r.d.reasonPhoto ? '<img src="' + r.d.reasonPhoto + '" class="thumb" style="max-width:220px;cursor:pointer" data-img="' + r.d.reasonPhoto + '" data-imgt="' + esc(r.u.name) + ' 직출 증빙">' : "") +
+            "</div>" : "") +
+        "</div>";
+    }).join("") : '<div class="empty">승인된 팀원이 없습니다</div>') + "</div>";
+
+  if (admin) h += '<div class="hint" style="margin-top:8px">관리자는 시각 칸을 직접 고쳐 저장할 수 있습니다. 비우면 미등록 처리됩니다.</div>';
+  return h;
+}
+
+function bindCheckin() {
+  const p = Auth.profile, S = SET();
+  $("#ckPrev").onclick = () => { App.checkDate = addDays(App.checkDate, -1); render(); };
+  const nx = $("#ckNext");
+  if (nx) nx.onclick = () => { if (App.checkDate < today()) { App.checkDate = addDays(App.checkDate, 1); render(); } };
+  $("#ckToday").onclick = () => { App.checkDate = today(); render(); };
+  $("#ckDate").onchange = e => { App.checkDate = e.target.value > today() ? today() : e.target.value; render(); };
+
+  const hol = $("#ckHol");
+  if (hol) hol.onclick = async () => {
+    const d = App.checkDate, H = HOLIDAYS(), cur = isWorkday(d, H), ex = H[d] || {};
+    await DB.set("holidays", d, { date: d, name: ex.name || (dow(d) === 0 || dow(d) === 6 ? "주말 근무" : "공휴일"), work: !cur });
+    toast(!cur ? "근무일로 지정됨" : "휴무일로 지정됨", "ok");
+  };
+
+  const file = $("#ckFile");
+  const doUpload = () => file && file.click();
+  const up = $("#ckUp"); if (up) up.onclick = doUpload;
+  const re = $("#ckReUp"); if (re) re.onclick = doUpload;
+  if (file) file.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const openTs = atTime(today(), S.checkinOpen || "05:00");
+    if (Date.now() < openTs) { e.target.value = ""; return toast("출근 등록은 " + (S.checkinOpen || "05:00") + " 부터 가능합니다", "err"); }
+    try {
+      toast("사진 처리 중…");
+      const raw = await compressImage(f, 900, .72);
+      const url = await DB.uploadImage(raw, "checkin");
+      const now = Date.now();
+      await DB.set("daily", dayId(p.uid, today()), {
+        uid: p.uid, date: today(), checkinPhoto: url, checkinAt: now, updatedAt: now
+      });
+      const myR = typeRule(S, (DB.get("daily", dayId(p.uid, today())) || {}).type);
+      const diff = hm2min(tsHM(now)) - hm2min(myR.start);
+      if (diff > 0) {
+        const amt = Math.min(diff * myR.perMin, myR.max);
+        toast("기준 " + myR.start + " 초과 " + diff + "분 · " + won(amt), "err");
+        App.payShown = false;
+        setTimeout(() => { const l = unpaidOf(p.uid); if (l.length) openPayModal(l, true); }, 700);
+      } else toast("정상 출근 등록 완료 👍", "ok");
+    } catch (er) { toast(cleanErr(er), "err"); }
+  };
+
+  $$("[data-ct]").forEach(el => el.onchange = async () => {
+    const uid = el.dataset.ct, date = App.checkDate;
+    let ts = null;
+    if (el.value) { const [hh, mm] = el.value.split(":").map(Number); const d = parseD(date); d.setHours(hh, mm, 0, 0); ts = d.getTime(); }
+    await DB.set("daily", dayId(uid, date), { uid, date, checkinAt: ts, checkinBy: Auth.profile.name, updatedAt: Date.now() });
+    toast("저장됨", "ok");
+  });
+}
+
+/* ============================================================================
+   보고 — 출근보고 · 워킹사진 · 일마감 체크리스트
+   ============================================================================ */
+let ckItems = null;   // 일마감 체크리스트 임시 상태
+
+function todayItems(p, dToday) {
+  if (ckItems) return ckItems;
+  if (Array.isArray(dToday.closingItems) && dToday.closingItems.length)
+    ckItems = dToday.closingItems.map(x => ({ t: x.t, done: !!x.done }));
+  else
+    ckItems = (p.checklist || []).map(t => ({ t: typeof t === "string" ? t : (t.t || ""), done: false }));
+  return ckItems;
+}
+
+function viewReport() {
+  const p = Auth.profile, S = SET(), H = HOLIDAYS(), tdy = today();
+  const rDate = nextReportDate(H, S);
+  const d = DB.get("daily", dayId(p.uid, rDate)) || {};
+  const dT = DB.get("daily", dayId(p.uid, tdy)) || {};
+  const dl = reportDeadlineTs(rDate, "출근", S);
+  const dlG = reportDeadlineTs(rDate, "개직", S);
+  const over = Date.now() > dl;
+
+  let h = '<div class="sec-t">출근보고 · 다음 근무일</div>';
+  h += '<div class="card">' +
+    '<div class="banner ' + (over ? "d" : "i") + '">' +
+    "<b>" + fmtDL(rDate) + "</b> 근무 유형을 선택하세요." +
+    (holidayName(rDate, H) ? " <b>(" + esc(holidayName(rDate, H)) + " 근무일)</b>" : "") +
+    "<br>일반 마감 " + tsFmtFull(dl) + " · 개직 마감 " + tsFmtFull(dlG) +
+    (over ? "<br>⚠️ 마감이 지나 지금 제출하면 " + won(S.reportFine) + " 벌금 대상입니다." : "") +
+    '<br><span style="opacity:.75">' + fmtD(rDate) + " " + S.reportRollover + " 이 지나면 그 다음 근무일로 넘어갑니다.</span></div>";
+
+  h += '<div class="tpick">' + Object.keys(TYPES).map(t => {
+    const info = TYPES[t];
+    const disabled = (t === "개직" && Number(p.gaejik || 0) < 1 && d.type !== "개직");
+    return '<button data-type="' + t + '" class="' + (d.type === t ? "on" : "") + '"' + (disabled ? " disabled" : "") + ">" +
+      '<div class="tt">' + info.icon + " " + t + "</div>" +
+      '<div class="td">' + info.desc + (t === "개직" ? " · 잔여 " + Number(p.gaejik || 0) + "개" : "") + "</div></button>";
+  }).join("") + "</div>";
+
+  h += '<div class="fld ' + (d.type === "병원근무" ? "" : "hide") + '" id="hospWrap" style="margin-top:13px">' +
+    '<label>병원명 (필수)</label>' +
+    '<input class="inp" id="rHosp" placeholder="예: OO정형외과 / OO병원 3층" value="' + esc(d.hospital || "") + '">' +
+    '<div class="hint">기준 출근 시각은 ' + typeRule(S, "병원근무").start + " 입니다.</div></div>";
+
+  h += '<div class="' + (d.type === "직출" ? "" : "hide") + '" id="reasonWrap" style="margin-top:13px">' +
+    '<div class="fld"><label>직출 사유 (필수)</label>' +
+    '<textarea class="inp" id="rReason" placeholder="예) 고객과의 일정 잡는 통화목록 / 연락 사진 첨부&#10;OO고객 10시 방문상담 · 어제 21시 통화 완료">' + esc(d.reason || "") + "</textarea></div>" +
+    '<div class="fld"><label>증빙 이미지 (통화목록 · 연락 캡쳐)</label>' +
+    (d.reasonPhoto ? '<img src="' + d.reasonPhoto + '" class="thumb" style="margin-bottom:8px" data-img="' + d.reasonPhoto + '" data-imgt="직출 증빙">' : "") +
+    '<div class="upl" id="rzUp"><div class="ic">📎</div><div class="t">' + (d.reasonPhoto ? "이미지 다시 올리기" : "이미지 올리기") + "</div>" +
+    '<div class="s">통화목록 또는 고객 연락 캡쳐를 첨부해주세요</div></div>' +
+    '<input type="file" accept="image/*" id="rzFile" class="hide"></div></div>';
+  h += '<button class="btn pri full" id="rSave" style="margin-top:14px">' + (d.type ? "보고 수정" : "보고 제출") + "</button>";
+  if (d.type) h += '<div class="hint" style="text-align:center;margin-top:9px">✅ ' + d.type +
+    " 로 제출됨 · " + tsFmtFull(d.reportAt) + (d.gaejikUsed ? " · 개직 1개 차감" : "") +
+    "<br>수정하면 <b>수정한 시각</b> 기준으로 마감 여부를 다시 판정합니다.</div>";
+  h += "</div>";
+
+  if (isWorkday(tdy, H)) {
+    const rule = S.typeRules[dT.type] || { late: true, photo: true };
+
+    /* 워킹사진 */
+    if (rule.photo) {
+      const photos = photoList(dT);
+      const okCnt = photoOkCount(dT, tdy, S);
+      const pFrom = atTime(tdy, S.photoFrom || "10:00"), pTo = atTime(tdy, S.photoTo || "23:59") + 59999;
+      const inWin = Date.now() >= pFrom && Date.now() <= pTo;
+      h += '<div class="sec-t">워킹사진 보고 · ' + fmtD(tdy) + "</div>" +
+        '<div class="card"><div class="card-h"><h3>🖼 워킹사진</h3><div class="sp"></div>' +
+        (okCnt >= S.photoMin ? '<span class="bdg g">완료</span>' : '<span class="bdg y">' + okCnt + "/" + S.photoMin + "</span>") + "</div>" +
+        '<div class="banner ' + (okCnt >= S.photoMin ? "s" : inWin ? "i" : "w") + '">인정 시간 <b>' +
+        (S.photoFrom || "10:00") + " ~ " + (S.photoTo || "23:59") + "</b> · " + S.photoMin + "장 이상이면 자동 완료 · 미달 시 " + won(S.photoFine) +
+        (inWin ? "" : "<br>지금은 인정 시간이 아닙니다. 올려도 집계에 포함되지 않습니다.") + "</div>" +
+        '<div class="photo-grid">' +
+        photos.map((x, i) => {
+          const good = x.at == null || (x.at >= pFrom && x.at <= pTo);
+          return '<div class="ph" style="' + (good ? "" : "opacity:.45") + '"><img src="' + x.u + '" data-img="' + x.u + '" data-imgt="워킹사진 ' + (i + 1) + (x.at ? " · " + tsHM(x.at) : "") + '">' +
+            '<button class="x" data-delph="' + i + '">✕</button>' +
+            (x.at ? '<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:9.5px;text-align:center;padding:2px">' +
+              tsHM(x.at) + (good ? "" : " 미인정") + "</div>" : "") + "</div>";
+        }).join("") +
+        (photos.length < 12 ? '<button class="add" id="phAdd"><span style="font-size:20px">＋</span>사진 추가</button>' : "") +
+        "</div>" +
+        '<input type="file" accept="image/*" id="phFile" class="hide" multiple></div>';
+    }
+
+    /* 일마감 체크리스트 */
+    if (S.closingForAll || dT.type !== "개직") {
+      const items = todayItems(p, dT);
+      const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
+      const saved = dT.closingSavedAt || 0;
+      const ok = saved >= from && saved <= to;
+      const nowInWindow = Date.now() >= from && Date.now() <= to;
+      h += '<div class="sec-t">일마감 · ' + fmtD(tdy) + "</div>" +
+        '<div class="card"><div class="card-h"><h3>📋 일마감 체크리스트</h3><div class="sp"></div>' +
+        (ok ? '<span class="bdg g">완료</span>' : '<span class="bdg y">미완료</span>') + "</div>" +
+        '<div class="banner ' + (ok ? "s" : nowInWindow ? "i" : "w") + '">' +
+        (ok ? "✅ " + tsFmt(saved) + " 저장 완료 — 이후 수정은 자유롭게 하셔도 벌금과 무관합니다."
+            : nowInWindow ? "오늘 <b>" + S.closingFrom + " ~ " + S.closingTo + "</b> 사이에 <b>저장하기</b>를 한 번만 누르면 인정됩니다."
+            : "인정 시간은 <b>" + S.closingFrom + " ~ " + S.closingTo + "</b> 입니다. 지금 저장해도 벌금은 면제되지 않습니다.") +
+        "</div>" +
+        '<div id="ckList">' + items.map((it, i) =>
+          '<div class="ck ' + (it.done ? "done" : "") + '">' +
+          '<div class="box" data-cktog="' + i + '">' + (it.done ? "✓" : "") + "</div>" +
+          '<div class="tx" contenteditable="true" data-cktx="' + i + '">' + esc(it.t) + "</div>" +
+          '<button class="del" data-ckdel="' + i + '">✕</button></div>').join("") +
+        (items.length ? "" : '<div class="empty">항목을 추가해 나만의 일마감 목록을 만들어보세요.<br>한 번 만들면 다음날에도 그대로 불러옵니다.</div>') +
+        "</div>" +
+        '<div class="btn-row" style="margin-top:10px">' +
+        '<button class="btn sm" id="ckAdd">＋ 항목 추가</button>' +
+        '<div style="flex:1"></div>' +
+        '<span class="hint" style="margin:0">' + items.filter(x => x.done).length + " / " + items.length + " 완료</span></div>" +
+        '<button class="btn pri full" id="ckSave" style="margin-top:12px">저장하기</button>' +
+        '<div class="hint" style="text-align:center;margin-top:8px">체크는 양심에 맡깁니다 · 저장 시각만 기록됩니다</div></div>';
+    }
+  }
+
+  /* 최근 기록 */
+  const rows = [];
+  for (let i = 1; i <= 21 && rows.length < 10; i++) {
+    const ds = addDays(tdy, -i);
+    if (!isWorkday(ds, H)) continue;
+    rows.push({ ds, dd: DB.get("daily", dayId(p.uid, ds)) || {} });
+  }
+  h += '<div class="sec-t">최근 근무 기록</div><div class="card pad0"><div class="tw"><table>' +
+    "<thead><tr><th>날짜</th><th>유형</th><th>출근</th><th class='num'>사진</th><th>일마감</th></tr></thead><tbody>" +
+    (rows.length ? rows.map(r => {
+      const from = atTime(r.ds, S.closingFrom), to = atTime(r.ds, S.closingTo) + 59000;
+      const cs = r.dd.closingSavedAt || 0;
+      return "<tr data-open-day='" + r.ds + "' data-uid='" + p.uid + "' style='cursor:pointer'><td>" + fmtD(r.ds) + "</td>" +
+        "<td>" + (r.dd.type ? '<span class="bdg ' + TYPES[r.dd.type].color + '">' + r.dd.type + "</span>" : '<span class="bdg r">미보고</span>') + "</td>" +
+        "<td class='mono'>" + (tsHM(r.dd.checkinAt) || "-") + "</td>" +
+        "<td class='num'>" + photoOkCount(r.dd, r.ds, S) + "</td>" +
+        "<td>" + (cs >= from && cs <= to ? "✅" : "—") + "</td></tr>";
+    }).join("") : "<tr><td colspan='5'><div class='empty'>기록 없음</div></td></tr>") +
+    "</tbody></table></div></div>";
+  return h;
+}
+
+function bindReport() {
+  const p = Auth.profile, S = SET(), H = HOLIDAYS(), tdy = today();
+  const rDate = nextReportDate(H, S);
+  let sel = (DB.get("daily", dayId(p.uid, rDate)) || {}).type || null;
+
+  $$("[data-type]").forEach(b => b.onclick = () => {
+    if (b.disabled) return;
+    sel = b.dataset.type;
+    $$("[data-type]").forEach(x => x.classList.toggle("on", x.dataset.type === sel));
+    $("#reasonWrap").classList.toggle("hide", sel !== "직출");
+    $("#hospWrap").classList.toggle("hide", sel !== "병원근무");
+  });
+
+  /* 직출 증빙 이미지 */
+  const rzUp = $("#rzUp"), rzFile = $("#rzFile");
+  if (rzUp) rzUp.onclick = () => rzFile.click();
+  if (rzFile) rzFile.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      toast("이미지 처리 중…");
+      const raw = await compressImage(f, 900, .72);
+      const url = await DB.uploadImage(raw, "reason");
+      await DB.set("daily", dayId(p.uid, rDate), { uid: p.uid, date: rDate, reasonPhoto: url, updatedAt: Date.now() });
+      toast("증빙 이미지 첨부됨", "ok");
+    } catch (er) { toast(cleanErr(er), "err"); }
+  };
+
+  const sv = $("#rSave");
+  if (sv) sv.onclick = async () => {
+    if (!sel) return toast("근무 유형을 선택해주세요", "err");
+    const reason = $("#rReason") ? $("#rReason").value.trim() : "";
+    const hosp = $("#rHosp") ? $("#rHosp").value.trim() : "";
+    if (sel === "직출" && !reason) return toast("직출은 사유를 반드시 입력해주세요", "err");
+    if (sel === "병원근무" && !hosp) return toast("병원근무는 병원명을 입력해주세요", "err");
+    const cur = DB.get("daily", dayId(p.uid, rDate)) || {};
+    const wasUsed = !!cur.gaejikUsed;
+    let used = wasUsed;
+    try {
+      sv.disabled = true;
+      if (sel === "개직" && !wasUsed) {
+        if (Number(Auth.profile.gaejik || 0) < 1) { sv.disabled = false; return toast("개직 잔여가 없습니다", "err"); }
+        await changeGaejik(p.uid, -1, "개직 사용 · " + fmtDL(rDate)); used = true;
+      } else if (sel !== "개직" && wasUsed) {
+        await changeGaejik(p.uid, +1, "개직 취소 · " + fmtDL(rDate) + " → " + sel); used = false;
+      }
+      await DB.set("daily", dayId(p.uid, rDate), {
+        uid: p.uid, date: rDate, type: sel,
+        reason: sel === "직출" ? reason : "",
+        hospital: sel === "병원근무" ? hosp : "",
+        reportAt: Date.now(), gaejikUsed: used, updatedAt: Date.now()
+      });
+      const dl = reportDeadlineTs(rDate, sel, S);
+      toast(Date.now() > dl ? sel + " 보고 저장 · 마감 후 제출로 벌금 대상입니다" : sel + " 보고 완료", Date.now() > dl ? "err" : "ok");
+    } catch (e) { toast(cleanErr(e), "err"); sv.disabled = false; }
+  };
+
+  /* 워킹사진 */
+  const phAdd = $("#phAdd"), phFile = $("#phFile");
+  if (phAdd) phAdd.onclick = () => phFile.click();
+  if (phFile) phFile.onchange = async e => {
+    const files = Array.from(e.target.files || []); if (!files.length) return;
+    try {
+      toast("사진 " + files.length + "장 처리 중…");
+      const cur = DB.get("daily", dayId(p.uid, tdy)) || {};
+      const arr = photoList(cur);
+      for (const f of files) {
+        const raw = await compressImage(f, 800, .7);
+        arr.push({ u: await DB.uploadImage(raw, "walk"), at: Date.now() });
+      }
+      await DB.set("daily", dayId(p.uid, tdy), {
+        uid: p.uid, date: tdy, photos: arr, photoAt: Date.now(), updatedAt: Date.now()
+      });
+      const ok = photoOkCount({ photos: arr }, tdy, S);
+      toast(ok >= S.photoMin ? "워킹사진 " + ok + "장 · 완료 👍" : "저장됨 · 인정 " + ok + "/" + S.photoMin + "장", ok >= S.photoMin ? "ok" : "err");
+    } catch (er) { toast(cleanErr(er), "err"); }
+  };
+  $$("[data-delph]").forEach(b => b.onclick = async () => {
+    const i = Number(b.dataset.delph);
+    const cur = DB.get("daily", dayId(p.uid, tdy)) || {};
+    const arr = photoList(cur); arr.splice(i, 1);
+    await DB.set("daily", dayId(p.uid, tdy), { uid: p.uid, date: tdy, photos: arr, updatedAt: Date.now() });
+    toast("삭제됨");
+  });
+
+  /* 일마감 체크리스트 */
+  const dT = DB.get("daily", dayId(p.uid, tdy)) || {};
+  const items = todayItems(p, dT);
+  $$("[data-cktog]").forEach(b => b.onclick = () => {
+    const i = Number(b.dataset.cktog); items[i].done = !items[i].done; render();
+  });
+  $$("[data-ckdel]").forEach(b => b.onclick = () => {
+    const i = Number(b.dataset.ckdel); items.splice(i, 1); render();
+  });
+  $$("[data-cktx]").forEach(el => el.onblur = () => { items[Number(el.dataset.cktx)].t = el.textContent.trim(); });
+  const add = $("#ckAdd");
+  if (add) add.onclick = () => {
+    items.push({ t: "", done: false }); render();
+    setTimeout(() => { const list = $$("[data-cktx]"); const last = list[list.length - 1]; if (last) last.focus(); }, 60);
+  };
+  const save = $("#ckSave");
+  if (save) save.onclick = async () => {
+    $$("[data-cktx]").forEach(el => { items[Number(el.dataset.cktx)].t = el.textContent.trim(); });
+    const clean = items.filter(x => x.t);
+    ckItems = clean;
+    const now = Date.now();
+    await DB.set("daily", dayId(p.uid, tdy), {
+      uid: p.uid, date: tdy, closingItems: clean, closingSavedAt: now, updatedAt: now
+    });
+    await DB.set("users", p.uid, { checklist: clean.map(x => x.t) });
+    const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
+    toast(now >= from && now <= to ? "일마감 저장 완료 👍" : "저장됨 · 인정 시간(" + S.closingFrom + "~" + S.closingTo + ") 밖입니다",
+      now >= from && now <= to ? "ok" : "err");
+  };
+}
+
+/* ============================================================================
+   벌금
+   ============================================================================ */
+let fineFilterUser = "all", fineMonth = "all", fineSel = new Set();
+
+function viewFines() {
+  const admin = Auth.isAdmin(), S = SET(), p = Auth.profile;
+  const all = admin ? collectFines({}) : collectFines({ uid: p.uid });
+  const tab = App.finesTab;
+
+  let list = all.filter(f => !f.pending);
+  if (tab === "unpaid") list = list.filter(f => !f.waived && f.status === "unpaid");
+  else if (tab === "submitted") list = list.filter(f => f.status === "submitted");
+  else if (tab === "paid") list = list.filter(f => f.status === "paid");
+  else if (tab === "waived") list = list.filter(f => f.waived);
+  if (admin && fineFilterUser !== "all") list = list.filter(f => f.uid === fineFilterUser);
+  if (fineMonth !== "all") list = list.filter(f => f.date.startsWith(fineMonth));
+  const months = Array.from(new Set(all.map(f => monthOf(f.date)))).sort().reverse();
+
+  let h = '<div class="card"><div class="card-h"><h3>💳 벌금 입금 계좌</h3></div>' +
+    '<div class="acct"><span class="t">' + esc(S.account) + '</span><button class="btn xs" id="cpA">복사</button></div>' +
+    '<div class="hint" style="margin-top:9px">입금 후 이체 캡쳐를 올리면 관리자가 확인합니다. 여러 건을 한 번에 묶어서도 가능합니다.</div></div>';
+
+  h += '<div class="grid g3">' +
+    '<div class="stat acc-r"><div class="lb">미납</div><div class="vl" style="font-size:18px">' + won(sumFines(all, f => f.status === "unpaid" && !f.waived)) + "</div></div>" +
+    '<div class="stat acc-b"><div class="lb">확인대기</div><div class="vl" style="font-size:18px">' + won(sumFines(all, f => f.status === "submitted")) + "</div></div>" +
+    '<div class="stat acc-g"><div class="lb">납부완료</div><div class="vl" style="font-size:18px">' + won(sumFines(all, f => f.status === "paid")) + "</div></div></div>";
+
+  h += '<div class="seg sm" style="margin:14px 0 12px">' +
+    [["unpaid", "미납"], ["submitted", "확인대기"], ["paid", "완료"], ["waived", "포인트납입"], ["all", "전체"]]
+      .map(([k, t]) => '<button data-ftab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
+
+  h += '<div class="btn-row" style="margin-bottom:12px">' +
+    (admin ? "<select class='inp' id='fUser' style='flex:1;min-width:118px;padding:8px 26px 8px 10px;font-size:13px'>" +
+      "<option value='all'>전체 팀원</option>" +
+      ACTIVE_USERS().map(u => "<option value='" + u.uid + "'" + (fineFilterUser === u.uid ? " selected" : "") + ">" + esc(u.name) + "</option>").join("") + "</select>" : "") +
+    "<select class='inp' id='fMon' style='flex:1;min-width:118px;padding:8px 26px 8px 10px;font-size:13px'>" +
+    "<option value='all'>전체 기간</option>" +
+    months.map(m => "<option value='" + m + "'" + (fineMonth === m ? " selected" : "") + ">" + m.replace("-", "년 ") + "월</option>").join("") + "</select>" +
+    (admin ? "<button class='btn sm' id='addFine'>+ 추가</button>" : "") + "</div>";
+
+  const selectable = tab === "unpaid" || tab === "submitted";
+  if (selectable && list.length) {
+    h += '<div class="card" style="padding:11px 13px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700">' +
+      '<input type="checkbox" id="selAll"> 전체선택</label>' +
+      '<span class="bdg n" id="selInfo">0건</span><div style="flex:1"></div>' +
+      (admin ? '<button class="btn xs" id="copyBill">📋 정산문구</button>' : "") +
+      (tab === "unpaid" ? '<button class="btn xs pri" id="payBtn">💸 납부 캡쳐</button>' : "") +
+      (admin && tab === "submitted" ? '<button class="btn xs ok" id="confirmBtn">✅ 납부확인</button>' : "") +
+      (admin ? '<button class="btn xs" id="waiveBtn">🎫 포인트납입</button>' : "") +
+      (admin ? '<button class="btn xs dan" id="delBtn">삭제</button>' : "") + "</div>";
+  }
+
+  const LCAP = 80;
+  h += '<div class="card pad0">' +
+    (list.length ? list.slice(0, LCAP).map(f =>
+      '<div class="row">' +
+      (selectable ? '<input type="checkbox" class="fsel" data-fid="' + f.id + '" style="width:17px;height:17px;flex:0 0 auto">' : "") +
+      '<span style="font-size:17px">' + (KINDS[f.kind] || KINDS.etc).icon + "</span>" +
+      '<div class="sp" data-open-fine="' + f.id + '" style="cursor:pointer">' +
+      '<div class="nm">' + (admin ? esc(f.name) + " · " : "") + (KINDS[f.kind] || KINDS.etc).label +
+      (f.auto ? "" : ' <span class="bdg n">수동</span>') + "</div>" +
+      '<div class="ds">' + fmtD(f.date) + " · " + esc(f.reason) + "</div></div>" +
+      '<div style="text-align:right"><div class="nm mono" style="' + (f.waived ? "text-decoration:line-through;color:var(--tx3)" : "") + '">' + won(f.amount) + "</div>" +
+      '<div style="margin-top:3px">' + fineBadge(f) + "</div></div></div>").join("") +
+      (list.length > LCAP ? '<div class="empty">…외 ' + (list.length - LCAP) + "건 · 필터로 좁혀보세요</div>" : "")
+      : '<div class="empty">해당하는 벌금이 없습니다</div>') + "</div>";
+
+  if (list.length)
+    h += '<div class="stat" style="margin-top:12px"><div class="lb">목록 합계</div>' +
+      '<div class="vl">' + won(list.filter(f => !f.waived).reduce((s, f) => s + f.amount, 0)) + "</div>" +
+      '<div class="sub">' + list.length + "건</div></div>";
+  return h;
+}
+
+function bindFines() {
+  const admin = Auth.isAdmin();
+  $("#cpA").onclick = () => { copyText(SET().account); toast("계좌 복사됨", "ok"); };
+  $$("[data-ftab]").forEach(b => b.onclick = () => { App.finesTab = b.dataset.ftab; fineSel.clear(); render(); });
+  const fu = $("#fUser"); if (fu) fu.onchange = e => { fineFilterUser = e.target.value; render(); };
+  const fm = $("#fMon"); if (fm) fm.onchange = e => { fineMonth = e.target.value; render(); };
+  const af = $("#addFine"); if (af) af.onclick = openAddFine;
+
+  const boxes = $$(".fsel"), info = $("#selInfo");
+  const all = collectFines(admin ? {} : { uid: Auth.profile.uid });
+  const upd = () => {
+    fineSel = new Set(boxes.filter(b => b.checked).map(b => b.dataset.fid));
+    const sum = all.filter(f => fineSel.has(f.id)).reduce((s, f) => s + f.amount, 0);
+    if (info) info.textContent = fineSel.size + "건 · " + won(sum);
+  };
+  boxes.forEach(b => { b.checked = fineSel.has(b.dataset.fid); b.onchange = upd; });
+  const sa = $("#selAll"); if (sa) sa.onchange = () => { boxes.forEach(b => b.checked = sa.checked); upd(); };
+  upd();
+  const picked = () => all.filter(f => fineSel.has(f.id));
+
+  const cb = $("#copyBill");
+  if (cb) cb.onclick = () => { const ps = picked(); if (!ps.length) return toast("항목을 선택해주세요", "err"); showBill(ps); };
+  const pb = $("#payBtn");
+  if (pb) pb.onclick = () => { const ps = picked(); if (!ps.length) return toast("납부한 항목을 선택해주세요", "err"); openPayModal(ps); };
+  const cf = $("#confirmBtn");
+  if (cf) cf.onclick = async () => {
+    const ps = picked(); if (!ps.length) return toast("항목을 선택해주세요", "err");
+    for (const f of ps) await DB.set("fines", f.id, Object.assign(baseFine(f), {
+      status: "paid", confirmedAt: Date.now(), confirmedBy: Auth.profile.name }));
+    fineSel.clear(); toast(ps.length + "건 납부확인 완료", "ok");
+  };
+  const wb = $("#waiveBtn");
+  if (wb) wb.onclick = async () => {
+    const ps = picked(); if (!ps.length) return toast("항목을 선택해주세요", "err");
+    const on = !ps[0].waived;
+    if (on) {
+      // 아직 포인트가 차감되지 않은 건만 실제 차감 대상 (같은 건을 두 번 차감하지 않도록)
+      const toDeduct = ps.filter(f => !f.pointsDeducted);
+      if (toDeduct.length) {
+        const byUser = {};
+        toDeduct.forEach(f => { byUser[f.uid] = (byUser[f.uid] || 0) + f.amount; });
+        const summary = Object.keys(byUser).map(uid => {
+          const u = DB.get("users", uid);
+          return (u ? u.name : uid) + " " + won(byUser[uid]);
+        }).join(", ");
+        if (!confirm(summary + " 만큼 실제 포인트(P)가 차감됩니다. 계속할까요?")) return;
+        try {
+          for (const uid of Object.keys(byUser)) {
+            const r = await attendanceDeductPointsForFine(uid, byUser[uid], "근태 벌금 포인트납입");
+            if (!r.ok) throw new Error(r.message);
+          }
+        } catch (e) { toast(cleanErr(e), "err"); return; }
+      }
+    }
+    for (const f of ps) {
+      const patch = Object.assign(baseFine(f), { waived: on });
+      if (on && !f.pointsDeducted) patch.pointsDeducted = true;
+      await DB.set("fines", f.id, patch);
+    }
+    fineSel.clear(); toast(ps.length + "건 " + (on ? "포인트로 차감 처리" : "포인트납입 해제"), "ok");
+    refreshMainProfile().then(scheduleRender);
+  };
+  const db = $("#delBtn");
+  if (db) db.onclick = () => {
+    const ps = picked(); if (!ps.length) return toast("항목을 선택해주세요", "err");
+    confirmM("선택한 <b>" + ps.length + "건</b>을 삭제합니다.<br>삭제한 벌금은 목록·합계·순위에서 모두 사라집니다.", async () => {
+      for (const f of ps) await deleteFine(f);
+      fineSel.clear(); toast(ps.length + "건 삭제됨", "ok");
+    });
+  };
+}
+
+function baseFine(f) {
+  return { id: f.id, uid: f.uid, date: f.date, kind: f.kind, amount: f.amount, memo: f.reason, manual: !f.auto };
+}
+/** SM 전용 — 벌금 삭제 */
+async function deleteFine(f) {
+  if (!Auth.isAdmin()) throw new Error("권한이 없습니다");
+  if (f.auto) await DB.set("fines", f.id, Object.assign(baseFine(f), { deleted: true, deletedAt: Date.now(), deletedBy: Auth.profile.name }));
+  else await DB.del("fines", f.id);
+}
+
+function billText(fines) {
+  const byUser = {};
+  fines.filter(f => !f.waived && !f.pending).forEach(f => { (byUser[f.name] = byUser[f.name] || []).push(f); });
+  let txt = "📌 벌금 정산\n", total = 0;
+  Object.keys(byUser).forEach(n => {
+    const sum = byUser[n].reduce((s, f) => s + f.amount, 0); total += sum;
+    txt += "\n▪ " + n + " — " + won(sum) + "\n";
+    byUser[n].sort((a, b) => a.date.localeCompare(b.date)).forEach(f => {
+      txt += "   · " + fmtD(f.date) + " " + (KINDS[f.kind] || KINDS.etc).label + " " + won(f.amount) + "\n";
+    });
+  });
+  txt += "\n합계 " + won(total) + "\n▶ " + SET().account;
+  return txt;
+}
+function showBill(finesOrText) {
+  const txt = typeof finesOrText === "string" ? finesOrText : billText(finesOrText);
+  copyText(txt);
+  modal({ title: "정산 문구", noFooter: true,
+    body: '<textarea class="inp" style="min-height:240px;font-size:12.5px" readonly>' + esc(txt) + "</textarea>" +
+      '<div class="hint">클립보드에 복사되었습니다. 카톡방에 붙여넣으세요.</div>' });
+}
+
+/* ============================ 납부 캡쳐 업로드 ============================ */
+function openPayModal(fines, urgent) {
+  const total = fines.reduce((s, f) => s + f.amount, 0);
+  let imgRaw = null;
+  modal({
+    title: urgent ? "⚠️ 미납 벌금이 있습니다" : "납부 캡쳐 올리기",
+    body:
+      '<div class="banner d"><b>' + fines.length + "건 · " + won(total) + "</b><br>" +
+      fines.slice(0, 8).map(f => "· " + fmtD(f.date) + " " + (KINDS[f.kind] || KINDS.etc).label + " " + won(f.amount) +
+        " <span style='opacity:.7'>(" + esc(f.reason) + ")</span>").join("<br>") +
+      (fines.length > 8 ? "<br>… 외 " + (fines.length - 8) + "건" : "") + "</div>" +
+      '<div class="fld"><label>입금 계좌</label><div class="acct"><span class="t">' + esc(SET().account) + "</span>" +
+      '<button class="btn xs" id="pmCp">복사</button></div></div>' +
+      '<div class="upl" id="pmUp"><div class="ic">🧾</div><div class="t">이체 완료 캡쳐 올리기</div>' +
+      '<div class="s">관리자가 확인 후 납부완료 처리합니다</div></div>' +
+      '<input type="file" accept="image/*" id="pmFile" class="hide">' +
+      '<div id="pmPrev"></div>' +
+      '<div class="fld" style="margin-top:13px"><label>메모 (선택)</label>' +
+      '<input class="inp" id="pmMemo" placeholder="예: 급여일 일괄납부"></div>',
+    okText: "납부 등록", cancelText: urgent ? "나중에" : "닫기",
+    onOk: async () => {
+      if (!imgRaw) { toast("납부 캡쳐를 첨부해주세요", "err"); return false; }
+      toast("업로드 중…");
+      const img = await DB.uploadImage(imgRaw, "pay");
+      const batch = uid8(), memo = $("#pmMemo").value.trim();
+      for (const f of fines) {
+        await DB.set("fines", f.id, Object.assign(baseFine(f), {
+          status: "submitted", proof: img, proofAt: Date.now(),
+          proofBy: Auth.profile.name, batch, payMemo: memo
+        }));
+      }
+      fineSel.clear();
+      toast("납부 등록 완료 · 관리자 확인을 기다려주세요", "ok");
+    },
+    after: () => {
+      $("#pmCp").onclick = () => { copyText(SET().account); toast("복사됨", "ok"); };
+      $("#pmUp").onclick = () => $("#pmFile").click();
+      $("#pmFile").onchange = async e => {
+        const f = e.target.files[0]; if (!f) return;
+        imgRaw = await compressImage(f, 900, .72);
+        $("#pmPrev").innerHTML = '<img src="' + imgRaw + '" class="thumb" style="margin-top:11px">';
+      };
+    }
+  });
+}
+
+/* ============================ 벌금 상세 ============================ */
+function openFineModal(id) {
+  const admin = Auth.isAdmin();
+  const all = collectFines(admin ? {} : { uid: Auth.profile.uid });
+  const f = all.find(x => x.id === id);
+  if (!f) return toast("벌금을 찾을 수 없습니다", "err");
+  const K = KINDS[f.kind] || KINDS.etc;
+  modal({
+    title: K.icon + " " + K.label + " · " + esc(f.name),
+    body:
+      '<div class="stat acc-r" style="margin-bottom:14px"><div class="lb">' + fmtDL(f.date) + "</div>" +
+      '<div class="vl">' + won(f.amount) + "</div><div class='sub'>" + esc(f.reason) + "</div></div>" +
+      '<div class="btn-row" style="margin-bottom:14px">' + fineBadge(f) +
+      (f.batch ? '<span class="bdg c">일괄납부</span>' : "") +
+      (f.auto ? '<span class="bdg n">자동계산</span>' : '<span class="bdg n">관리자 추가</span>') + "</div>" +
+      (f.proof ? '<div class="fld"><label>납부 캡쳐 · ' + tsFmtFull(f.proofAt) + "</label>" +
+        '<img src="' + f.proof + '" class="thumb" data-img="' + f.proof + '" data-imgt="납부 캡쳐"></div>' : "") +
+      (f.confirmedAt ? '<div class="banner s">✅ ' + esc(f.confirmedBy) + " 확인 · " + tsFmtFull(f.confirmedAt) + "</div>" : "") +
+      (admin ?
+        '<div class="divider"></div>' +
+        '<div class="fld"><label>금액 조정</label><input class="inp" type="number" id="feAmt" value="' + f.amount + '"></div>' +
+        '<div class="fld"><label>사유 / 메모</label><input class="inp" id="feMemo" value="' + esc(f.reason) + '"></div>' +
+        '<div class="fld"><label style="display:flex;align-items:center;gap:10px">포인트납입 처리' +
+        '<label class="sw"><input type="checkbox" id="feWaive"' + (f.waived ? " checked" : "") + '><span class="tr"></span></label></label>' +
+        '<div class="hint">포인트로 대신 납입한 건입니다. 현금 합계에서 제외됩니다.</div></div>' +
+        '<div class="fld"><label>납부 상태</label><select class="inp" id="feSt">' +
+        [["unpaid", "미납"], ["submitted", "확인대기"], ["paid", "납부완료"]].map(([k, t]) =>
+          "<option value='" + k + "'" + (f.status === k ? " selected" : "") + ">" + t + "</option>").join("") + "</select></div>" +
+        '<button class="btn dan full sm" id="feDel">이 벌금 삭제</button>' 
+        : (f.status === "unpaid" ? '<button class="btn pri full" id="fePay">💸 납부 캡쳐 올리기</button>' : "")),
+    okText: admin ? "저장" : null,
+    onOk: admin ? async () => {
+      await DB.set("fines", f.id, Object.assign(baseFine(f), {
+        amount: Number($("#feAmt").value) || 0,
+        memo: $("#feMemo").value.trim(),
+        waived: $("#feWaive").checked,
+        status: $("#feSt").value,
+        confirmedAt: $("#feSt").value === "paid" ? (f.confirmedAt || Date.now()) : null,
+        confirmedBy: $("#feSt").value === "paid" ? (f.confirmedBy || Auth.profile.name) : null,
+        proof: f.proof || null, proofAt: f.proofAt || null, batch: f.batch || null
+      }));
+      toast("저장됨", "ok");
+    } : null,
+    after: () => {
+      $$("[data-img]", $("#ovl")).forEach(b => b.onclick = () => openImage(b.dataset.img, b.dataset.imgt));
+      const dl = $("#feDel");
+      if (dl) dl.onclick = () => confirmM("이 벌금을 삭제합니다. 목록·합계·순위에서 사라집니다.", async () => {
+        await deleteFine(f); closeModal(); toast("삭제됨", "ok");
+      });
+      const py = $("#fePay"); if (py) py.onclick = () => { closeModal(); openPayModal([f]); };
+    }
+  });
+}
+
+function openAddFine() {
+  modal({
+    title: "벌금 직접 추가",
+    body:
+      '<div class="fld"><label>팀원</label><select class="inp" id="afU">' +
+      ACTIVE_USERS().map(u => "<option value='" + u.uid + "'>" + esc(u.name) + "</option>").join("") + "</select></div>" +
+      '<div class="fld"><label>날짜</label><input class="inp" type="date" id="afD" value="' + today() + '"></div>' +
+      '<div class="fld"><label>항목</label><select class="inp" id="afK">' +
+      Object.keys(KINDS).map(k => "<option value='" + k + "'" + (k === "etc" ? " selected" : "") + ">" + KINDS[k].icon + " " + KINDS[k].label + "</option>").join("") + "</select></div>" +
+      '<div class="fld"><label>금액</label><input class="inp" type="number" id="afA" value="10000" step="1000"></div>' +
+      '<div class="fld"><label>사유</label><input class="inp" id="afM" placeholder="예: 회의 지각"></div>',
+    okText: "추가",
+    onOk: async () => {
+      const uid = $("#afU").value, date = $("#afD").value;
+      if (!uid || !date) { toast("팀원과 날짜를 선택해주세요", "err"); return false; }
+      await DB.add("fines", {
+        uid, date, kind: $("#afK").value, amount: Number($("#afA").value) || 0,
+        memo: $("#afM").value.trim() || "관리자 추가", manual: true, status: "unpaid",
+        waived: false, createdAt: Date.now(), createdBy: Auth.profile.name
+      });
+      toast("벌금이 추가되었습니다", "ok");
+    }
+  });
+}
+
+/* ============================ 하루 상세 ============================ */
+function openDayModal(date, uid) {
+  const S = SET(), H = HOLIDAYS();
+  const u = DB.get("users", uid); if (!u) return;
+  const d = DB.get("daily", dayId(uid, date)) || {};
+  const fines = collectFines({ uid, from: date, to: date });
+  const canSee = Auth.canSee(uid);
+  const from = atTime(date, S.closingFrom), to = atTime(date, S.closingTo) + 59000;
+  const cs = d.closingSavedAt || 0;
+
+  modal({
+    title: esc(u.name) + " · " + fmtDL(date), cancelText: "닫기",
+    body:
+      '<div class="btn-row" style="margin-bottom:14px">' +
+      '<span class="bdg ' + (isWorkday(date, H) ? "b" : "n") + '">' + (isWorkday(date, H) ? "근무일" : "휴무일") + "</span>" +
+      (d.type ? '<span class="bdg ' + TYPES[d.type].color + '">' + TYPES[d.type].icon + " " + d.type + "</span>" : '<span class="bdg r">미보고</span>') +
+      '<span class="bdg ' + gradeInfo(u).color + '">' + esc(gradeOf(u)) + "</span></div>" +
+      (d.hospital ? '<div class="banner i">🏥 병원: <b>' + esc(d.hospital) + "</b></div>" : "") +
+      (d.reason ? (canSee ? '<div class="banner i">🚗 직출 사유: <b>' + esc(d.reason) + "</b></div>"
+                          : '<div class="banner w">직출 사유는 담당 TL·관리자만 볼 수 있습니다.</div>') : "") +
+      (d.reasonPhoto && canSee ? '<div class="fld"><label>직출 증빙</label><img src="' + d.reasonPhoto + '" class="thumb" data-img="' + d.reasonPhoto + '" data-imgt="직출 증빙"></div>' : "") +
+      '<div class="grid g2" style="margin-bottom:14px">' +
+      '<div class="stat"><div class="lb">출근 등록</div><div class="vl" style="font-size:19px">' + (tsHM(d.checkinAt) || "-") + "</div>" +
+      '<div class="sub">기준 ' + S.workStart + "</div></div>" +
+      '<div class="stat"><div class="lb">워킹사진</div><div class="vl" style="font-size:19px">' +
+      photoOkCount(d, date, S) + "<span style='font-size:13px;color:var(--tx3)'>/" + S.photoMin + "</span></div>" +
+      '<div class="sub">' + (cs >= from && cs <= to ? "일마감 완료" : "일마감 미완료") + "</div></div></div>" +
+      (d.checkinPhoto ? '<div class="fld"><label>출근 사진</label><img src="' + d.checkinPhoto + '" class="thumb" data-img="' + d.checkinPhoto + '"></div>' : "") +
+      (photoList(d).length ? '<div class="fld"><label>워킹사진</label><div class="photo-grid">' +
+        photoList(d).map((x, i) => '<div class="ph"><img src="' + x.u + '" data-img="' + x.u + '" data-imgt="워킹사진 ' + (i + 1) + '">' +
+          (x.at ? '<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:9.5px;text-align:center;padding:2px">' + tsHM(x.at) + "</div>" : "") +
+          "</div>").join("") + "</div></div>" : "") +
+      (canSee && (d.closingItems || []).length ? '<div class="fld"><label>일마감 체크리스트 · ' + tsFmt(cs) + "</label>" +
+        d.closingItems.map(it => '<div class="ck ' + (it.done ? "done" : "") + '" style="margin-bottom:5px">' +
+          '<div class="box">' + (it.done ? "✓" : "") + '</div><div class="tx">' + esc(it.t) + "</div></div>").join("") + "</div>"
+        : (d.closingItems || []).length ? '<div class="banner n">일마감 내용은 담당 TL·관리자만 볼 수 있습니다.</div>' : "") +
+      '<div class="sec-t" style="margin-top:16px">이 날 벌금</div><div class="card pad0" style="margin:0">' +
+      (fines.length ? fines.map(fineRow).join("") : '<div class="empty">벌금 없음</div>') + "</div>",
+    after: () => {
+      $$("[data-img]", $("#ovl")).forEach(b => b.onclick = () => openImage(b.dataset.img, b.dataset.imgt));
+      $$("[data-open-fine]", $("#ovl")).forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+    }
+  });
+}
+
+/* ============================================================================
+   캘린더 — 이름 / 벌금종류 / 금액 전부 표시
+   ============================================================================ */
+let calUser = "all";
+function viewCal() {
+  const admin = Auth.isAdmin(), H = HOLIDAYS(), tdy = today();
+  const [Y, M] = App.month.split("-").map(Number);
+  const first = new Date(Y, M - 1, 1), last = new Date(Y, M, 0);
+  const from = App.month + "-01", to = App.month + "-" + pad(last.getDate());
+  const opt = { from, to };
+  if (calUser !== "all") opt.uid = calUser;
+  const fines = collectFines(opt).filter(f => !f.pending);
+  const byDate = {};
+  fines.forEach(f => { (byDate[f.date] = byDate[f.date] || []).push(f); });
+
+  /* 개직 사용 내역 */
+  const calUsers = calUser !== "all" ? USERS().filter(u => u.uid === calUser) : ACTIVE_USERS();
+  const gjBy = {};
+  calUsers.forEach(u => {
+    for (let dd = 1; dd <= last.getDate(); dd++) {
+      const ds2 = App.month + "-" + pad(dd);
+      const rec = DB.get("daily", dayId(u.uid, ds2));
+      if (rec && rec.type === "개직") (gjBy[ds2] = gjBy[ds2] || []).push(u.name);
+    }
+  });
+  const gjTotal = Object.values(gjBy).reduce((a, b) => a + b.length, 0);
+
+  let h = '<div class="card"><div class="btn-row" style="align-items:center">' +
+    '<button class="btn sm" id="mPrev">‹</button>' +
+    '<div style="flex:1;text-align:center;font-size:17px;font-weight:800;letter-spacing:-.5px">' + Y + "년 " + M + "월</div>" +
+    '<button class="btn sm" id="mNext">›</button>' +
+    '<button class="btn sm" id="mNow">이번달</button></div>' +
+    "<select class='inp' id='calU' style='margin-top:11px;padding:8px 26px 8px 10px;font-size:13px'>" +
+    "<option value='all'>전체 팀원</option>" +
+    ACTIVE_USERS().map(u => "<option value='" + u.uid + "'" + (calUser === u.uid ? " selected" : "") + ">" + esc(u.name) + "</option>").join("") +
+    "</select></div>";
+
+  h += '<div class="grid g3" style="margin-bottom:12px">' +
+    '<div class="stat acc-r"><div class="lb">' + M + '월 벌금</div><div class="vl" style="font-size:18px">' + won(sumFines(fines)) + "</div></div>" +
+    '<div class="stat"><div class="lb">건수</div><div class="vl" style="font-size:18px">' + fines.filter(f => !f.waived).length + "</div></div>" +
+    '<div class="stat acc-p"><div class="lb">개직 사용</div><div class="vl" style="font-size:18px">' + gjTotal + "건</div></div></div>";
+
+  h += '<div class="card"><div class="cal">' +
+    DOWK.map((d, i) => '<div class="dw ' + (i === 0 ? "s" : i === 6 ? "u" : "") + '">' + d + "</div>").join("");
+  for (let i = 0; i < first.getDay(); i++) h += "<div></div>";
+  for (let day = 1; day <= last.getDate(); day++) {
+    const ds = App.month + "-" + pad(day);
+    const w = dow(ds), wd = isWorkday(ds, H), hn = holidayName(ds, H);
+    const fs = (byDate[ds] || []).slice().sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    h += '<div class="cel' + (wd ? "" : " off") + (ds === tdy ? " tod" : "") + (hn ? " hol" : "") + '" data-cal="' + ds + '">' +
+      '<div class="dn ' + (w === 0 ? "s" : w === 6 ? "u" : "") + '">' + day + "</div>" +
+      (gjBy[ds] || []).map(n => '<div class="ev g">' + esc(n) + "<br>🌴 개직</div>").join("") +
+      fs.map(f => '<div class="ev ' + (f.waived ? "c" : f.status === "paid" ? "g" : (KINDS[f.kind] || KINDS.etc).color) + '" style="position:relative;padding-right:16px">' +
+        esc(f.name) + "<br>" + (KINDS[f.kind] || KINDS.etc).label + "<br>" + (f.amount || 0).toLocaleString("ko-KR") +
+        (Auth.isAdmin() ? '<button data-calx="' + f.id + '" title="삭제" style="position:absolute;top:2px;right:2px;width:14px;height:14px;border-radius:4px;background:rgba(0,0,0,.2);color:#fff;font-size:9px;line-height:1;display:flex;align-items:center;justify-content:center">✕</button>' : "") +
+        "</div>").join("") +
+      "</div>";
+  }
+  h += "</div></div>";
+
+  h += '<div class="sec-t">' + M + "월 상세 (" + fines.length + "건)</div><div class='card pad0'>" +
+    (fines.length ? fines.slice(0, 60).map(fineRow).join("") +
+      (fines.length > 60 ? '<div class="empty">…외 ' + (fines.length - 60) + "건</div>" : "")
+      : '<div class="empty">이번달 벌금이 없습니다 🎉</div>') + "</div>";
+  return h;
+}
+
+function bindCal() {
+  const shift = n => {
+    let [Y, M] = App.month.split("-").map(Number);
+    M += n; if (M < 1) { M = 12; Y--; } if (M > 12) { M = 1; Y++; }
+    App.month = Y + "-" + pad(M); render();
+  };
+  $("#mPrev").onclick = () => shift(-1);
+  $("#mNext").onclick = () => shift(1);
+  $("#mNow").onclick = () => { App.month = monthOf(today()); render(); };
+  const cu = $("#calU"); if (cu) cu.onchange = e => { calUser = e.target.value; render(); };
+  $$("[data-cal]").forEach(c => c.onclick = () => openCalDay(c.dataset.cal));
+  $$("[data-open-fine]").forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+  $$("[data-calx]").forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    const f = collectFines({}).find(x => x.id === b.dataset.calx);
+    if (!f) return;
+    confirmM("<b>" + esc(f.name) + "</b> · " + fmtD(f.date) + " " + (KINDS[f.kind] || KINDS.etc).label +
+      " " + won(f.amount) + "<br>이 벌금을 삭제할까요?", async () => { await deleteFine(f); toast("삭제됨", "ok"); });
+  });
+}
+
+function openCalDay(date) {
+  const H = HOLIDAYS(), S = SET();
+  const opt = { from: date, to: date };
+  if (calUser !== "all") opt.uid = calUser;
+  const fines = collectFines(opt).filter(f => !f.pending);
+  const users = calUser === "all" ? ACTIVE_USERS() : ACTIVE_USERS().filter(u => u.uid === calUser);
+  const hn = holidayName(date, H), wd = isWorkday(date, H);
+
+  modal({
+    title: fmtDL(date), cancelText: "닫기",
+    body:
+      '<div class="btn-row" style="margin-bottom:13px">' +
+      '<span class="bdg ' + (wd ? "b" : "n") + '">' + (wd ? "근무일" : "휴무일") + "</span>" +
+      (hn ? '<span class="bdg y">' + esc(hn) + "</span>" : "") +
+      (fines.length ? '<span class="bdg r">벌금 ' + won(sumFines(fines)) + "</span>" : '<span class="bdg g">벌금 없음</span>') + "</div>" +
+      '<div class="sec-t" style="margin-top:0">근무 현황</div><div class="card pad0" style="margin:0 0 14px">' +
+      users.map(u => {
+        const d = DB.get("daily", dayId(u.uid, date)) || {};
+        return '<div class="row" data-open-day="' + date + '" data-uid="' + u.uid + '" style="cursor:pointer">' +
+          (d.checkinPhoto ? '<img src="' + d.checkinPhoto + '" class="thumb sm">' : '<div class="avatar">' + esc(initial(u.name)) + "</div>") +
+          '<div class="sp"><div class="nm">' + esc(u.name) + "</div>" +
+          '<div class="ds">' + (tsHM(d.checkinAt) ? "출근 " + tsHM(d.checkinAt) : "출근 미등록") +
+          " · 사진 " + ((d.photos || []).length) + "</div></div>" +
+          (d.type ? '<span class="bdg ' + TYPES[d.type].color + '">' + d.type + "</span>" : '<span class="bdg r">미보고</span>') + "</div>";
+      }).join("") + "</div>" +
+      '<div class="sec-t" style="margin-top:0">벌금</div><div class="card pad0" style="margin:0">' +
+      (fines.length ? fines.map(fineRow).join("") : '<div class="empty">없음</div>') + "</div>",
+    after: () => {
+      $$("[data-open-fine]", $("#ovl")).forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+      $$("[data-open-day]", $("#ovl")).forEach(b => b.onclick = () => openDayModal(b.dataset.openDay, b.dataset.uid));
+    }
+  });
+}
+
+/* ============================================================================
+   순위 — 벌금 순위 / 개직 순위 / 개직 로그
+   ============================================================================ */
+function viewRank() {
+  const p = Auth.profile, S = SET();
+  const tab = App.rankTab;
+  const ym = App.month;
+  const [Y, M] = ym.split("-").map(Number);
+  const last = new Date(Y, M, 0);
+  const fines = collectFines({ from: ym + "-01", to: ym + "-" + pad(last.getDate()) }).filter(f => !f.pending);
+
+  let h = '<div class="card"><div class="btn-row" style="align-items:center">' +
+    '<button class="btn sm" id="rPrev">‹</button>' +
+    '<div style="flex:1;text-align:center;font-size:16px;font-weight:800">' + Y + "년 " + M + "월</div>" +
+    '<button class="btn sm" id="rNext">›</button>' +
+    '<button class="btn sm" id="rNow">이번달</button></div></div>';
+
+  h += '<div class="seg sm" style="margin-bottom:12px">' +
+    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["log", "개직 로그"]]
+      .map(([k, t]) => '<button data-rtab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
+
+  if (tab === "fine") {
+    const map = {};
+    ACTIVE_USERS().forEach(u => map[u.uid] = { u, total: 0, unpaid: 0, cnt: 0 });
+    fines.filter(f => !f.waived).forEach(f => {
+      const m = map[f.uid]; if (!m) return;
+      m.total += f.amount; m.cnt++;
+      if (f.status !== "paid") m.unpaid += f.amount;
+    });
+    const arr = Object.values(map).sort((a, b) => b.total - a.total || a.u.name.localeCompare(b.u.name, "ko"));
+    const max = Math.max(1, arr.length ? arr[0].total : 1);
+    const sum = arr.reduce((s, x) => s + x.total, 0);
+
+    h += '<div class="grid g2"><div class="stat acc-r"><div class="lb">' + M + '월 팀 전체</div>' +
+      '<div class="vl" style="font-size:19px">' + won(sum) + "</div></div>" +
+      '<div class="stat"><div class="lb">내 순위</div><div class="vl">' +
+      ((arr.findIndex(x => x.u.uid === p.uid) + 1) || "-") + "<span style='font-size:13px;color:var(--tx3)'>/" + arr.length + "</span></div></div></div>";
+
+    h += '<div class="sec-t">' + M + "월 벌금 순위</div><div class='card pad0'>" +
+      (arr.length ? arr.map((x, i) =>
+        '<div class="row">' +
+        '<div class="rk ' + (x.total > 0 ? (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") : "") + '">' + (i + 1) + "</div>" +
+        '<div class="sp"><div class="nm">' + esc(x.u.name) +
+        (x.u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") +
+        ' <span class="bdg ' + gradeInfo(x.u).color + '">' + esc(gradeOf(x.u)) + "</span></div>" +
+        '<div style="height:5px;background:#eef1f6;border-radius:3px;margin-top:6px;overflow:hidden">' +
+        '<div style="height:100%;width:' + Math.round(x.total / max * 100) + '%;background:linear-gradient(90deg,#ff8a7a,var(--dan));border-radius:3px"></div></div>' +
+        '<div class="ds">' + x.cnt + "건" + (x.unpaid ? " · 미납 " + won(x.unpaid) : " · 전액 납부") + "</div></div>" +
+        '<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:' + (x.total ? "var(--dan)" : "var(--tx3)") + '">' +
+        won(x.total) + "</div></div></div>").join("") : '<div class="empty">데이터가 없습니다</div>') + "</div>";
+  }
+
+  if (tab === "gaejik") {
+    const users = ACTIVE_USERS().slice().sort((a, b) => Number(b.gaejik || 0) - Number(a.gaejik || 0) || a.name.localeCompare(b.name, "ko"));
+    const max = Math.max(1, users.length ? Number(users[0].gaejik || 0) : 1);
+    h += '<div class="grid g2">' +
+      '<div class="stat acc-p"><div class="lb">내 개직 잔여</div><div class="vl">' + Number(p.gaejik || 0) + "</div>" +
+      '<div class="sub">매달 +' + S.monthlyGaejik + " · 무벌금 +" + S.cleanBonus + " · 생일 +" + S.birthdayGaejik + "</div></div>" +
+      '<div class="stat"><div class="lb">팀 전체 보유</div><div class="vl">' +
+      users.reduce((s, u) => s + Number(u.gaejik || 0), 0) + "</div></div></div>";
+    h += '<div class="sec-t">개직 보유 순위</div><div class="card pad0">' +
+      (users.length ? users.map((u, i) =>
+        '<div class="row"><div class="rk ' + (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") + '">' + (i + 1) + "</div>" +
+        '<div class="sp"><div class="nm">' + esc(u.name) + (u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") +
+        (u.birth && Number(u.birth.split("-")[1]) === new Date().getMonth() + 1 ? ' <span class="bdg p">🎂 이번달</span>' : "") + "</div>" +
+        '<div style="height:5px;background:#eef1f6;border-radius:3px;margin-top:6px;overflow:hidden">' +
+        '<div style="height:100%;width:' + Math.round(Number(u.gaejik || 0) / max * 100) + '%;background:linear-gradient(90deg,#b79cff,var(--pur));border-radius:3px"></div></div></div>' +
+        '<div style="text-align:right"><div style="font-size:19px;font-weight:800;color:var(--pur)">' + Number(u.gaejik || 0) + "</div>" +
+        (Auth.isAdmin() ? '<button class="btn xs" data-gj="' + u.uid + '" style="margin-top:4px">조정</button>' : "") + "</div></div>").join("")
+        : '<div class="empty">팀원이 없습니다</div>') + "</div>";
+  }
+
+  if (tab === "log") {
+    const logs = DB.all("glog").sort((a, b) => (b.at || 0) - (a.at || 0));
+    h += '<div class="card pad0">' +
+      (logs.length ? logs.slice(0, 100).map(l =>
+        '<div class="row"><span class="bdg ' + (l.delta > 0 ? "g" : "r") + '" style="min-width:38px;justify-content:center">' +
+        (l.delta > 0 ? "+" : "") + l.delta + "</span>" +
+        '<div class="sp"><div class="nm">' + esc(l.name) + ' <span style="color:var(--tx3);font-weight:600">· ' + esc(l.reason) + "</span></div>" +
+        '<div class="ds">' + tsFmtFull(l.at) + " · " + esc(l.by || "-") + " · 이후 " + l.after + "개</div></div>" +
+        (l.auto ? '<span class="bdg p">자동</span>' : '<span class="bdg n">수동</span>') + "</div>").join("")
+        : '<div class="empty">변동 내역이 없습니다</div>') + "</div>";
+  }
+  return h;
+}
+
+function bindRank() {
+  $$("[data-rtab]").forEach(b => b.onclick = () => { App.rankTab = b.dataset.rtab; render(); });
+  const shift = n => {
+    let [Y, M] = App.month.split("-").map(Number);
+    M += n; if (M < 1) { M = 12; Y--; } if (M > 12) { M = 1; Y++; }
+    App.month = Y + "-" + pad(M); render();
+  };
+  $("#rPrev").onclick = () => shift(-1);
+  $("#rNext").onclick = () => shift(1);
+  $("#rNow").onclick = () => { App.month = monthOf(today()); render(); };
+  $$("[data-gj]").forEach(b => b.onclick = () => openGaejikModal(b.dataset.gj));
+}
+
+function openGaejikModal(uid) {
+  const u = DB.get("users", uid); if (!u) return;
+  modal({
+    title: esc(u.name) + " 개직 조정",
+    body: '<div class="stat acc-p" style="margin-bottom:14px"><div class="lb">현재 잔여</div>' +
+      '<div class="vl">' + Number(u.gaejik || 0) + "개</div></div>" +
+      '<div class="fld"><label>증감</label>' +
+      '<div class="cnt"><button id="gjM">−</button><div class="v" id="gjV">+1</div><button id="gjP">＋</button></div></div>' +
+      '<div class="fld"><label>사유 <span style="color:var(--tx3);font-weight:600">(선택 · 비우면 "관리자 지급")</span></label>' +
+      '<input class="inp" id="gjR" placeholder="예: 특별 포상"></div>' +
+      '<div class="btn-row">' + ["연간 개직 부여", "특별 포상", "관리자 조정"].map(t =>
+        '<button class="btn xs" data-gr="' + t + '">' + t + "</button>").join("") + "</div>",
+    okText: "적용",
+    onOk: async () => {
+      const d = Number($("#gjV").textContent);
+      const r = $("#gjR").value.trim() || (d > 0 ? "관리자 지급" : "관리자 차감");
+      if (!d) { toast("증감 값을 지정해주세요", "err"); return false; }
+      if (Number(u.gaejik || 0) + d < 0) { toast("잔여가 0 미만이 될 수 없습니다", "err"); return false; }
+      await changeGaejik(uid, d, r);
+      toast("개직 " + (d > 0 ? "+" : "") + d + "개 반영됨", "ok");
+    },
+    after: () => {
+      const v = $("#gjV"); const set = n => v.textContent = (n > 0 ? "+" : "") + n;
+      $("#gjP").onclick = () => set(Math.min(30, Number(v.textContent) + 1));
+      $("#gjM").onclick = () => set(Math.max(-30, Number(v.textContent) - 1));
+      $$("[data-gr]").forEach(b => b.onclick = () => $("#gjR").value = b.dataset.gr);
+    }
+  });
+}
+
+/* ============================================================================
+   관리자
+   ============================================================================ */
+function viewAdmin() {
+  if (!Auth.isAdmin()) return '<div class="card">권한이 없습니다.</div>';
+  const tab = App.adminTab;
+  let h = '<div class="seg sm" style="margin-bottom:14px">' +
+    [["member", "팀원"], ["paylog", "납부로그"], ["holiday", "공휴일"], ["settings", "규칙"]]
+      .map(([k, t]) => '<button data-atab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
+  if (tab === "member") h += adminMembers();
+  if (tab === "paylog") h += adminPayLog();
+  if (tab === "holiday") h += adminHolidays();
+  if (tab === "settings") h += adminSettings();
+  return h;
+}
+
+function adminMembers() {
+  const S = SET();
+  const pend = USERS().filter(u => !u.approved && !u.disabled);
+  const act = ACTIVE_USERS();
+  const off = USERS().filter(u => u.disabled);
+  let h = "";
+  if (pend.length) {
+    h += '<div class="sec-t">가입 승인 대기 ' + pend.length + "명</div><div class='card pad0'>" +
+      pend.map(u => '<div class="row"><div class="avatar">' + esc(initial(u.name)) + "</div>" +
+        '<div class="sp"><div class="nm">' + esc(u.name) + "</div>" +
+        '<div class="ds">생일 ' + esc(u.birth || "-") + "</div></div>" +
+        '<button class="btn xs ok" data-appr="' + u.uid + '">승인</button>' +
+        '<button class="btn xs dan" data-rej="' + u.uid + '">거절</button></div>').join("") + "</div>";
+  }
+  h += '<div class="sec-t">팀원 ' + act.length + "명</div>" +
+    '<div class="banner i" style="font-size:12px">등급 · ' +
+    GRADE_ORDER.map(g => "<b>" + g + "</b> " + GRADES[g].desc).join(" / ") + "</div>" +
+    "<div class='card pad0'><div class='tw'><table style='min-width:620px'>" +
+    "<thead><tr><th>이름</th><th>집계시작</th><th>등급</th><th class='num'>개직</th><th class='num'>이번달 벌금</th><th></th></tr></thead><tbody>" +
+    act.map(u => {
+      const fs = collectFines({ uid: u.uid }).filter(f => f.date.startsWith(monthOf(today())) && !f.pending);
+      const bm = u.birth ? Number(u.birth.split("-")[1]) : 0;
+      return "<tr><td><b>" + esc(u.name) + "</b>" + (bm === new Date().getMonth() + 1 ? " 🎂" : "") + "</td>" +
+        "<td class='mono' style='font-size:11.5px;color:var(--tx3)'>" + (joinStart(u, S) ? fmtD(joinStart(u, S)) + " 부터" : "-") + "</td>" +
+        "<td><span class='bdg " + gradeInfo(u).color + "'>" + esc(gradeOf(u)) + "</span>" +
+        (gradeInfo(u).tl && (u.tlMembers || []).length ? "<div style='font-size:10.5px;color:var(--tx3);margin-top:3px'>담당 " + u.tlMembers.length + "명</div>" : "") + "</td>" +
+        "<td class='num'><b style='color:var(--pur)'>" + Number(u.gaejik || 0) + "</b></td>" +
+        "<td class='num mono'>" + won(sumFines(fs)) + "</td>" +
+        "<td><button class='btn xs' data-mem='" + u.uid + "'>관리</button></td></tr>";
+    }).join("") + "</tbody></table></div>" +
+    (act.length ? "" : '<div class="empty">승인된 팀원이 없습니다</div>') + "</div>";
+  if (off.length) {
+    h += '<div class="sec-t">비활성 ' + off.length + "명</div><div class='card pad0'>" +
+      off.map(u => '<div class="row"><div class="sp"><div class="nm" style="color:var(--tx3)">' + esc(u.name) + "</div></div>" +
+        '<button class="btn xs" data-on="' + u.uid + '">복구</button></div>').join("") + "</div>";
+  }
+  return h;
+}
+
+function adminPayLog() {
+  const all = collectFines({});
+  const submitted = all.filter(f => f.status === "submitted");
+  const paid = all.filter(f => f.status === "paid").sort((a, b) => (b.confirmedAt || 0) - (a.confirmedAt || 0));
+  const unpaidByUser = {};
+  ACTIVE_USERS().forEach(u => unpaidByUser[u.uid] = { u, amt: 0, cnt: 0 });
+  all.filter(f => !f.waived && !f.pending && f.status === "unpaid").forEach(f => {
+    const m = unpaidByUser[f.uid]; if (m) { m.amt += f.amount; m.cnt++; }
+  });
+
+  const card = (f, showConfirm) =>
+    '<div class="row">' +
+    (f.proof ? '<img src="' + f.proof + '" class="thumb sm" style="cursor:pointer" data-img="' + f.proof + '" data-imgt="' + esc(f.name) + ' 납부 캡쳐">'
+             : '<div class="thumb sm" style="display:flex;align-items:center;justify-content:center;color:var(--tx3)">—</div>') +
+    '<div class="sp" data-open-fine="' + f.id + '" style="cursor:pointer">' +
+    '<div class="nm">' + esc(f.name) + " · " + (KINDS[f.kind] || KINDS.etc).label + " " + won(f.amount) + "</div>" +
+    '<div class="ds">' + fmtD(f.date) + " · 제출 " + tsFmt(f.proofAt) +
+    (f.confirmedAt ? " · 확인 " + tsFmt(f.confirmedAt) + " (" + esc(f.confirmedBy || "") + ")" : "") + "</div></div>" +
+    (showConfirm ? '<button class="btn xs ok" data-pconf="' + f.id + '">확인</button>' : '<span class="bdg g">완료</span>') +
+    "</div>";
+
+  return '<div class="sec-t">납부 확인 대기 ' + submitted.length + "건</div><div class='card pad0'>" +
+    (submitted.length ? submitted.map(f => card(f, true)).join("") : '<div class="empty">대기 중인 건이 없습니다</div>') + "</div>" +
+    '<div class="sec-t">미납 현황</div><div class="card pad0">' +
+    (Object.values(unpaidByUser).filter(x => x.cnt).length
+      ? Object.values(unpaidByUser).filter(x => x.cnt).sort((a, b) => b.amt - a.amt).map(x =>
+        '<div class="row"><div class="avatar">' + esc(initial(x.u.name)) + "</div>" +
+        '<div class="sp"><div class="nm">' + esc(x.u.name) + '</div><div class="ds">' + x.cnt + "건 미납</div></div>" +
+        '<div style="font-weight:800;color:var(--dan)">' + won(x.amt) + "</div></div>").join("")
+      : '<div class="empty">미납자가 없습니다 🎉</div>') + "</div>" +
+    '<div class="sec-t">납부 완료 로그 (' + paid.length + "건)</div><div class='card pad0'>" +
+    (paid.length ? paid.slice(0, 60).map(f => card(f, false)).join("") : '<div class="empty">기록 없음</div>') + "</div>";
+}
+
+function adminHolidays() {
+  const H = HOLIDAYS();
+  const list = Object.values(H).sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+    .filter(x => x.date >= addDays(today(), -60));
+  return '<div class="banner i">공휴일로 등록된 날은 벌금이 부과되지 않습니다. 공휴일에 출근하는 날은 <b>근무일</b>로 지정하세요.</div>' +
+    '<div class="card"><div class="card-h"><h3>휴무일 / 근무일</h3><div class="sp"></div>' +
+    '<button class="btn sm pri" id="hAdd">+ 추가</button></div>' +
+    '<button class="btn sm" id="hPreset">🇰🇷 법정공휴일 한번에 넣기</button></div>' +
+    '<div class="card pad0"><div class="tw"><table style="min-width:480px">' +
+    "<thead><tr><th>날짜</th><th>명칭</th><th>구분</th><th></th></tr></thead><tbody>" +
+    (list.length ? list.map(x =>
+      "<tr><td class='mono'>" + fmtDL(x.date) + "</td><td>" + esc(x.name || "-") + "</td>" +
+      "<td>" + (x.work ? "<span class='bdg b'>근무일</span>" : "<span class='bdg r'>휴무일</span>") + "</td>" +
+      "<td><button class='btn xs' data-hedit='" + x.date + "'>수정</button> " +
+      "<button class='btn xs dan' data-hdel='" + x.date + "'>삭제</button></td></tr>").join("")
+      : "<tr><td colspan='4'><div class='empty'>등록된 공휴일이 없습니다</div></td></tr>") +
+    "</tbody></table></div></div>";
+}
+
+function adminSettings() {
+  const S = SET();
+  const num = (id, lb, v, hint, step) =>
+    '<div class="fld"><label>' + lb + '</label><input class="inp" type="number" id="' + id + '" value="' + v + '"' +
+    (step ? ' step="' + step + '"' : "") + ">" + (hint ? '<div class="hint">' + hint + "</div>" : "") + "</div>";
+  const tim = (id, lb, v, hint) =>
+    '<div class="fld"><label>' + lb + '</label><input class="inp" type="time" id="' + id + '" value="' + v + '">' +
+    (hint ? '<div class="hint">' + hint + "</div>" : "") + "</div>";
+
+  return '<div class="card"><div class="card-h"><h3>💳 계좌 · 기간</h3></div>' +
+    '<div class="fld"><label>벌금 입금 계좌</label><input class="inp" id="stAcct" value="' + esc(S.account) + '"></div>' +
+    '<div class="fld"><label>벌금 집계 시작일 (팀 전체)</label><input class="inp" type="date" id="stStart" value="' + esc(S.startDate || "") + '">' +
+    '<div class="hint">신규 가입자는 이 날짜와 무관하게 <b>본인 가입일 이후부터만</b> 집계됩니다.</div>' +
+    '<div class="hint">비워두면 각자 가입일부터 집계합니다. 도입일 지정을 권장합니다.</div></div></div>' +
+
+    '<div class="card"><div class="card-h"><h3>📸 출근 · 지각</h3></div>' +
+    tim("stOpen", "출근 등록 시작 시각", S.checkinOpen || "05:00", "이 시각 이전에는 출근 사진을 올릴 수 없습니다") +
+    tim("stAbsBy", "미출근 판정 시각", S.absentBy, "이 시각까지 사진이 없으면 미출근 처리") +
+    num("stAbsF", "미출근 벌금", S.absentFine, "", 1000) +
+    '<div class="hint" style="margin-bottom:10px">유형별 기준 시각 · 1분당 금액 · 상한은 아래 표에서 조정합니다.</div>' +
+    '<div class="tw"><table style="min-width:400px"><thead><tr><th>유형</th><th>기준시각</th><th class="num">1분당</th><th class="num">상한</th></tr></thead><tbody>' +
+    Object.keys(TYPES).map(t => {
+      const r = typeRule(S, t);
+      return "<tr><td>" + TYPES[t].icon + " <b>" + t + "</b></td>" +
+        "<td><input class='inp' type='time' style='padding:5px 6px;font-size:12px;width:104px' data-ts='" + t + "' value='" + r.start + "'" + (r.late ? "" : " disabled") + "></td>" +
+        "<td class='num'><input class='inp' type='number' step='500' style='padding:5px 6px;font-size:12px;width:88px;text-align:right' data-tp='" + t + "' value='" + r.perMin + "'" + (r.late ? "" : " disabled") + "></td>" +
+        "<td class='num'><input class='inp' type='number' step='10000' style='padding:5px 6px;font-size:12px;width:92px;text-align:right' data-tm='" + t + "' value='" + r.max + "'" + (r.late ? "" : " disabled") + "></td></tr>";
+    }).join("") + "</tbody></table></div></div>" +
+
+    '<div class="card"><div class="card-h"><h3>🖼 워킹사진</h3></div>' +
+    num("stPhotoN", "하루 최소 장수", S.photoMin) +
+    num("stPhotoF", "미달 시 벌금", S.photoFine, "", 1000) +
+    tim("stPhotoFrom", "인정 시작 시각", S.photoFrom) +
+    tim("stPhotoTo", "인정 종료 시각", S.photoTo || "23:59", "이 시간대에 올린 사진만 집계됩니다") + "</div>" +
+
+    '<div class="card"><div class="card-h"><h3>📋 일마감</h3></div>' +
+    tim("stClFrom", "인정 시작", S.closingFrom, "이 시각 이후 저장부터 인정") +
+    tim("stClTo", "인정 종료", S.closingTo) +
+    num("stCloseF", "미실행 시 벌금", S.closingFine, "", 1000) +
+    '<div class="fld"><label style="display:flex;align-items:center;gap:10px">개직(휴가)에도 일마감 진행' +
+    '<label class="sw"><input type="checkbox" id="stCloseAll"' + (S.closingForAll ? " checked" : "") + '><span class="tr"></span></label></label></div></div>' +
+
+    '<div class="card"><div class="card-h"><h3>🗓 출근보고</h3></div>' +
+    tim("stRepDl", "전날 마감 시각", S.reportDeadline) +
+    tim("stGjDl", "개직 마감 시각 (당일)", S.gaejikDeadline) +
+    tim("stRoll", "대상일 전환 시각", S.reportRollover, "대상일의 이 시각이 지나면 다음 근무일로 넘어갑니다") +
+    num("stRepF", "미제출 벌금", S.reportFine, "", 1000) + "</div>" +
+
+    '<div class="card"><div class="card-h"><h3>🎁 개직 자동지급</h3></div>' +
+    num("stMon", "매월 1일 기본 지급", S.monthlyGaejik) +
+    num("stClean", "전월 무벌금 보너스", S.cleanBonus, "전월에 벌금이 0원이면 추가 지급") +
+    num("stBday", "생일 달 지급", S.birthdayGaejik) +
+    '<button class="btn sm" id="stRunGrant">지금 자동지급 실행</button></div>' +
+
+    '<div class="card"><div class="card-h"><h3>🔀 근무유형별 적용</h3></div>' +
+    '<div class="tw"><table style="min-width:320px"><thead><tr><th>유형</th><th>출근</th><th>사진</th></tr></thead><tbody>' +
+    Object.keys(TYPES).map(t => {
+      const r = S.typeRules[t] || {};
+      return "<tr><td>" + TYPES[t].icon + " <b>" + t + "</b></td>" +
+        "<td><label class='sw'><input type='checkbox' data-tr='" + t + "|late'" + (r.late ? " checked" : "") + "><span class='tr'></span></label></td>" +
+        "<td><label class='sw'><input type='checkbox' data-tr='" + t + "|photo'" + (r.photo ? " checked" : "") + "><span class='tr'></span></label></td></tr>";
+    }).join("") + "</tbody></table></div></div>" +
+    '<button class="btn pri full" id="stSave" style="margin-bottom:12px">설정 저장</button>';
+}
+
+function bindAdmin() {
+  $$("[data-atab]").forEach(b => b.onclick = () => { App.adminTab = b.dataset.atab; render(); });
+  $$("[data-appr]").forEach(b => b.onclick = async () => {
+    try { await DB.set("users", b.dataset.appr, { approved: true }); toast("승인 완료 · 등급은 후보자입니다 (팀원 → 관리에서 변경)", "ok"); }
+    catch (e) { toast(cleanErr(e), "err"); }
+  });
+  $$("[data-rej]").forEach(b => b.onclick = () => confirmM("가입을 거절하시겠습니까?", async () => {
+    await DB.set("users", b.dataset.rej, { disabled: true, approved: false }); toast("거절됨");
+  }));
+  $$("[data-on]").forEach(b => b.onclick = async () => {
+    await DB.set("users", b.dataset.on, { disabled: false, approved: true }); toast("복구됨", "ok");
+  });
+  $$("[data-mem]").forEach(b => b.onclick = () => openMemberModal(b.dataset.mem));
+  $$("[data-pconf]").forEach(b => b.onclick = async () => {
+    const f = collectFines({}).find(x => x.id === b.dataset.pconf); if (!f) return;
+    await DB.set("fines", f.id, Object.assign(baseFine(f), {
+      status: "paid", confirmedAt: Date.now(), confirmedBy: Auth.profile.name,
+      proof: f.proof, proofAt: f.proofAt, batch: f.batch }));
+    toast("납부 확인 완료", "ok");
+  });
+
+  const ha = $("#hAdd"); if (ha) ha.onclick = () => openHolidayModal(null);
+  $$("[data-hedit]").forEach(b => b.onclick = () => openHolidayModal(b.dataset.hedit));
+  $$("[data-hdel]").forEach(b => b.onclick = () => confirmM("삭제하시겠습니까?", async () => {
+    await DB.del("holidays", b.dataset.hdel); toast("삭제됨");
+  }));
+  const hp = $("#hPreset"); if (hp) hp.onclick = presetHolidays;
+
+  const ss = $("#stSave");
+  if (ss) ss.onclick = async () => {
+    const tr = {};
+    $$("[data-tr]").forEach(c => { const [t, k] = c.dataset.tr.split("|"); tr[t] = tr[t] || {}; tr[t][k] = c.checked; });
+    $$("[data-ts]").forEach(c => { const t = c.dataset.ts; tr[t] = tr[t] || {}; tr[t].start = c.value || "08:00"; });
+    $$("[data-tp]").forEach(c => { const t = c.dataset.tp; tr[t] = tr[t] || {}; tr[t].perMin = +c.value || 0; });
+    $$("[data-tm]").forEach(c => { const t = c.dataset.tm; tr[t] = tr[t] || {}; tr[t].max = +c.value || 0; });
+    await DB.set("settings", "global", {
+      account: $("#stAcct").value.trim(), startDate: $("#stStart").value || "",
+      checkinOpen: $("#stOpen").value,
+      absentBy: $("#stAbsBy").value, absentFine: +$("#stAbsF").value || 0,
+      photoMin: +$("#stPhotoN").value || 0, photoFine: +$("#stPhotoF").value || 0,
+      photoFrom: $("#stPhotoFrom").value, photoTo: $("#stPhotoTo").value,
+      closingFrom: $("#stClFrom").value, closingTo: $("#stClTo").value,
+      closingFine: +$("#stCloseF").value || 0, closingForAll: $("#stCloseAll").checked,
+      reportDeadline: $("#stRepDl").value, gaejikDeadline: $("#stGjDl").value,
+      reportRollover: $("#stRoll").value, reportFine: +$("#stRepF").value || 0,
+      monthlyGaejik: +$("#stMon").value || 0, cleanBonus: +$("#stClean").value || 0, birthdayGaejik: +$("#stBday").value || 0,
+      typeRules: tr, updatedAt: Date.now()
+    });
+    toast("설정이 저장되었습니다", "ok");
+  };
+  const rg = $("#stRunGrant");
+  if (rg) rg.onclick = async () => { const n = await runMonthlyGrant(true); toast(n ? n + "건 지급 완료" : "이번 달 지급할 대상이 없습니다", "ok"); };
+}
+
+function openMemberModal(uid) {
+  const u = DB.get("users", uid); if (!u) return;
+  const fs = collectFines({ uid });
+  const others = ACTIVE_USERS().filter(x => x.uid !== uid);
+  modal({
+    title: esc(u.name) + " 관리",
+    body:
+      '<div class="row" style="padding:0 0 14px;border-bottom:1px solid var(--line)">' +
+      '<div class="avatar" style="width:42px;height:42px">' + esc(initial(u.name)) + "</div>" +
+      '<div class="sp"><div class="nm" style="font-size:16px">' + esc(u.name) + "</div></div></div>" +
+      '<div class="grid g2" style="margin:14px 0">' +
+      '<div class="stat acc-p"><div class="lb">개직 잔여</div><div class="vl">' + Number(u.gaejik || 0) + "</div></div>" +
+      '<div class="stat acc-r"><div class="lb">미납 벌금</div><div class="vl" style="font-size:19px">' +
+      won(sumFines(fs, f => f.status !== "paid")) + "</div></div></div>" +
+      '<div class="fld"><label>생년월일</label><input class="inp" type="date" id="meBirth" value="' + esc(u.birth || "") + '"></div>' +
+      '<div class="fld"><label>등급</label><select class="inp" id="meGrade">' +
+      GRADE_ORDER.map(g => "<option value='" + g + "'" + (gradeOf(u) === g ? " selected" : "") + ">" + g + " — " + GRADES[g].desc + "</option>").join("") +
+      "</select></div>" +
+      '<div class="fld" id="tlWrap" style="' + (gradeInfo(u).tl && !GRADES[gradeOf(u)].admin ? "" : "display:none") + '">' +
+      '<label>담당 팀원 (TL이 상세를 볼 수 있는 인원)</label>' +
+      '<div style="max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--rs);padding:8px">' +
+      (others.length ? others.map(x =>
+        '<label style="display:flex;align-items:center;gap:8px;padding:5px 3px;font-size:13.5px">' +
+        '<input type="checkbox" data-tlm="' + x.uid + '"' + ((u.tlMembers || []).indexOf(x.uid) >= 0 ? " checked" : "") + '> ' +
+        esc(x.name) + "</label>").join("") : '<div class="hint">다른 팀원이 없습니다</div>') + "</div></div>" +
+      '<div class="btn-row"><button class="btn sm" id="meGj">개직 조정</button>' +
+      '<button class="btn sm" id="meFines">벌금 보기</button>' +
+      '<button class="btn sm dan" id="meOff">비활성화</button></div>',
+    okText: "저장",
+    onOk: async () => {
+      const grade = $("#meGrade").value;
+      const tl = $$("[data-tlm]").filter(c => c.checked).map(c => c.dataset.tlm);
+      await DB.set("users", uid, {
+        birth: $("#meBirth").value,
+        grade, tlMembers: grade === "TL" ? tl : (u.tlMembers || [])
+      });
+      toast("저장됨", "ok");
+    },
+    after: () => {
+      $("#meGrade").onchange = e => {
+        $("#tlWrap").style.display = e.target.value === "TL" ? "" : "none";
+      };
+      $("#meGj").onclick = () => { closeModal(); openGaejikModal(uid); };
+      $("#meFines").onclick = () => { closeModal(); fineFilterUser = uid; App.finesTab = "all"; go("fines"); };
+      $("#meOff").onclick = () => confirmM("비활성화하면 목록과 집계에서 제외됩니다.", async () => {
+        await DB.set("users", uid, { disabled: true }); closeModal(); toast("비활성화됨");
+      });
+    }
+  });
+}
+
+function openHolidayModal(date) {
+  const H = HOLIDAYS(), ex = date ? H[date] : null;
+  modal({
+    title: date ? "공휴일 수정" : "공휴일 / 근무일 추가",
+    body: '<div class="fld"><label>날짜</label><input class="inp" type="date" id="hD" value="' + esc(date || today()) + '"' + (date ? " disabled" : "") + "></div>" +
+      '<div class="fld"><label>명칭</label><input class="inp" id="hN" value="' + esc((ex && ex.name) || "") + '" placeholder="예: 광복절"></div>' +
+      '<div class="fld"><label>구분</label><select class="inp" id="hW">' +
+      '<option value="off"' + (ex && ex.work ? "" : " selected") + ">휴무일 (벌금 미부과)</option>" +
+      '<option value="on"' + (ex && ex.work ? " selected" : "") + ">근무일 (평소처럼 집계)</option></select></div>",
+    okText: "저장",
+    onOk: async () => {
+      const d = date || $("#hD").value;
+      if (!d) { toast("날짜를 선택해주세요", "err"); return false; }
+      await DB.set("holidays", d, { date: d, name: $("#hN").value.trim(), work: $("#hW").value === "on" });
+      toast("저장됨", "ok");
+    }
+  });
+}
+
+const KR_HOLIDAYS = { "01-01": "신정", "03-01": "삼일절", "05-05": "어린이날", "06-06": "현충일",
+  "08-15": "광복절", "10-03": "개천절", "10-09": "한글날", "12-25": "성탄절" };
+const KR_LUNAR = {
+  2026: [["02-16", "설날 연휴"], ["02-17", "설날"], ["02-18", "설날 연휴"], ["05-24", "부처님오신날"], ["09-24", "추석 연휴"], ["09-25", "추석"], ["09-26", "추석 연휴"]],
+  2027: [["02-06", "설날 연휴"], ["02-07", "설날"], ["02-08", "설날 연휴"], ["05-13", "부처님오신날"], ["09-14", "추석 연휴"], ["09-15", "추석"], ["09-16", "추석 연휴"]]
+};
+async function presetHolidays() {
+  const Y = new Date().getFullYear(); let n = 0;
+  for (const y of [Y, Y + 1]) {
+    for (const md in KR_HOLIDAYS) {
+      const d = y + "-" + md;
+      if (!DB.get("holidays", d)) { await DB.set("holidays", d, { date: d, name: KR_HOLIDAYS[md], work: false }); n++; }
+    }
+    for (const [md, nm] of (KR_LUNAR[y] || [])) {
+      const d = y + "-" + md;
+      if (!DB.get("holidays", d)) { await DB.set("holidays", d, { date: d, name: nm, work: false }); n++; }
+    }
+  }
+  toast(n + "개 공휴일이 등록되었습니다", "ok");
+}
+
+/* ============================================================================
+   화면별 바인딩
+   ============================================================================ */
+function bindView() {
+  switch (App.view) {
+    case "home": bindHome(); break;
+    case "checkin": bindCheckin(); break;
+    case "report": bindReport(); break;
+    case "fines": bindFines(); break;
+    case "cal": bindCal(); break;
+    case "rank": bindRank(); break;
+    case "admin": bindAdmin(); break;
+  }
+}
+function bindHome() {
+  const pn = $("#payNow");
+  if (pn) pn.onclick = () => { const l = unpaidOf(Auth.profile.uid); if (l.length) openPayModal(l); else toast("미납 벌금이 없습니다", "ok"); };
+}
+
+/* ============================================================================
+   개직 자동지급 — 매월 1일 기본 + 전월 무벌금 보너스 + 생일
+   ============================================================================ */
+async function runMonthlyGrant(force) {
+  if (!Auth.isAdmin()) return 0;
+  const S = SET();
+  const ym = monthOf(today());
+  const pm = prevMonth(ym);
+  const Y = new Date().getFullYear(), M = new Date().getMonth() + 1;
+  let n = 0;
+
+  for (const u of ACTIVE_USERS()) {
+    if (!force && u.lastGrant === ym) continue;
+    if (u.lastGrant === ym && !force) continue;
+
+    let total = 0;
+    const parts = [];
+
+    if (u.lastGrant !== ym) {
+      if (Number(S.monthlyGaejik) > 0) { total += Number(S.monthlyGaejik); parts.push("월 정기 +" + S.monthlyGaejik); }
+
+      /* 전월 무벌금 보너스 (전월에 이미 소속돼 있던 사람만) */
+      const joinedYM = u.joinedAt ? monthOf(dstr(new Date(u.joinedAt))) : ym;
+      if (Number(S.cleanBonus) > 0 && joinedYM <= pm) {
+        const lastDay = new Date(Number(pm.split("-")[0]), Number(pm.split("-")[1]), 0).getDate();
+        const pf = collectFines({ uid: u.uid, from: pm + "-01", to: pm + "-" + pad(lastDay) });
+        const amt = sumFines(pf);
+        if (amt === 0) { total += Number(S.cleanBonus); parts.push("전월 무벌금 +" + S.cleanBonus); }
+      }
+    }
+
+    /* 생일 달 */
+    if (Number(S.birthdayGaejik) > 0 && u.birth && Number(String(u.birth).split("-")[1]) === M && Number(u.bdayYear || 0) < Y) {
+      total += Number(S.birthdayGaejik);
+      parts.push("🎂 생일 +" + S.birthdayGaejik);
+    }
+
+    if (total > 0) {
+      const after = Number(u.gaejik || 0) + total;
+      const patch = { gaejik: after, lastGrant: ym };
+      if (parts.some(x => x.indexOf("생일") >= 0)) patch.bdayYear = Y;
+      await DB.set("users", u.uid, patch);
+      await DB.add("glog", {
+        uid: u.uid, name: u.name, delta: total, after,
+        reason: ym.replace("-", "년 ") + "월 자동지급 · " + parts.join(" / "),
+        auto: true, by: "시스템", at: Date.now(), date: today()
+      });
+      n++;
+    } else if (u.lastGrant !== ym) {
+      await DB.set("users", u.uid, { lastGrant: ym });
+    }
+  }
+  return n;
+}
+
+/* ============================================================================
+   프로필 / 렌더 보조
+   ============================================================================ */
+let _rt = null, _pendingR = false;
+function scheduleRender() {
+  clearTimeout(_rt);
+  _rt = setTimeout(() => {
+    if ($("#ovl")) { _pendingR = true; return; }
+    const a = document.activeElement;
+    let key = null, ss = null;
+    if (a && a.dataset && a.dataset.ct) key = '[data-ct="' + a.dataset.ct + '"]';
+    else if (a && a.dataset && a.dataset.cktx) key = '[data-cktx="' + a.dataset.cktx + '"]';
+    else if (a && a.id) key = "#" + a.id;
+    try { ss = a && a.selectionStart; } catch (e) { }
+    render();
+    if (key) { const el = $(key); if (el) { try { el.focus(); if (ss != null && el.setSelectionRange) el.setSelectionRange(ss, ss); } catch (e) { } } }
+  }, 160);
+}
+const _closeModal = closeModal;
+closeModal = function () { _closeModal(); if (_pendingR) { _pendingR = false; scheduleRender(); } };
+
+function syncProfile() {
+  if (!Auth.user) { Auth.profile = null; return; }
+  Auth.profile = DB.get("users", Auth.user.uid);
+}
+
+/* ============================================================================
+   부팅 - With Partners 로그인 세션을 그대로 이어받는다. 이 페이지 자체의 회원가입/
+   로그인/승인 대기 화면은 없으며, 로그인되어 있지 않으면 requireLogin()이
+   자동으로 login.html로 보낸다.
+   ============================================================================ */
+let _rtStarted = false;
+async function afterSignedIn(uid, birthFromSignup) {
+  try {
+    await ensureMyAttendanceProfile(uid, birthFromSignup);
+    await Promise.all([DB.loadAll(), refreshMainProfile()]);
+    if (!_rtStarted) { DB.subscribeRT(); _rtStarted = true; }
+  } catch (e) { console.error(e); toast(cleanErr(e), "err"); }
+}
+
+/** 이 팀원의 attendance_profiles 행이 아직 없으면(=근태 페이지 첫 방문) 기본값으로 하나 만든다. */
+async function ensureMyAttendanceProfile(uid, birthFromSignup) {
+  const { data, error } = await DB.sb.from("attendance_profiles").select("uid").eq("uid", uid).maybeSingle();
+  if (error) { console.warn(error.message); return; }
+  if (!data) {
+    const row = { uid };
+    if (birthFromSignup) row.birth = birthFromSignup;
+    const { error: insErr } = await DB.sb.from("attendance_profiles").insert(row);
+    if (insErr) console.warn(insErr.message);
+  }
+}
+
+DB.mode = "sb";
+DB.sb = supabaseClient;
+
+(async function boot() {
+  DB.onChange(() => { syncProfile(); scheduleRender(); });
+
+  const session = await requireLogin(); // assets/supabase-client.js - 미로그인이면 login.html로 이동
+  if (!session) return;
+
+  const mainProfile = await getMyProfile(); // assets/supabase-client.js
+  if (!mainProfile || mainProfile.approval_status !== "approved") {
+    App.booting = false;
+    $("#root").innerHTML =
+      '<div class="auth"><div class="auth-box" style="text-align:center">' +
+      '<div class="auth-logo"><div class="ic">⏳</div><h1>승인 대기중</h1>' +
+      '<p>관리자 승인 후 이용할 수 있습니다.<br>승인 관련 문의는 관리자에게 해주세요.</p></div>' +
+      '<button class="btn full" id="pOut" style="margin-top:10px">로그아웃</button></div></div>';
+    const pOut = $("#pOut"); if (pOut) pOut.onclick = () => Auth.logout();
+    return;
+  }
+
+  const birthFromSignup = (session.user.user_metadata && session.user.user_metadata.birth) || null;
+  Auth.user = { uid: session.user.id, email: session.user.email };
+  Auth.mainProfile = mainProfile;
+
+  supabaseClient.auth.onAuthStateChange((evt) => {
+    if (evt === "SIGNED_OUT") window.location.href = "login.html";
+  });
+
+  await afterSignedIn(Auth.user.uid, birthFromSignup);
+  App.booting = false;
+  syncProfile();
+  render();
+  setTimeout(() => { try { runMonthlyGrant(false); } catch (e) { } }, 3000);
+
+  setInterval(() => {
+    if (Auth.user && !document.hidden) Promise.all([DB.loadAll(), refreshMainProfile()]).catch(() => { });
+  }, 90000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Auth.user) Promise.all([DB.loadAll(), refreshMainProfile()]).catch(() => { });
+  });
+})();
+
+const _render = render;
+render = function () {
+  if (!App.booting && Auth.user && DB.ready && !DB.get("users", Auth.user.uid)) {
+    const now = Date.now();
+    if (!window._missSince) window._missSince = now;
+    $("#root").innerHTML = bootScreen();
+    setTimeout(() => { DB.loadAll().catch(() => render()); }, 1300);
+    return;
+  }
+  window._missSince = 0;
+  _render();
+};
+
+</script>
+</body>
+</html>
