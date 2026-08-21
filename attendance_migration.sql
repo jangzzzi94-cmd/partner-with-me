@@ -234,3 +234,26 @@ $$;
 
 revoke all on function public.get_team_names() from public;
 grant execute on function public.get_team_names() to authenticated;
+
+/* ---------------------------------------------------------------------------
+   10) fee_start - the date fine accrual actually starts for a member.
+      Previously fine accrual always started at joined_at, so promoting a
+      long-time existing member from 후보자(exempt) to AP/TL(fined) would
+      retroactively generate fines for their whole past history. fee_start
+      lets the app record "the day this member's grade actually became
+      fine-liable" and use max(joined_at, fee_start) as the real start date.
+      New members never get this set (stays null), so their fee window is
+      still governed purely by joined_at, as before.
+   --------------------------------------------------------------------------- */
+alter table public.attendance_profiles
+  add column if not exists fee_start date;
+
+/* ---------------------------------------------------------------------------
+   11) hidden - admin can hide a member from the team-fine ("벌금") page's
+      team-wide list without deactivating them (they still check in, still
+      get graded/fined normally - only the fines tab's "전체 팀원" list and
+      filter dropdown skip them). A hidden member still sees their own fines
+      when they open the page themselves.
+   --------------------------------------------------------------------------- */
+alter table public.attendance_profiles
+  add column if not exists hidden boolean not null default false;

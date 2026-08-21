@@ -536,7 +536,11 @@ function joinStart(u, S) {
   if (!u || !u.joinedAt) return "";
   const jd = dstr(new Date(u.joinedAt));
   // 그날 출근 등록창(기본 05:00)이 열리기 전에 가입했다면 당일부터, 아니면 다음날부터
-  return u.joinedAt <= atTime(jd, (S && S.checkinOpen) || "05:00") ? jd : addDays(jd, 1);
+  const base = u.joinedAt <= atTime(jd, (S && S.checkinOpen) || "05:00") ? jd : addDays(jd, 1);
+  // feeStart: 벌금이 면제되는 등급(후보자/SM)에서 벌금이 적용되는 등급(AP/TL)으로 승급된 시점.
+  // 가입일보다 늦게 승급된 기존 회원이라면 승급일부터만 집계해, 승급 이전 과거 기간에
+  // 벌금이 소급 적용되지 않게 한다. 새로 가입한 사람은 feeStart가 없으므로 가입일 그대로 적용된다.
+  return (u.feeStart && u.feeStart > base) ? u.feeStart : base;
 }
 
 function fineId(uid, date, kind) { return uid + "__" + date + "__" + kind; }
@@ -545,10 +549,13 @@ function dayId(uid, date) { return uid + "__" + date; }
 /* ============================================================================
    데이터 레이어
    ============================================================================ */
+/* uid/date: 각 테이블이 실제로 갖고 있는 컬럼만 표시 (attendance_holidays/settings는 uid도
+   date도 없는 id+data 전용 테이블이라, 없는 컬럼을 upsert에 같이 보내면 PostgREST가 스키마
+   캐시 오류를 낸다 - "Could not find the 'date' column of 'attendance_glog'..." 같은 식). */
 const TABLES = {
-  daily:    { table: "attendance_daily",    json: true },
-  fines:    { table: "attendance_fines",    json: true },
-  glog:     { table: "attendance_glog",     json: true },
+  daily:    { table: "attendance_daily",    json: true, uid: true, date: true },
+  fines:    { table: "attendance_fines",    json: true, uid: true },
+  glog:     { table: "attendance_glog",     json: true, uid: true },
   holidays: { table: "attendance_holidays", json: true },
   settings: { table: "attendance_settings", json: true }
 };
@@ -557,13 +564,15 @@ const TABLES = {
  *        last_grant, disabled, joined_at } - merged from get_team_names() + attendance_profiles */
 function rowToUser(r) {
   return {
-    id: r.id, uid: r.id, email: r.email || "", name: r.name,
+    id: r.id, uid: r.id, email: r.email || "", name: r.name || "",
     birth: r.birth || "", grade: r.role === "admin" ? "SM" : (r.grade || "후보자"),
     role: r.role, approved: true, disabled: !!r.disabled,
     gaejik: Number(r.gaejik || 0), bdayYear: Number(r.bday_year || 0),
     checklist: Array.isArray(r.checklist) ? r.checklist : [],
     tlMembers: Array.isArray(r.tl_members) ? r.tl_members : [],
     lastGrant: r.last_grant || "",
+    feeStart: r.fee_start || "",
+    hidden: !!r.hidden,
     joinedAt: r.joined_at ? new Date(r.joined_at).getTime() : 0
   };
 }
@@ -578,6 +587,8 @@ function userToAttendanceRow(d) {
   if ("checklist" in d) o.checklist = d.checklist || [];
   if ("tlMembers" in d) o.tl_members = d.tlMembers || [];
   if ("lastGrant" in d) o.last_grant = d.lastGrant || null;
+  if ("feeStart" in d) o.fee_start = d.feeStart || null;
+  if ("hidden" in d) o.hidden = !!d.hidden;
   return o;
 }
 function rowToDoc(r) { return Object.assign({}, r.data || {}, { id: r.id }); }
@@ -661,7 +672,9 @@ DB.set = async function (col, id, data) {
   } else {
     const T = TABLES[col];
     const body = Object.assign({}, merged); delete body.id;
-    const row = { id, uid: body.uid || null, date: body.date || null, data: body };
+    const row = { id, data: body };
+    if (T.uid) row.uid = body.uid || null;
+    if (T.date) row.date = body.date || null;
     ({ error } = await this.sb.from(T.table).upsert(row, { onConflict: "id" }));
   }
   if (error) {
@@ -1173,8 +1186,8 @@ function viewCheckin() {
       return t + " " + r.start + "(분당 " + (r.perMin / 10000 >= 1 ? (r.perMin / 10000) + "만" : (r.perMin / 1000) + "천") + "원·최대 " + (r.max / 10000) + "만)";
     }).join(" · ") + " · " + S.absentBy + " 미등록시 미출근 " + won(S.absentFine) + "</div></div>";
 
-  /* 내 출근 등록 */
-  if (wd && myRule.late) {
+  /* 내 출근 등록 — 관리자(SM)는 체크만 하는 역할이라 본인 출근 등록 UI는 표시하지 않는다 */
+  if (wd && myRule.late && !gradeInfo(p).admin) {
     const at = me.checkinAt, hm = tsHM(at);
     const diff = at ? hm2min(hm) - hm2min(myRule.start) : null;
     const fine = diff > 0 ? Math.min(diff * myRule.perMin, myRule.max) : 0;
@@ -1183,14 +1196,14 @@ function viewCheckin() {
     const beforeOpen = isToday && Date.now() < openTs;
 
     h += '<div class="card"><div class="card-h"><h3>📸 내 출근</h3><div class="sp"></div>' +
-      (at ? (diff > 0 ? '<span class="bdg r">' + diff + "분 지각</span>" : '<span class="bdg g">정상 출근</span>')
+      (at ? (diff > 0 ? '<span class="bdg r">' + diff + "분 지각</span>" : '<span class="bdg g">출근완료</span>')
           : (overCut ? '<span class="bdg r">미출근</span>' : '<span class="bdg y">미등록</span>')) + "</div>";
 
     if (at) {
       h += '<div class="banner ' + (diff > 0 ? "d" : "s") + '">' +
         "등록 시각 <b>" + hm + "</b> · " + (me.type || "출근") + " 기준 <b>" + myRule.start + "</b>" +
         (diff > 0 ? " 대비 <b>" + diff + "분</b> 초과 → 벌금 <b>" + won(fine) + "</b>"
-                  : " 내 정상 출근입니다 👍") + "</div>";
+                  : " 내 출근완료 처리되었습니다 👍") + "</div>";
       if (me.checkinPhoto)
         h += '<img src="' + me.checkinPhoto + '" class="thumb" style="margin-bottom:10px" data-img="' + me.checkinPhoto + '" data-imgt="내 출근 · ' + hm + '">';
       if (isToday) h += '<button class="btn full sm" id="ckReUp">사진 다시 올리기</button>';
@@ -1208,8 +1221,8 @@ function viewCheckin() {
     h += '<input type="file" accept="image/*" capture="environment" id="ckFile" class="hide"></div>';
   }
 
-  /* 전체 출근 현황 — 모든 회원 공개 */
-  const users = ACTIVE_USERS();
+  /* 전체 출근 현황 — 모든 회원 공개 (관리자는 체크만 하는 역할이라 목록에서 제외) */
+  const users = ACTIVE_USERS().filter(u => !gradeInfo(u).admin);
   const rows = users.map(u => {
     const d = DB.get("daily", dayId(u.uid, date)) || {};
     const r = typeRule(S, d.type);
@@ -1565,7 +1578,11 @@ let fineFilterUser = "all", fineMonth = "all", fineSel = new Set();
 
 function viewFines() {
   const admin = Auth.isAdmin(), S = SET(), p = Auth.profile;
-  const all = admin ? collectFines({}) : collectFines({ uid: p.uid });
+  // 관리자가 "숨김" 처리한 팀원은 팀벌금 페이지(전체 목록)에서 제외한다.
+  // 본인이 스스로 볼 때는(비관리자 뷰) 숨김 여부와 상관없이 항상 자기 벌금은 보인다.
+  const all = admin
+    ? collectFines({}).filter(f => !(DB.get("users", f.uid) || {}).hidden)
+    : collectFines({ uid: p.uid });
   const tab = App.finesTab;
 
   let list = all.filter(f => !f.pending);
@@ -1593,7 +1610,7 @@ function viewFines() {
   h += '<div class="btn-row" style="margin-bottom:12px">' +
     (admin ? "<select class='inp' id='fUser' style='flex:1;min-width:118px;padding:8px 26px 8px 10px;font-size:13px'>" +
       "<option value='all'>전체 팀원</option>" +
-      ACTIVE_USERS().map(u => "<option value='" + u.uid + "'" + (fineFilterUser === u.uid ? " selected" : "") + ">" + esc(u.name) + "</option>").join("") + "</select>" : "") +
+      ACTIVE_USERS().filter(u => !u.hidden).map(u => "<option value='" + u.uid + "'" + (fineFilterUser === u.uid ? " selected" : "") + ">" + esc(u.name) + "</option>").join("") + "</select>" : "") +
     "<select class='inp' id='fMon' style='flex:1;min-width:118px;padding:8px 26px 8px 10px;font-size:13px'>" +
     "<option value='all'>전체 기간</option>" +
     months.map(m => "<option value='" + m + "'" + (fineMonth === m ? " selected" : "") + ">" + m.replace("-", "년 ") + "월</option>").join("") + "</select>" +
@@ -2411,6 +2428,9 @@ function openMemberModal(uid) {
         '<label style="display:flex;align-items:center;gap:8px;padding:5px 3px;font-size:13.5px">' +
         '<input type="checkbox" data-tlm="' + x.uid + '"' + ((u.tlMembers || []).indexOf(x.uid) >= 0 ? " checked" : "") + '> ' +
         esc(x.name) + "</label>").join("") : '<div class="hint">다른 팀원이 없습니다</div>') + "</div></div>" +
+      '<div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+      '<input type="checkbox" id="meHidden"' + (u.hidden ? " checked" : "") + '> 숨김' +
+      '<span class="hint" style="margin:0">체크하면 팀벌금 페이지 목록에서 이 사람이 빠집니다</span></label></div>' +
       '<div class="btn-row"><button class="btn sm" id="meGj">개직 조정</button>' +
       '<button class="btn sm" id="meFines">벌금 보기</button>' +
       '<button class="btn sm dan" id="meOff">비활성화</button></div>',
@@ -2418,10 +2438,17 @@ function openMemberModal(uid) {
     onOk: async () => {
       const grade = $("#meGrade").value;
       const tl = $$("[data-tlm]").filter(c => c.checked).map(c => c.dataset.tlm);
-      await DB.set("users", uid, {
+      const patch = {
         birth: $("#meBirth").value,
-        grade, tlMembers: grade === "TL" ? tl : (u.tlMembers || [])
-      });
+        grade, tlMembers: grade === "TL" ? tl : (u.tlMembers || []),
+        hidden: $("#meHidden").checked
+      };
+      // 벌금 면제 등급(후보자/SM)에서 벌금 적용 등급(AP/TL)으로 새로 승급하는 경우에만
+      // 오늘부터 벌금 집계를 시작하도록 기록한다 (과거 기간 소급 방지).
+      if (!gradeInfo(u).fine && GRADES[grade] && GRADES[grade].fine) {
+        patch.feeStart = today();
+      }
+      await DB.set("users", uid, patch);
       toast("저장됨", "ok");
     },
     after: () => {
