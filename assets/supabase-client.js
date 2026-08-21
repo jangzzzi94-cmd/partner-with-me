@@ -109,6 +109,17 @@ async function adminAddPoints(userId, amount, note){
     return { ok:true, points: data };
 }
 
+// 근태(출근보고) 페이지의 관리자가 벌금 "포인트납입" 처리 시 실제 포인트를 차감한다.
+// DB 함수(attendance_deduct_points_for_fine)가 차감과 동시에 point_logs 테이블에 기록을 남기고,
+// 호출한 사람이 관리자가 아니면 서버 쪽에서 거부한다.
+async function attendanceDeductPointsForFine(userId, amount, note){
+    const { data, error } = await supabaseClient.rpc("attendance_deduct_points_for_fine", {
+        p_user_id: userId, p_amount: amount, p_note: note || null,
+    });
+    if(error) return { ok:false, message: error.message };
+    return { ok:true, points: data };
+}
+
 // 포인트 지급/사용 로그를 최신순으로 가져온다(point_logs 테이블, RLS로 관리자만 조회 가능).
 async function getPointLogs(limit){
     const { data, error } = await supabaseClient
