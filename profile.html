@@ -34,6 +34,10 @@
       <label>별명</label>
       <input type="text" id="nicknameInput" maxlength="20" placeholder="예: 김대박 설계사">
     </div>
+    <div class="field">
+      <label>생년월일 <span style="font-weight:400;opacity:.6;font-size:12px;">(선택, 팀 벌금/근태 페이지의 생일 지급 등에 사용)</span></label>
+      <input type="text" id="birthInput" inputmode="numeric" maxlength="10" placeholder="1994/05/06">
+    </div>
     <button type="submit" class="btn-primary" id="saveBtn">저장</button>
   </form>
   <div class="msg" id="msg"></div>
@@ -62,6 +66,7 @@
 <script>
 let myProfileForCover = null;
 let coverStylesCache = [];
+let myAttendanceBirthLoaded = null; // 근태 프로필에 이미 저장돼 있던 생년월일(ISO) - 불필요한 attendance_profiles 행 생성을 피하기 위해 기억해둔다.
 
 function escapeHtml(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
@@ -114,10 +119,24 @@ async function selectCoverStyle(styleId){
   msg.textContent = '표지 스타일이 저장되었습니다.';
 }
 
+// 생년월일 입력칸: 숫자만 입력받아 1994/05/06 형태로 자동으로 슬래시를 붙여준다.
+// (signup.html과 동일한 방식 - 달력 위젯 대신 직접 타이핑)
+const birthInput = document.getElementById('birthInput');
+birthInput.addEventListener('input', (e)=>{
+  const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
+  let out = digits;
+  if(digits.length > 4) out = digits.slice(0,4) + '/' + digits.slice(4);
+  if(digits.length > 6) out = digits.slice(0,4) + '/' + digits.slice(4,6) + '/' + digits.slice(6);
+  e.target.value = out;
+});
+
 (async ()=>{
   const session = await requireLogin();
   if(!session) return;
-  const profile = await getMyProfile();
+  const [profile, attendanceBirth] = await Promise.all([
+    getMyProfile(),
+    getMyAttendanceBirth(),
+  ]);
   if(profile){
     myProfileForCover = profile;
     if(profile.role === 'admin'){
@@ -130,6 +149,10 @@ async function selectCoverStyle(styleId){
     document.getElementById('infoJoined').value = profile.created_at ? new Date(profile.created_at).toLocaleDateString('ko-KR') : '-';
     document.getElementById('nicknameInput').value = profile.nickname || '';
     document.getElementById('nameInput').value = profile.name || '';
+    // attendance_profiles.birth는 1994-05-06(ISO) 형태로 저장되어 있어 화면 표시용으로
+    // 1994/05/06 형태로 바꿔준다.
+    myAttendanceBirthLoaded = attendanceBirth || null;
+    document.getElementById('birthInput').value = attendanceBirth ? attendanceBirth.split('-').join('/') : '';
     coverStylesCache = await getCoverStyles();
     renderStyleGallery();
   }
@@ -142,6 +165,7 @@ document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{
   msg.className = 'msg'; msg.textContent = '';
   const nameVal = document.getElementById('nameInput').value.trim();
   const nicknameVal = document.getElementById('nicknameInput').value.trim();
+  const birthRaw = document.getElementById('birthInput').value.trim(); // 선택 입력 - 1994/05/06 형태
   if(nameVal.length > 20){
     msg.className = 'msg err show';
     msg.textContent = '이름은 20자 이내로 입력해주세요.';
@@ -152,17 +176,35 @@ document.getElementById('nicknameForm').addEventListener('submit', async (e)=>{
     msg.textContent = '별명은 20자 이내로 입력해주세요.';
     return;
   }
+  // 생년월일은 선택 입력이지만, 값을 적었다면 형식이 맞는지 확인 후
+  // DB(date 타입)에 맞는 1994-05-06 형태로 변환한다.
+  let birth = null;
+  if(birthRaw){
+    const m = birthRaw.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    const mm = m && Number(m[2]), dd = m && Number(m[3]);
+    if(!m || mm < 1 || mm > 12 || dd < 1 || dd > 31){
+      msg.className = 'msg err show';
+      msg.textContent = '생년월일은 1994/05/06 형식으로 입력해주세요.';
+      return;
+    }
+    birth = m[1] + '-' + m[2] + '-' + m[3];
+  }
   btn.disabled = true; btn.textContent = '저장 중...';
-  const [nameResult, nicknameResult] = await Promise.all([
-    updateMyName(nameVal),
-    updateMyNickname(nicknameVal),
-  ]);
+  // 생년월일을 한 번도 적은 적이 없고(null) 이번에도 비워뒀다면, 굳이 근태 프로필 행을
+  // 새로 만들 필요가 없으니 RPC 호출 자체를 건너뛴다(joined_at이 "지금"으로 설정되는
+  // 부작용을 피함). 값을 적었거나, 기존 값을 지우는 경우에만 호출한다.
+  const birthChanged = birth !== myAttendanceBirthLoaded;
+  const tasks = [updateMyName(nameVal), updateMyNickname(nicknameVal)];
+  if(birthChanged) tasks.push(updateMyAttendanceBirth(birth));
+  const results = await Promise.all(tasks);
+  const [nameResult, nicknameResult, birthResult] = results;
   btn.disabled = false; btn.textContent = '저장';
-  if(!nameResult.ok || !nicknameResult.ok){
+  if(!nameResult.ok || !nicknameResult.ok || (birthResult && !birthResult.ok)){
     msg.className = 'msg err show';
-    msg.textContent = '저장 실패: ' + (nameResult.message || nicknameResult.message);
+    msg.textContent = '저장 실패: ' + (nameResult.message || nicknameResult.message || (birthResult && birthResult.message));
     return;
   }
+  if(birthChanged) myAttendanceBirthLoaded = birth;
   msg.className = 'msg ok show';
   msg.textContent = '저장되었습니다.';
 });

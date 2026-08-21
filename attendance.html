@@ -37,12 +37,14 @@ a{color:var(--pri);text-decoration:none}
 /* ---------- layout ---------- */
 #app{min-height:100vh;display:flex;flex-direction:column}
 .topbar{
-  position:sticky;top:0;z-index:40;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--line);padding:10px 16px;
+  /* 메인 사이트(dashboard.html 등)의 .navbar와 같은 네이비 톤으로 통일 - 근태 페이지도
+     같은 사이트의 한 화면처럼 보이도록 상단 바를 맞춘다. */
+  position:sticky;top:0;z-index:40;background:#0a1a30;
+  border-bottom:1px solid #16305c;padding:14px 16px;
   display:flex;align-items:center;gap:10px;min-height:56px;
 }
-.topbar .logo{font-weight:800;font-size:16px;letter-spacing:-.4px;display:flex;align-items:center;gap:8px}
-.topbar .logo .dot{width:9px;height:9px;border-radius:50%;background:var(--pri)}
+.topbar .logo{font-weight:800;font-size:18px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;color:#fff}
+.topbar .logo span{color:#8fb4e3}
 .topbar .sp{flex:1}
 .chip-user{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line2);
   border-radius:999px;padding:5px 12px 5px 5px;font-size:13px;font-weight:700;box-shadow:var(--sh-s)}
@@ -338,6 +340,10 @@ const DEFAULT_SETTINGS = {
   reportForAll: true
 };
 
+/** 벌금을 포인트로 대체 납입할 때, 본인이 하루에 쓸 수 있는 최대 포인트(원=포인트 1:1).
+ *  서버(attendance_deduct_points_for_fine RPC)에서도 동일하게 한도를 재검증한다. */
+const DAILY_POINT_FINE_CAP = 20000;
+
 const TYPES = {
   "출근":    { icon: "🏢", desc: "회사로 출근 · 8시까지",        color: "b" },
   "개직":    { icon: "🌴", desc: "휴가 · 당일 새벽3시까지",       color: "g" },
@@ -456,10 +462,12 @@ function computeDay(date, daily, S, H, user) {
   const type = d.type || null;
   const rule = typeRule(S, type);
 
-  /* 1) 출근보고 — 전날 마감까지 다음날 근무유형 선택 */
+  /* 1) 출근보고 — 전날 마감까지 다음날 근무유형 선택
+     마감(전날 22:00)이 지나면 그 순간 바로 확정 벌금으로 잡히고, 다음날까지 기다리지 않는다. */
   if (S.reportForAll || type !== "개직") {
     if (!type) {
-      out.push({ kind: "report", amount: S.reportFine, reason: past ? "출근보고 미제출" : "아직 미제출", pending: !past });
+      const dl0 = reportDeadlineTs(date, "출근", S);
+      out.push({ kind: "report", amount: S.reportFine, reason: past ? "출근보고 미제출" : "아직 미제출", pending: Date.now() <= dl0 });
     } else {
       const dl = reportDeadlineTs(date, type, S);
       if (d.reportAt && d.reportAt > dl)
@@ -484,17 +492,19 @@ function computeDay(date, daily, S, H, user) {
     }
   }
 
-  /* 3) 워킹사진 보고 */
+  /* 3) 워킹사진 보고 — 인정 시간대(기본 10:00~23:59)가 끝나는 순간 바로 확정 벌금으로 잡힌다.
+     (부족한 채로 사진을 올리기 시작했어도, 아직 인정 시간대가 남아있으면 더 채울 수 있으니
+     그 시간대가 끝나기 전까지는 "진행중"으로만 표시하고 확정하지 않는다.) */
   if (rule.photo) {
     const cnt = photoOkCount(d, date, S);
     const dayEnd = atTime(date, S.photoTo || "23:59") + 59999;
     if (cnt < S.photoMin && (past || Date.now() > dayEnd || cnt > 0))
       out.push({ kind: "photo", amount: S.photoFine,
                  reason: "워킹사진 " + cnt + "/" + S.photoMin + "장 (" + (S.photoFrom || "10:00") + "~" + (S.photoTo || "23:59") + " 인정)",
-                 pending: !past });
+                 pending: Date.now() <= dayEnd });
   }
 
-  /* 4) 일마감 — 당일 13:00~23:59 사이에 저장 1회 이상이면 인정 */
+  /* 4) 일마감 — 인정 시간대(기본 13:00~23:59)가 끝나는 순간 바로 확정 벌금으로 잡힌다. */
   if (S.closingForAll || type !== "개직") {
     const from = atTime(date, S.closingFrom || "13:00");
     const to = atTime(date, S.closingTo || "23:59") + 59000;
@@ -503,7 +513,7 @@ function computeDay(date, daily, S, H, user) {
     if (!ok)
       out.push({ kind: "closing", amount: S.closingFine,
                  reason: past ? "일마감 미실행 (" + (S.closingFrom || "13:00") + "~" + (S.closingTo || "23:59") + ")"
-                              : "아직 미실행", pending: !past });
+                              : "아직 미실행", pending: Date.now() <= to });
   }
   return out;
 }
@@ -775,7 +785,8 @@ function collectFines(opt) {
           status: ov.status || "unpaid",
           proof: ov.proof || null, proofAt: ov.proofAt || null,
           confirmedAt: ov.confirmedAt || null, confirmedBy: ov.confirmedBy || null,
-          batch: ov.batch || null, auto: true, pointsDeducted: !!ov.pointsDeducted
+          batch: ov.batch || null, auto: true, pointsDeducted: !!ov.pointsDeducted,
+          pointsUsed: Number(ov.pointsUsed || 0), pointsUsedAt: ov.pointsUsedAt || null
         });
       });
       d = addDays(d, 1);
@@ -792,7 +803,8 @@ function collectFines(opt) {
       pending: false, waived: !!f.waived, status: f.status || "unpaid",
       proof: f.proof || null, proofAt: f.proofAt || null,
       confirmedAt: f.confirmedAt || null, confirmedBy: f.confirmedBy || null,
-      batch: f.batch || null, auto: false, pointsDeducted: !!f.pointsDeducted
+      batch: f.batch || null, auto: false, pointsDeducted: !!f.pointsDeducted,
+      pointsUsed: Number(f.pointsUsed || 0), pointsUsedAt: f.pointsUsedAt || null
     });
   });
 
@@ -806,6 +818,14 @@ function sumFines(list, filter) {
 /** 확정된 미납 벌금 (즉시 납부 알림 대상) */
 function unpaidOf(uid) {
   return collectFines({ uid }).filter(f => !f.waived && !f.pending && f.status === "unpaid");
+}
+/** 오늘 이미 벌금 대체 납입에 사용한 포인트 합계 (일일 한도 20,000P 체크용, 화면 표시용 -
+ *  실제 한도 초과 여부는 attendance_deduct_points_for_fine RPC가 서버에서 최종 검증한다) */
+function pointsUsedToday(uid) {
+  const tdy = today();
+  return DB.all("fines")
+    .filter(f => f.uid === uid && f.pointsUsedAt && dstr(new Date(f.pointsUsedAt)) === tdy)
+    .reduce((s, f) => s + Number(f.pointsUsed || 0), 0);
 }
 
 /* ============================================================================
@@ -883,7 +903,7 @@ function render() {
   root.innerHTML =
     '<div id="app">' +
     '<div class="topbar">' +
-    '<a href="dashboard.html" class="logo" style="text-decoration:none;color:inherit"><span class="dot"></span>팀 근태 · 벌금</a>' +
+    '<a href="dashboard.html" class="logo" style="text-decoration:none">With <span>Partners</span></a>' +
     '<div class="sp"></div>' +
     '<span class="bdg b" style="margin-right:2px">' + won(Auth.mainProfile ? Auth.mainProfile.points : 0) + '</span>' +
     '<button class="chip-user" data-act="me">' +
@@ -1755,10 +1775,16 @@ function showBill(finesOrText) {
       '<div class="hint">클립보드에 복사되었습니다. 카톡방에 붙여넣으세요.</div>' });
 }
 
-/* ============================ 납부 캡쳐 업로드 ============================ */
+/* ============================ 납부 캡쳐 업로드 (+ 포인트 대체 납입) ============================ */
 function openPayModal(fines, urgent) {
   const total = fines.reduce((s, f) => s + f.amount, 0);
+  const myUid = Auth.profile.uid;
+  const myPoints = (Auth.mainProfile && Auth.mainProfile.points) || 0;
+  const usedToday = pointsUsedToday(myUid);
+  const capLeft = Math.max(0, DAILY_POINT_FINE_CAP - usedToday);
+  const maxApply = Math.max(0, Math.min(capLeft, myPoints, total));
   let imgRaw = null;
+
   modal({
     title: urgent ? "⚠️ 미납 벌금이 있습니다" : "납부 캡쳐 올리기",
     body:
@@ -1766,6 +1792,15 @@ function openPayModal(fines, urgent) {
       fines.slice(0, 8).map(f => "· " + fmtD(f.date) + " " + (KINDS[f.kind] || KINDS.etc).label + " " + won(f.amount) +
         " <span style='opacity:.7'>(" + esc(f.reason) + ")</span>").join("<br>") +
       (fines.length > 8 ? "<br>… 외 " + (fines.length - 8) + "건" : "") + "</div>" +
+      (maxApply > 0
+        ? '<div class="fld"><label>포인트로 대신 내기 <span class="hint" style="margin:0">(보유 ' + won(myPoints) +
+          " · 오늘 사용 가능 " + won(maxApply) + " / 일일 한도 " + won(DAILY_POINT_FINE_CAP) + ")</span></label>" +
+          '<div class="btn-row"><input class="inp" type="number" id="pmPts" min="0" max="' + maxApply + '" step="1" value="0" style="flex:1">' +
+          '<button class="btn sm" id="pmPtsFull">전액</button></div></div>' +
+          '<div class="hint" id="pmRemain" style="margin:-4px 0 4px">현금으로 낼 금액: ' + won(total) + "</div>"
+        : (myPoints > 0
+          ? '<div class="hint" style="margin-bottom:4px">오늘 포인트 대체 납입 한도(' + won(DAILY_POINT_FINE_CAP) + ")를 이미 다 쓰셨습니다.</div>"
+          : "")) +
       '<div class="fld"><label>입금 계좌</label><div class="acct"><span class="t">' + esc(SET().account) + "</span>" +
       '<button class="btn xs" id="pmCp">복사</button></div></div>' +
       '<div class="upl" id="pmUp"><div class="ic">🧾</div><div class="t">이체 완료 캡쳐 올리기</div>' +
@@ -1776,14 +1811,56 @@ function openPayModal(fines, urgent) {
       '<input class="inp" id="pmMemo" placeholder="예: 급여일 일괄납부"></div>',
     okText: "납부 등록", cancelText: urgent ? "나중에" : "닫기",
     onOk: async () => {
-      if (!imgRaw) { toast("납부 캡쳐를 첨부해주세요", "err"); return false; }
+      const ptsInput = $("#pmPts");
+      let pts = ptsInput ? Math.max(0, Math.min(maxApply, Math.floor(Number(ptsInput.value) || 0))) : 0;
+      const remain = total - pts;
+
+      if (remain > 0 && !imgRaw) {
+        toast(pts > 0 ? "남은 금액에 대한 납부 캡쳐를 첨부해주세요" : "납부 캡쳐를 첨부해주세요", "err");
+        return false;
+      }
+
+      if (pts > 0) {
+        toast("포인트 처리 중…");
+        const r = await attendanceDeductPointsForFine(myUid, pts, "근태 벌금 포인트 대체납입");
+        if (!r.ok) { toast(cleanErr(new Error(r.message)), "err"); return false; }
+        // 포인트 사용분을 각 벌금에 순서대로 배분 - 전액 커버되면 그 건은 포인트납입(waived) 처리,
+        // 일부만 커버되면 남은 현금 금액만큼 amount를 줄여서 이후 현금 납부 절차로 이어간다.
+        let leftPts = pts;
+        for (const f of fines) {
+          if (leftPts <= 0) break;
+          const use = Math.min(leftPts, f.amount);
+          if (use <= 0) continue;
+          const newAmt = f.amount - use;
+          await DB.set("fines", f.id, Object.assign(baseFine(f), {
+            amount: newAmt,
+            pointsUsed: (f.pointsUsed || 0) + use,
+            pointsUsedAt: Date.now(),
+            waived: newAmt <= 0 ? true : !!f.waived
+          }));
+          leftPts -= use;
+        }
+        await refreshMainProfile();
+      }
+
+      if (remain <= 0) {
+        fineSel.clear();
+        toast(pts > 0 ? "포인트로 전액 납부 완료 👍" : "납부 완료", "ok");
+        return;
+      }
+
       toast("업로드 중…");
       const img = await DB.uploadImage(imgRaw, "pay");
       const batch = uid8(), memo = $("#pmMemo").value.trim();
       for (const f of fines) {
+        const cur = DB.get("fines", f.id) || {};
+        const amt = cur.amount != null ? cur.amount : f.amount;
+        if (amt <= 0) continue; // 포인트로 이미 전액 커버된 건은 현금 납부 대상에서 제외
         await DB.set("fines", f.id, Object.assign(baseFine(f), {
+          amount: amt,
           status: "submitted", proof: img, proofAt: Date.now(),
-          proofBy: Auth.profile.name, batch, payMemo: memo
+          proofBy: Auth.profile.name, batch, payMemo: memo,
+          pointsUsed: cur.pointsUsed || 0, pointsUsedAt: cur.pointsUsedAt || null
         }));
       }
       fineSel.clear();
@@ -1797,6 +1874,14 @@ function openPayModal(fines, urgent) {
         imgRaw = await compressImage(f, 900, .72);
         $("#pmPrev").innerHTML = '<img src="' + imgRaw + '" class="thumb" style="margin-top:11px">';
       };
+      const pts = $("#pmPts"), full = $("#pmPtsFull"), remainEl = $("#pmRemain");
+      const updateRemain = () => {
+        if (!pts || !remainEl) return;
+        const v = Math.max(0, Math.min(maxApply, Math.floor(Number(pts.value) || 0)));
+        remainEl.textContent = "현금으로 낼 금액: " + won(total - v) + (v > 0 ? " (포인트 " + won(v) + " 사용)" : "");
+      };
+      if (pts) pts.oninput = updateRemain;
+      if (full) full.onclick = () => { pts.value = maxApply; updateRemain(); };
     }
   });
 }
@@ -1816,6 +1901,8 @@ function openFineModal(id) {
       '<div class="btn-row" style="margin-bottom:14px">' + fineBadge(f) +
       (f.batch ? '<span class="bdg c">일괄납부</span>' : "") +
       (f.auto ? '<span class="bdg n">자동계산</span>' : '<span class="bdg n">관리자 추가</span>') + "</div>" +
+      (f.pointsUsed ? '<div class="hint" style="margin-bottom:10px">💳 포인트 ' + won(f.pointsUsed) +
+        " 사용됨 · " + tsFmtFull(f.pointsUsedAt) + "</div>" : "") +
       (f.proof ? '<div class="fld"><label>납부 캡쳐 · ' + tsFmtFull(f.proofAt) + "</label>" +
         '<img src="' + f.proof + '" class="thumb" data-img="' + f.proof + '" data-imgt="납부 캡쳐"></div>' : "") +
       (f.confirmedAt ? '<div class="banner s">✅ ' + esc(f.confirmedBy) + " 확인 · " + tsFmtFull(f.confirmedAt) + "</div>" : "") +

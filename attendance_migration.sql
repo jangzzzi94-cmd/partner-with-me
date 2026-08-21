@@ -157,9 +157,15 @@ create policy attendance_settings_write_admin on public.attendance_settings
   for all to authenticated using (is_admin(auth.uid())) with check (is_admin(auth.uid()));
 
 /* ---------------------------------------------------------------------------
-   7) Fine -> points deduction RPC. When admin marks a fine "paid via points",
-      this actually deducts real With Partners points (1 won = 1 point) and
-      logs it in point_logs (same audit trail as admin_add_points).
+   7) Fine -> points deduction RPC. Deducts real With Partners points
+      (1 won = 1 point) and logs it in point_logs (same audit trail as
+      admin_add_points). Two callers:
+        - an admin marking a fine "paid via points" for someone else
+          (no daily cap - admin override, matches admin_add_points' trust level)
+        - a member paying their OWN fine with their OWN points (self-service),
+          capped at 20,000 points/day (KST calendar day), checked here against
+          point_logs so the limit can't be bypassed by calling the RPC directly.
+      Also refuses to push a balance negative.
    --------------------------------------------------------------------------- */
 create or replace function public.attendance_deduct_points_for_fine(
   p_user_id uuid,
@@ -173,21 +179,40 @@ set search_path to 'public'
 as $$
 declare
   v_new_points int;
+  v_current_points int;
+  v_is_self boolean;
+  v_used_today int;
 begin
-  if not is_admin(auth.uid()) then
-    raise exception 'Only an admin can do this';
+  v_is_self := (auth.uid() = p_user_id);
+  if not v_is_self and not is_admin(auth.uid()) then
+    raise exception 'Not allowed';
   end if;
   if p_amount is null or p_amount <= 0 then
     raise exception 'Invalid amount';
   end if;
 
+  select points into v_current_points from profiles where id = p_user_id;
+  if v_current_points is null then
+    raise exception 'Target member not found';
+  end if;
+  if v_current_points < p_amount then
+    raise exception 'Not enough points';
+  end if;
+
+  if v_is_self then
+    select coalesce(sum(-delta), 0) into v_used_today
+    from point_logs
+    where user_id = p_user_id
+      and reason = 'attendance_fine'
+      and (created_at at time zone 'Asia/Seoul')::date = (now() at time zone 'Asia/Seoul')::date;
+    if v_used_today + p_amount > 20000 then
+      raise exception 'Daily point payment limit exceeded';
+    end if;
+  end if;
+
   update profiles set points = points - p_amount
   where id = p_user_id
   returning points into v_new_points;
-
-  if v_new_points is null then
-    raise exception 'Target member not found';
-  end if;
 
   insert into point_logs (user_id, delta, reason, note, actor_id)
   values (p_user_id, -p_amount, 'attendance_fine', p_note, auth.uid());
@@ -257,3 +282,32 @@ alter table public.attendance_profiles
    --------------------------------------------------------------------------- */
 alter table public.attendance_profiles
   add column if not exists hidden boolean not null default false;
+
+/* ---------------------------------------------------------------------------
+   12) attendance_update_my_birth - lets a member set/change their OWN
+      birthdate from the main site's 프로필(profile.html) screen, not just
+      at signup. attendance_profiles' update policy is admin-only (see 1),
+      so a normal member writing to it directly would be blocked by RLS -
+      this RPC is a narrow, self-only escape hatch (same pattern as
+      update_my_name / update_my_nickname): it only ever touches the
+      caller's own row's birth column, upserting a row if one doesn't exist
+      yet (e.g. they haven't opened the 근태 page before). Because
+      attendance_profiles.birth is exactly the field the 근태/팀벌금 page
+      already reads for birthday-gaejik logic, saving it here automatically
+      shows up there too - no separate sync needed.
+   --------------------------------------------------------------------------- */
+create or replace function public.attendance_update_my_birth(p_birth date)
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+begin
+  insert into public.attendance_profiles (uid, birth)
+  values (auth.uid(), p_birth)
+  on conflict (uid) do update set birth = excluded.birth;
+end;
+$$;
+
+revoke all on function public.attendance_update_my_birth(date) from public;
+grant execute on function public.attendance_update_my_birth(date) to authenticated;
