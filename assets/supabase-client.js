@@ -120,6 +120,18 @@ async function attendanceDeductPointsForFine(userId, amount, note){
     return { ok:true, points: data };
 }
 
+// 근태(출근보고) 페이지에서 회원이 "다음 근무일" 보고를 "개직"으로 직접 선택/해제할 때
+// 본인의 개직 잔여 수를 스스로 차감/환급한다. attendance_profiles 테이블은 수정 권한이
+// 관리자로 한정돼 있어(RLS) 일반 회원이 직접 upsert하면 거부되므로, 본인 행만 건드리는
+// 이 RPC(attendance_use_my_gaejik)를 통해서만 자기 개직을 쓸 수 있게 한다.
+async function attendanceUseMyGaejik(delta, reason){
+    const { data, error } = await supabaseClient.rpc("attendance_use_my_gaejik", {
+        p_delta: delta, p_reason: reason || null,
+    });
+    if(error) return { ok:false, message: error.message };
+    return { ok:true, gaejik: data };
+}
+
 // 포인트 지급/사용 로그를 최신순으로 가져온다(point_logs 테이블, RLS로 관리자만 조회 가능).
 async function getPointLogs(limit){
     const { data, error } = await supabaseClient
