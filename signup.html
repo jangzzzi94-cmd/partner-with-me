@@ -27,7 +27,7 @@
       </div>
       <div class="field">
         <label>생년월일 <span style="font-weight:400;opacity:.6;font-size:12px;">(선택, 출근보고/근태 이용 시 사용)</span></label>
-        <input type="date" id="birth">
+        <input type="text" id="birth" inputmode="numeric" maxlength="10" placeholder="1994/05/06">
       </div>
       <div class="field">
         <label>이메일</label>
@@ -51,6 +51,17 @@
 </div>
 <script src="assets/supabase-client.js"></script>
 <script>
+// 생년월일 입력칸: 숫자만 입력받아 1994/05/06 형태로 자동으로 슬래시를 붙여준다.
+// (기존 달력 위젯 클릭 방식이 불편하다는 요청으로 직접 타이핑하는 방식으로 변경)
+const birthInput = document.getElementById('birth');
+birthInput.addEventListener('input', (e)=>{
+  const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 8);
+  let out = digits;
+  if(digits.length > 4) out = digits.slice(0,4) + '/' + digits.slice(4);
+  if(digits.length > 6) out = digits.slice(0,4) + '/' + digits.slice(4,6) + '/' + digits.slice(6);
+  e.target.value = out;
+});
+
 document.getElementById('signupForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const btn = document.getElementById('submitBtn');
@@ -58,7 +69,7 @@ document.getElementById('signupForm').addEventListener('submit', async (e)=>{
   msg.className='msg'; msg.textContent='';
   const name = document.getElementById('name').value.trim();
   const nickname = document.getElementById('nickname').value.trim();
-  const birth = document.getElementById('birth').value; // 선택 입력 - 출근보고/근태 페이지에서 생일 개직 지급 등에 사용
+  const birthRaw = document.getElementById('birth').value.trim(); // 선택 입력 - 1994/05/06 형태
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value;
   const password2 = document.getElementById('password2').value;
@@ -71,6 +82,19 @@ document.getElementById('signupForm').addEventListener('submit', async (e)=>{
     msg.className='msg err show';
     msg.textContent = '비밀번호가 일치하지 않습니다.';
     return;
+  }
+  // 생년월일은 선택 입력이지만, 값을 적었다면 형식이 맞는지 확인 후
+  // DB(date 타입)에 맞는 1994-05-06 형태로 변환한다.
+  let birth = null;
+  if(birthRaw){
+    const m = birthRaw.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    const mm = m && Number(m[2]), dd = m && Number(m[3]);
+    if(!m || mm < 1 || mm > 12 || dd < 1 || dd > 31){
+      msg.className='msg err show';
+      msg.textContent = '생년월일은 1994/05/06 형식으로 입력해주세요.';
+      return;
+    }
+    birth = m[1] + '-' + m[2] + '-' + m[3];
   }
   btn.disabled = true; btn.textContent='가입 처리 중...';
   // 가입 확인 이메일의 링크를 눌렀을 때 Supabase 기본값(Site URL)이 아니라 우리 사이트의
