@@ -184,6 +184,35 @@ async function updateMyName(name){
     return { ok:true };
 }
 
+// 내 생년월일(attendance_profiles.birth)을 읽어온다. 근태(팀벌금) 페이지를 한 번도
+// 열지 않은 회원은 attendance_profiles 행 자체가 아직 없을 수 있어 null을 돌려줄 수 있다.
+async function getMyAttendanceBirth(){
+    const { data:{ session } } = await supabaseClient.auth.getSession();
+    if(!session) return null;
+    const { data, error } = await supabaseClient
+        .from("attendance_profiles")
+        .select("birth")
+        .eq("uid", session.user.id)
+        .maybeSingle();
+    if(error){
+        console.error(error);
+        return null;
+    }
+    return data ? data.birth : null;
+}
+
+// 내 생년월일만 안전하게 저장한다(attendance_profiles.birth). RPC(attendance_update_my_birth)가
+// 본인 행만 upsert하도록 서버에서 강제하므로, 근태 페이지를 아직 한 번도 안 열어본 회원이어도
+// 여기서 저장하면 근태(팀벌금) 프로필에 자동으로 반영된다.
+async function updateMyAttendanceBirth(birthIso){
+    const { error } = await supabaseClient.rpc("attendance_update_my_birth", { p_birth: birthIso });
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
 async function adminDeleteAccount(userId){
     const { error } = await supabaseClient.rpc("admin_delete_account", { p_user_id: userId });
     if(error){
