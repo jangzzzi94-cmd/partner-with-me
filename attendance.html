@@ -333,6 +333,7 @@ const DEFAULT_SETTINGS = {
   birthdayGaejik: 1,           // 생일 달 지급
   account: "은행명 000-0000-0000 예금주",
   startDate: "",
+  workDays: [1, 2, 3, 4, 5],   // 기본 근무 요일 (0=일 1=월 2=화 3=수 4=목 5=금 6=토) - 특정 날짜만 다르게 하려면 공휴일/특근 등록을 쓴다
   typeRules: {
     "출근":    { late: true,  photo: true,  start: "08:00", perMin: 1000,  max: 50000 },
     "병원근무": { late: true,  photo: true,  start: "09:00", perMin: 10000, max: 100000 },
@@ -431,7 +432,11 @@ function isWorkday(date, holidays) {
   const h = holidays[date];
   if (h && typeof h.work === "boolean") return h.work;
   const w = dow(date);
-  return w >= 1 && w <= 5;
+  // 요일별 기본 근무일 여부는 관리자 설정(S.workDays, 0=일~6=토)을 따른다 - 기본값은 월~금.
+  // 특정 날짜만 다르게 하고 싶으면(임시 휴무/특근 등) 위 holidays 오버라이드를 쓰면 된다.
+  const S = SET();
+  const wd = Array.isArray(S.workDays) && S.workDays.length ? S.workDays : [1, 2, 3, 4, 5];
+  return wd.indexOf(w) !== -1;
 }
 function holidayName(date, holidays) { const h = holidays[date]; return h && h.name ? h.name : ""; }
 
@@ -1463,7 +1468,11 @@ function viewReport() {
     "<br>수정하면 <b>수정한 시각</b> 기준으로 마감 여부를 다시 판정합니다.</div>";
   h += "</div>";
 
-  if (isWorkday(tdy, H)) {
+  {
+    // 워킹사진/일마감은 휴무일(주말·공휴일)이라고 화면에서 아예 숨기지 않는다 - 자유롭게 일할
+    // 수도 있으니 항목은 언제나 열어두고, 그냥 휴무일에는 벌금만 적용되지 않는다는 안내만 준다.
+    const wdToday = isWorkday(tdy, H);
+    if (!wdToday) h += '<div class="banner n" style="margin-top:12px">🏖 오늘은 휴무일입니다 · 아래 기록은 자유롭게 남기셔도 벌금은 적용되지 않습니다.</div>';
     const rule = S.typeRules[dT.type] || { late: true, photo: true };
 
     /* 워킹사진 */
@@ -2451,7 +2460,20 @@ function adminSettings() {
     '<div class="fld"><label>' + lb + '</label><input class="inp" type="time" id="' + id + '" value="' + v + '">' +
     (hint ? '<div class="hint">' + hint + "</div>" : "") + "</div>";
 
-  return '<div class="card"><div class="card-h"><h3>💳 계좌 · 기간</h3></div>' +
+  const WD_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+  const curWorkDays = Array.isArray(S.workDays) && S.workDays.length ? S.workDays : [1, 2, 3, 4, 5];
+
+  return '<div class="card"><div class="card-h"><h3>🗓 근무 요일</h3></div>' +
+    '<div class="hint" style="margin-bottom:10px">체크한 요일이 기본 근무일로 인식되어 지각·미출근·사진·일마감 벌금이 적용됩니다. ' +
+    '특정 날짜만 예외로 두려면(임시 휴무 · 특근 · 공휴일) 아래 "공휴일/특근일" 탭에서 그 날짜만 따로 지정하세요.</div>' +
+    '<div class="btn-row" style="flex-wrap:wrap;gap:14px">' +
+    WD_LABELS.map((lb, i) =>
+      '<label style="display:flex;align-items:center;gap:5px;font-size:13.5px;font-weight:700;cursor:pointer">' +
+      '<input type="checkbox" data-wd="' + i + '"' + (curWorkDays.indexOf(i) !== -1 ? " checked" : "") + "> " + lb + "</label>"
+    ).join("") + "</div>" +
+    '<div class="hint" style="margin-top:10px">표준 공휴일(신정·설날·추석 등)을 자동으로 휴무일로 등록하려면 <b>공휴일/특근일</b> 탭의 "표준 공휴일 등록" 버튼을 쓰세요.</div></div>' +
+
+    '<div class="card"><div class="card-h"><h3>💳 계좌 · 기간</h3></div>' +
     '<div class="fld"><label>벌금 입금 계좌</label><input class="inp" id="stAcct" value="' + esc(S.account) + '"></div>' +
     '<div class="fld"><label>벌금 집계 시작일 (팀 전체)</label><input class="inp" type="date" id="stStart" value="' + esc(S.startDate || "") + '">' +
     '<div class="hint">신규 가입자는 이 날짜와 무관하게 <b>본인 가입일 이후부터만</b> 집계됩니다.</div>' +
@@ -2545,7 +2567,9 @@ function bindAdmin() {
     $$("[data-ts]").forEach(c => { const t = c.dataset.ts; tr[t] = tr[t] || {}; tr[t].start = c.value || "08:00"; });
     $$("[data-tp]").forEach(c => { const t = c.dataset.tp; tr[t] = tr[t] || {}; tr[t].perMin = +c.value || 0; });
     $$("[data-tm]").forEach(c => { const t = c.dataset.tm; tr[t] = tr[t] || {}; tr[t].max = +c.value || 0; });
+    const workDays = $$("[data-wd]").filter(c => c.checked).map(c => +c.dataset.wd);
     await DB.set("settings", "global", {
+      workDays: workDays.length ? workDays : [1, 2, 3, 4, 5],
       account: $("#stAcct").value.trim(), startDate: $("#stStart").value || "",
       checkinOpen: $("#stOpen").value,
       absentBy: $("#stAbsBy").value, absentFine: +$("#stAbsF").value || 0,
