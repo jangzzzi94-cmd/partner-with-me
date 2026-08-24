@@ -1328,7 +1328,10 @@ function viewCheckin() {
         (r.d.checkinPhoto
           ? '<img src="' + r.d.checkinPhoto + '" class="thumb sm" style="cursor:pointer" data-img="' + r.d.checkinPhoto + '" data-imgt="' + esc(r.u.name) + ' 출근 · ' + (r.hm || "") + '">'
           : '<div class="thumb sm" style="display:flex;align-items:center;justify-content:center;color:var(--tx3);font-size:20px">—</div>') +
-        '<div class="sp"><div class="nm">' + esc(r.u.name) +
+        '<div class="sp"><div class="nm">' +
+        (canOpenProfile(r.u.uid)
+          ? '<span class="lnk" data-profile="' + r.u.uid + '" style="cursor:pointer;text-decoration:underline;text-underline-offset:2px">' + esc(r.u.name) + "</span>"
+          : esc(r.u.name)) +
         (r.d.type ? ' <span class="bdg ' + TYPES[r.d.type].color + '">' + r.d.type + "</span>" : "") + "</div>" +
         '<div class="ds">' + (r.at ? "등록 " + r.hm + " · 기준 " + r.r.start + (r.overCut2 ? " · " + (S.absentBy2 || "10:00") + " 마감 후" : late ? " · " + r.diff + "분 초과" : " · 정상") : "미등록") + "</div></div>" +
         '<div style="text-align:right">' +
@@ -1400,6 +1403,8 @@ function bindCheckin() {
     await DB.set("daily", dayId(uid, date), { uid, date, checkinAt: ts, checkinBy: Auth.profile.name, updatedAt: Date.now() });
     toast("저장됨", "ok");
   });
+
+  $$("[data-profile]").forEach(el => el.onclick = e => { e.stopPropagation(); openMemberProfile(el.dataset.profile, App.checkDate); });
 }
 
 /* ============================================================================
@@ -2048,46 +2053,95 @@ function openAddFine() {
 }
 
 /* ============================ 하루 상세 ============================ */
-function openDayModal(date, uid) {
+/** uid/date 하루치 출근·워킹사진·일마감·벌금 상세 HTML을 만든다.
+ *  openDayModal(캘린더 등에서 하루만 보기)과 openMemberProfile(팀원 프로필,
+ *  날짜 이동 가능)이 이 조각을 공유해서 쓴다. */
+function dayDetailBody(uid, date) {
   const S = SET(), H = HOLIDAYS();
-  const u = DB.get("users", uid); if (!u) return;
+  const u = DB.get("users", uid); if (!u) return "";
   const d = DB.get("daily", dayId(uid, date)) || {};
   const fines = collectFines({ uid, from: date, to: date });
   const canSee = Auth.canSee(uid);
   const from = atTime(date, S.closingFrom), to = atTime(date, S.closingTo) + 59000;
   const cs = d.closingSavedAt || 0;
+  return '<div class="btn-row" style="margin-bottom:14px">' +
+    '<span class="bdg ' + (isWorkday(date, H) ? "b" : "n") + '">' + (isWorkday(date, H) ? "근무일" : "휴무일") + "</span>" +
+    (d.type ? '<span class="bdg ' + TYPES[d.type].color + '">' + TYPES[d.type].icon + " " + d.type + "</span>" : '<span class="bdg r">미보고</span>') +
+    '<span class="bdg ' + gradeInfo(u).color + '">' + esc(gradeOf(u)) + "</span></div>" +
+    (d.hospital ? '<div class="banner i">🏥 병원: <b>' + esc(d.hospital) + "</b></div>" : "") +
+    (d.reason ? (canSee ? '<div class="banner i">🚗 직출 사유: <b>' + esc(d.reason) + "</b></div>"
+                        : '<div class="banner w">직출 사유는 담당 TL·관리자만 볼 수 있습니다.</div>') : "") +
+    (d.reasonPhoto && canSee ? '<div class="fld"><label>직출 증빙</label><img src="' + d.reasonPhoto + '" class="thumb" data-img="' + d.reasonPhoto + '" data-imgt="직출 증빙"></div>' : "") +
+    '<div class="grid g2" style="margin-bottom:14px">' +
+    '<div class="stat"><div class="lb">출근 등록</div><div class="vl" style="font-size:19px">' + (tsHM(d.checkinAt) || "-") + "</div>" +
+    '<div class="sub">기준 ' + S.workStart + "</div></div>" +
+    '<div class="stat"><div class="lb">워킹사진</div><div class="vl" style="font-size:19px">' +
+    photoOkCount(d, date, S) + "<span style='font-size:13px;color:var(--tx3)'>/" + S.photoMin + "</span></div>" +
+    '<div class="sub">' + (cs >= from && cs <= to ? "일마감 완료" : "일마감 미완료") + "</div></div></div>" +
+    (d.checkinPhoto ? '<div class="fld"><label>출근 사진</label><img src="' + d.checkinPhoto + '" class="thumb" data-img="' + d.checkinPhoto + '"></div>' : "") +
+    (photoList(d).length ? '<div class="fld"><label>워킹사진</label><div class="photo-grid">' +
+      photoList(d).map((x, i) => '<div class="ph"><img src="' + x.u + '" data-img="' + x.u + '" data-imgt="워킹사진 ' + (i + 1) + '">' +
+        (x.at ? '<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:9.5px;text-align:center;padding:2px">' + tsHM(x.at) + "</div>" : "") +
+        "</div>").join("") + "</div></div>" : "") +
+    (canSee && (d.closingItems || []).length ? '<div class="fld"><label>일마감 체크리스트 · ' + tsFmt(cs) + "</label>" +
+      d.closingItems.map(it => '<div class="ck ' + (it.done ? "done" : "") + '" style="margin-bottom:5px">' +
+        '<div class="box">' + (it.done ? "✓" : "") + '</div><div class="tx">' + esc(it.t) + "</div></div>").join("") + "</div>"
+      : (d.closingItems || []).length ? '<div class="banner n">일마감 내용은 담당 TL·관리자만 볼 수 있습니다.</div>' : "") +
+    '<div class="sec-t" style="margin-top:16px">이 날 벌금</div><div class="card pad0" style="margin:0">' +
+    (fines.length ? fines.map(fineRow).join("") : '<div class="empty">벌금 없음</div>') + "</div>";
+}
 
+function openDayModal(date, uid) {
+  const u = DB.get("users", uid); if (!u) return;
   modal({
     title: esc(u.name) + " · " + fmtDL(date), cancelText: "닫기",
-    body:
-      '<div class="btn-row" style="margin-bottom:14px">' +
-      '<span class="bdg ' + (isWorkday(date, H) ? "b" : "n") + '">' + (isWorkday(date, H) ? "근무일" : "휴무일") + "</span>" +
-      (d.type ? '<span class="bdg ' + TYPES[d.type].color + '">' + TYPES[d.type].icon + " " + d.type + "</span>" : '<span class="bdg r">미보고</span>') +
-      '<span class="bdg ' + gradeInfo(u).color + '">' + esc(gradeOf(u)) + "</span></div>" +
-      (d.hospital ? '<div class="banner i">🏥 병원: <b>' + esc(d.hospital) + "</b></div>" : "") +
-      (d.reason ? (canSee ? '<div class="banner i">🚗 직출 사유: <b>' + esc(d.reason) + "</b></div>"
-                          : '<div class="banner w">직출 사유는 담당 TL·관리자만 볼 수 있습니다.</div>') : "") +
-      (d.reasonPhoto && canSee ? '<div class="fld"><label>직출 증빙</label><img src="' + d.reasonPhoto + '" class="thumb" data-img="' + d.reasonPhoto + '" data-imgt="직출 증빙"></div>' : "") +
-      '<div class="grid g2" style="margin-bottom:14px">' +
-      '<div class="stat"><div class="lb">출근 등록</div><div class="vl" style="font-size:19px">' + (tsHM(d.checkinAt) || "-") + "</div>" +
-      '<div class="sub">기준 ' + S.workStart + "</div></div>" +
-      '<div class="stat"><div class="lb">워킹사진</div><div class="vl" style="font-size:19px">' +
-      photoOkCount(d, date, S) + "<span style='font-size:13px;color:var(--tx3)'>/" + S.photoMin + "</span></div>" +
-      '<div class="sub">' + (cs >= from && cs <= to ? "일마감 완료" : "일마감 미완료") + "</div></div></div>" +
-      (d.checkinPhoto ? '<div class="fld"><label>출근 사진</label><img src="' + d.checkinPhoto + '" class="thumb" data-img="' + d.checkinPhoto + '"></div>' : "") +
-      (photoList(d).length ? '<div class="fld"><label>워킹사진</label><div class="photo-grid">' +
-        photoList(d).map((x, i) => '<div class="ph"><img src="' + x.u + '" data-img="' + x.u + '" data-imgt="워킹사진 ' + (i + 1) + '">' +
-          (x.at ? '<div style="position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-size:9.5px;text-align:center;padding:2px">' + tsHM(x.at) + "</div>" : "") +
-          "</div>").join("") + "</div></div>" : "") +
-      (canSee && (d.closingItems || []).length ? '<div class="fld"><label>일마감 체크리스트 · ' + tsFmt(cs) + "</label>" +
-        d.closingItems.map(it => '<div class="ck ' + (it.done ? "done" : "") + '" style="margin-bottom:5px">' +
-          '<div class="box">' + (it.done ? "✓" : "") + '</div><div class="tx">' + esc(it.t) + "</div></div>").join("") + "</div>"
-        : (d.closingItems || []).length ? '<div class="banner n">일마감 내용은 담당 TL·관리자만 볼 수 있습니다.</div>' : "") +
-      '<div class="sec-t" style="margin-top:16px">이 날 벌금</div><div class="card pad0" style="margin:0">' +
-      (fines.length ? fines.map(fineRow).join("") : '<div class="empty">벌금 없음</div>') + "</div>",
+    body: dayDetailBody(uid, date),
     after: () => {
       $$("[data-img]", $("#ovl")).forEach(b => b.onclick = () => openImage(b.dataset.img, b.dataset.imgt));
       $$("[data-open-fine]", $("#ovl")).forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+    }
+  });
+}
+
+/** 팀원 프로필 — 관리자는 모든 팀원, TL은 담당 팀원만 열 수 있다(canOpenProfile로 체크).
+ *  이름을 눌러 들어오며, 좌우 화살표로 날짜를 넘기면서 그날의 출근·워킹사진·일마감 기록을 본다. */
+function canOpenProfile(uid) {
+  if (!Auth.profile) return false;
+  if (Auth.isAdmin()) return true;
+  if (Auth.isTL()) return (Auth.profile.tlMembers || []).indexOf(uid) >= 0;
+  return false;
+}
+function openMemberProfile(uid, date) {
+  if (!canOpenProfile(uid)) return;
+  const u = DB.get("users", uid); if (!u) return;
+  const S = SET(), tdy = today();
+  date = date || tdy;
+  const fs = collectFines({ uid });
+  const unpaid = sumFines(fs, f => f.status !== "paid");
+
+  modal({
+    title: esc(u.name) + " 프로필", wide: true, cancelText: "닫기",
+    body:
+      '<div class="row" style="padding:0 0 14px;border-bottom:1px solid var(--line)">' +
+      '<div class="avatar" style="width:42px;height:42px">' + esc(initial(u.name)) + "</div>" +
+      '<div class="sp"><div class="nm" style="font-size:16px">' + esc(u.name) + "</div>" +
+      '<div class="ds"><span class="bdg ' + gradeInfo(u).color + '">' + esc(gradeOf(u)) + "</span>" +
+      (joinStart(u, S) ? " · 집계시작 " + fmtD(joinStart(u, S)) : "") +
+      (gradeInfo(u).tl && (u.tlMembers || []).length ? " · 담당 " + u.tlMembers.length + "명" : "") + "</div></div>" +
+      '<div style="text-align:right"><div style="font-size:11px;color:var(--tx3);font-weight:700">미납 벌금</div>' +
+      '<div style="font-size:17px;font-weight:800' + (unpaid ? ";color:var(--red)" : "") + '">' + won(unpaid) + "</div></div></div>" +
+      '<div class="btn-row" style="align-items:center;margin:14px 0">' +
+      '<button class="btn sm" id="mpPrev">‹</button>' +
+      '<div style="flex:1;text-align:center;font-weight:700">' + fmtDL(date) + (date === tdy ? ' <span class="bdg b">오늘</span>' : "") + "</div>" +
+      '<button class="btn sm" id="mpNext"' + (date >= tdy ? " disabled" : "") + '>›</button>' +
+      '<button class="btn sm" id="mpToday">오늘</button></div>' +
+      dayDetailBody(uid, date),
+    after: () => {
+      $$("[data-img]", $("#ovl")).forEach(b => b.onclick = () => openImage(b.dataset.img, b.dataset.imgt));
+      $$("[data-open-fine]", $("#ovl")).forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+      $("#mpPrev").onclick = () => openMemberProfile(uid, addDays(date, -1));
+      const nx = $("#mpNext"); if (nx) nx.onclick = () => openMemberProfile(uid, addDays(date, 1));
+      $("#mpToday").onclick = () => openMemberProfile(uid, tdy);
     }
   });
 }
@@ -2381,7 +2435,7 @@ function adminMembers() {
     act.map(u => {
       const fs = collectFines({ uid: u.uid }).filter(f => f.date.startsWith(monthOf(today())) && !f.pending);
       const bm = u.birth ? Number(u.birth.split("-")[1]) : 0;
-      return "<tr><td><b>" + esc(u.name) + "</b>" + (bm === new Date().getMonth() + 1 ? " 🎂" : "") + "</td>" +
+      return "<tr><td><b class='lnk' data-profile='" + u.uid + "' style='cursor:pointer;text-decoration:underline;text-underline-offset:2px'>" + esc(u.name) + "</b>" + (bm === new Date().getMonth() + 1 ? " 🎂" : "") + "</td>" +
         "<td class='mono' style='font-size:11.5px;color:var(--tx3)'>" + (joinStart(u, S) ? fmtD(joinStart(u, S)) + " 부터" : "-") + "</td>" +
         "<td><span class='bdg " + gradeInfo(u).color + "'>" + esc(gradeOf(u)) + "</span>" +
         (gradeInfo(u).tl && (u.tlMembers || []).length ? "<div style='font-size:10.5px;color:var(--tx3);margin-top:3px'>담당 " + u.tlMembers.length + "명</div>" : "") + "</td>" +
@@ -2545,6 +2599,7 @@ function bindAdmin() {
     await DB.set("users", b.dataset.on, { disabled: false, approved: true }); toast("복구됨", "ok");
   });
   $$("[data-mem]").forEach(b => b.onclick = () => openMemberModal(b.dataset.mem));
+  $$("[data-profile]").forEach(b => b.onclick = () => openMemberProfile(b.dataset.profile));
   $$("[data-pconf]").forEach(b => b.onclick = async () => {
     const f = collectFines({}).find(x => x.id === b.dataset.pconf); if (!f) return;
     await DB.set("fines", f.id, Object.assign(baseFine(f), {
