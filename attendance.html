@@ -364,6 +364,28 @@ const KINDS = {
   etc:     { label: "기타",     color: "n", icon: "✏️" }
 };
 
+/** 벌금 직접 추가 시 "사유"를 매번 새로 타이핑하지 않도록, 항목(KINDS)별로 자주 쓰는
+ *  사유를 미리 골라서 고를 수 있게 한다. 목록에 없으면 "기타(직접 입력)"를 선택해서
+ *  자유롭게 적을 수 있다. */
+const FINE_REASON_PRESETS = {
+  absent:  ["출근사진 미등록", "연락 두절", "무단 결근"],
+  late:    ["출근사진 지각 등록", "지각 반복"],
+  closing: ["일마감 미실행", "일마감 지연 제출"],
+  photo:   ["워킹사진 부족", "워킹사진 미제출"],
+  report:  ["출근보고 미제출", "마감 후 제출"],
+  etc:     []
+};
+const FINE_REASON_OTHER = "__other__";
+function fineReasonOptionsHtml(kind, memo) {
+  const presets = FINE_REASON_PRESETS[kind] || [];
+  // memo가 있으면 그 값을 우선 선택하고, 없으면(새로 항목을 고른 직후) 프리셋이 있는 한
+  // 첫 프리셋을 기본 선택해서 관리자가 바로 "추가"만 눌러도 되게 한다. 프리셋이 아예
+  // 없는 항목(기타 등)일 때만 "기타(직접 입력)"이 기본이 된다.
+  const selectVal = memo && presets.indexOf(memo) !== -1 ? memo : (memo ? FINE_REASON_OTHER : (presets[0] || FINE_REASON_OTHER));
+  return presets.map(r => '<option value="' + esc(r) + '"' + (selectVal === r ? " selected" : "") + '>' + esc(r) + "</option>").join("") +
+    '<option value="' + FINE_REASON_OTHER + '"' + (selectVal === FINE_REASON_OTHER ? " selected" : "") + '>기타 (직접 입력)</option>';
+}
+
 /* ============================ 유틸 ============================ */
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -2027,27 +2049,45 @@ function openFineModal(id) {
   });
 }
 
-function openAddFine() {
+/** 벌금 직접 추가. prefill.date/prefill.uid 를 주면 그 값으로 미리 채워진 채로 열린다
+ *  (캘린더에서 날짜를 클릭하고 바로 추가할 때 사용). */
+function openAddFine(prefill) {
+  prefill = prefill || {};
+  const startKind = "etc";
   modal({
     title: "벌금 직접 추가",
     body:
       '<div class="fld"><label>팀원</label><select class="inp" id="afU">' +
-      ACTIVE_USERS().map(u => "<option value='" + u.uid + "'>" + esc(u.name) + "</option>").join("") + "</select></div>" +
-      '<div class="fld"><label>날짜</label><input class="inp" type="date" id="afD" value="' + today() + '"></div>' +
+      ACTIVE_USERS().map(u => "<option value='" + u.uid + "'" + (prefill.uid === u.uid ? " selected" : "") + ">" + esc(u.name) + "</option>").join("") + "</select></div>" +
+      '<div class="fld"><label>날짜</label><input class="inp" type="date" id="afD" value="' + esc(prefill.date || today()) + '"></div>' +
       '<div class="fld"><label>항목</label><select class="inp" id="afK">' +
-      Object.keys(KINDS).map(k => "<option value='" + k + "'" + (k === "etc" ? " selected" : "") + ">" + KINDS[k].icon + " " + KINDS[k].label + "</option>").join("") + "</select></div>" +
+      Object.keys(KINDS).map(k => "<option value='" + k + "'" + (k === startKind ? " selected" : "") + ">" + KINDS[k].icon + " " + KINDS[k].label + "</option>").join("") + "</select></div>" +
       '<div class="fld"><label>금액</label><input class="inp" type="number" id="afA" value="10000" step="1000"></div>' +
-      '<div class="fld"><label>사유</label><input class="inp" id="afM" placeholder="예: 회의 지각"></div>',
+      '<div class="fld"><label>사유</label><select class="inp" id="afR">' + fineReasonOptionsHtml(startKind, "") + "</select></div>" +
+      '<div class="fld" id="afMWrap"><input class="inp" id="afM" placeholder="사유를 직접 입력해주세요"></div>',
     okText: "추가",
     onOk: async () => {
       const uid = $("#afU").value, date = $("#afD").value;
       if (!uid || !date) { toast("팀원과 날짜를 선택해주세요", "err"); return false; }
+      const isOther = $("#afR").value === FINE_REASON_OTHER;
+      const memo = (isOther ? $("#afM").value.trim() : $("#afR").value) || "관리자 추가";
       await DB.add("fines", {
         uid, date, kind: $("#afK").value, amount: Number($("#afA").value) || 0,
-        memo: $("#afM").value.trim() || "관리자 추가", manual: true, status: "unpaid",
+        memo, manual: true, status: "unpaid",
         waived: false, createdAt: Date.now(), createdBy: Auth.profile.name
       });
       toast("벌금이 추가되었습니다", "ok");
+    },
+    after: () => {
+      const syncReasonVisibility = () => {
+        $("#afMWrap").style.display = $("#afR").value === FINE_REASON_OTHER ? "" : "none";
+      };
+      $("#afK").onchange = () => {
+        $("#afR").innerHTML = fineReasonOptionsHtml($("#afK").value, "");
+        syncReasonVisibility();
+      };
+      $("#afR").onchange = syncReasonVisibility;
+      syncReasonVisibility();
     }
   });
 }
@@ -2259,11 +2299,14 @@ function openCalDay(date) {
           " · 사진 " + ((d.photos || []).length) + "</div></div>" +
           (d.type ? '<span class="bdg ' + TYPES[d.type].color + '">' + d.type + "</span>" : '<span class="bdg r">미보고</span>') + "</div>";
       }).join("") + "</div>" +
-      '<div class="sec-t" style="margin-top:0">벌금</div><div class="card pad0" style="margin:0">' +
-      (fines.length ? fines.map(fineRow).join("") : '<div class="empty">없음</div>') + "</div>",
+      '<div class="sec-t" style="margin-top:0">벌금</div><div class="card pad0" style="margin:0 0 ' + (Auth.isAdmin() ? "10px" : "0") + '">' +
+      (fines.length ? fines.map(fineRow).join("") : '<div class="empty">없음</div>') + "</div>" +
+      (Auth.isAdmin() ? '<button class="btn sm full" id="calAddFine">+ 이 날짜에 벌금 직접 추가</button>' : ""),
     after: () => {
       $$("[data-open-fine]", $("#ovl")).forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
       $$("[data-open-day]", $("#ovl")).forEach(b => b.onclick = () => openDayModal(b.dataset.openDay, b.dataset.uid));
+      const af = $("#calAddFine");
+      if (af) af.onclick = () => openAddFine({ date, uid: calUser !== "all" ? calUser : undefined });
     }
   });
 }
