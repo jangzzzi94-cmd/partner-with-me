@@ -1495,16 +1495,24 @@ function viewReport() {
   // 지나면 그때부터는 다음 근무일 보고에서 새로 고를 수 없게 막는다(이미 직출로 골라둔
   // 상태를 유지/취소하는 것은 계속 가능).
   const jikchulOver = Date.now() > atTime(tdy, S.jikchulDeadline || "22:00");
+  // 출근으로 보고하고 실제로 출근(사진 등록)까지 끝난 뒤에는 유형 선택/보고수정을 막는다.
+  // 예전에는 아무 변경 없이 "보고수정"만 눌러도 reportAt(제출 시각)이 지금 시각으로 갱신돼
+  // 마감 후 제출로 오판되어 벌금이 잘못 붙는 문제가 있었다 - 이 잠금은 그 상황 자체가
+  // 아예 발생하지 않도록 막는 안전장치다(근본 원인은 bindReport 저장 로직에서 별도로 고침).
+  const lockReport = d.type === "출근" && !!d.checkinAt;
   h += '<div class="tpick">' + Object.keys(TYPES).map(t => {
     const info = TYPES[t];
-    const disabled = (t === "개직" && Number(p.gaejik || 0) < 1 && d.type !== "개직")
+    const disabled = lockReport
+      || (t === "개직" && Number(p.gaejik || 0) < 1 && d.type !== "개직")
       || (t === "직출" && jikchulOver && d.type !== "직출");
     return '<button data-type="' + t + '" class="' + (d.type === t ? "on" : "") + '"' + (disabled ? " disabled" : "") + ">" +
       '<div class="tt">' + info.icon + " " + t + "</div>" +
       '<div class="td">' + info.desc + (t === "개직" ? " · 잔여 " + Number(p.gaejik || 0) + "개" : "") + "</div></button>";
   }).join("") + "</div>";
-  if (jikchulOver && d.type !== "직출")
+  if (jikchulOver && d.type !== "직출" && !lockReport)
     h += '<div class="banner w" style="margin-top:10px">⏰ 오후 10시 이후에는 직출을 선택할 수 없습니다.</div>';
+  if (lockReport)
+    h += '<div class="banner s" style="margin-top:10px">✅ 이미 출근까지 완료된 보고입니다. 유형을 바꿔야 하면 관리자에게 문의해주세요.</div>';
 
   h += '<div class="fld ' + (d.type === "병원근무" ? "" : "hide") + '" id="hospWrap" style="margin-top:13px">' +
     '<label>병원명 (필수)</label>' +
@@ -1526,10 +1534,11 @@ function viewReport() {
     '<div class="upl" id="rzUp"><div class="ic">📎</div><div class="t">' + (d.reasonPhoto ? "이미지 다시 올리기" : "이미지 올리기") + "</div>" +
     '<div class="s">통화목록 또는 고객 연락 캡쳐를 첨부해주세요</div></div>' +
     '<input type="file" accept="image/*" id="rzFile" class="hide"></div></div>';
-  h += '<button class="btn pri full" id="rSave" style="margin-top:14px">' + (d.type ? "보고 수정" : "보고 제출") + "</button>";
+  h += '<button class="btn pri full" id="rSave" style="margin-top:14px"' + (lockReport ? " disabled" : "") + ">" +
+    (lockReport ? "수정 불가 (출근 완료)" : d.type ? "보고 수정" : "보고 제출") + "</button>";
   if (d.type) h += '<div class="hint" style="text-align:center;margin-top:9px">✅ ' + d.type +
     " 로 제출됨 · " + tsFmtFull(d.reportAt) + (d.gaejikUsed ? " · 개직 1개 차감" : "") +
-    "<br>수정하면 <b>수정한 시각</b> 기준으로 마감 여부를 다시 판정합니다.</div>";
+    "<br>유형을 바꾸지 않고 다시 저장하면 제출 시각은 그대로 유지됩니다 · 유형을 바꾼 경우에만 <b>바꾼 시각</b> 기준으로 마감 여부를 다시 판정합니다.</div>";
   h += "</div>";
 
   {
@@ -1666,12 +1675,18 @@ function bindReport() {
     const hosp = $("#rHosp") ? $("#rHosp").value.trim() : "";
     if (sel === "직출" && !reason) return toast("직출은 사유를 반드시 입력해주세요", "err");
     if (sel === "병원근무" && !hosp) return toast("병원근무는 병원명을 입력해주세요", "err");
-    const already = (DB.get("daily", dayId(p.uid, rDate)) || {}).type;
+    const cur = DB.get("daily", dayId(p.uid, rDate)) || {};
+    if (cur.type === "출근" && cur.checkinAt) return toast("이미 출근까지 완료된 보고는 수정할 수 없습니다. 관리자에게 문의해주세요.", "err");
+    const already = cur.type;
     if (sel === "직출" && already !== "직출" && Date.now() > atTime(tdy, S.jikchulDeadline || "22:00"))
       return toast("오후 10시 이후에는 직출을 선택할 수 없습니다.", "err");
-    const cur = DB.get("daily", dayId(p.uid, rDate)) || {};
     const wasUsed = !!cur.gaejikUsed;
     let used = wasUsed;
+    // 유형을 실제로 바꿀 때만 reportAt(제출 시각)을 지금 시각으로 갱신한다. 이미 제출해둔
+    // 유형 그대로 다시 저장만 하는 경우(예: 아무 변경 없이 "보고수정"을 누르는 경우)까지
+    // reportAt이 갱신되면, 원래 마감 전에 냈던 보고가 지금(마감 후) 시각으로 다시 찍혀서
+    // "마감 후 제출" 벌금이 잘못 붙는 문제가 있었다 - 이걸 막기 위한 조건이다.
+    const typeChanged = sel !== already;
     try {
       sv.disabled = true;
       if (sel === "개직" && !wasUsed) {
@@ -1680,14 +1695,17 @@ function bindReport() {
       } else if (sel !== "개직" && wasUsed) {
         await useMyGaejik(+1, "개직 취소 · " + fmtDL(rDate) + " → " + sel); used = false;
       }
-      await DB.set("daily", dayId(p.uid, rDate), {
+      const patch = {
         uid: p.uid, date: rDate, type: sel,
         reason: sel === "직출" ? reason : "",
         hospital: sel === "병원근무" ? hosp : "",
-        reportAt: Date.now(), gaejikUsed: used, updatedAt: Date.now()
-      });
+        gaejikUsed: used, updatedAt: Date.now()
+      };
+      if (typeChanged || !cur.reportAt) patch.reportAt = Date.now();
+      await DB.set("daily", dayId(p.uid, rDate), patch);
       const dl = reportDeadlineTs(rDate, sel, S);
-      toast(Date.now() > dl ? sel + " 보고 저장 · 마감 후 제출로 벌금 대상입니다" : sel + " 보고 완료", Date.now() > dl ? "err" : "ok");
+      const checkAt = typeChanged || !cur.reportAt ? Date.now() : cur.reportAt;
+      toast(checkAt > dl ? sel + " 보고 저장 · 마감 후 제출로 벌금 대상입니다" : sel + " 보고 완료", checkAt > dl ? "err" : "ok");
     } catch (e) { toast(cleanErr(e), "err"); sv.disabled = false; }
   };
 
