@@ -1432,15 +1432,45 @@ function bindCheckin() {
 /* ============================================================================
    보고 — 출근보고 · 워킹사진 · 일마감 체크리스트
    ============================================================================ */
-let ckItems = null;   // 일마감 체크리스트 임시 상태
+let ckItems = null;      // 일마감 체크리스트 임시 상태
+let ckItemsDate = null;  // ckItems가 어느 날짜(tdy) 것인지 - 자정을 넘겨 탭을 계속 열어두고
+                          // 있어도 어제 체크리스트가 오늘 것인 양 계속 보이지 않도록 날짜가
+                          // 바뀌면 새로 불러온다.
 
-function todayItems(p, dToday) {
-  if (ckItems) return ckItems;
+function todayItems(p, dToday, dateKey) {
+  if (ckItems && ckItemsDate === dateKey) return ckItems;
+  ckItemsDate = dateKey;
   if (Array.isArray(dToday.closingItems) && dToday.closingItems.length)
     ckItems = dToday.closingItems.map(x => ({ t: x.t, done: !!x.done }));
   else
     ckItems = (p.checklist || []).map(t => ({ t: typeof t === "string" ? t : (t.t || ""), done: false }));
   return ckItems;
+}
+
+/** 일마감 체크리스트를 지금 상태 그대로 저장한다. 체크/텍스트수정/추가/삭제를 할 때마다
+ *  자동으로 호출되어(자세한 건 bindReport의 각 핸들러 참고), "저장하기"를 누르지 않아도
+ *  탭을 닫거나 새로고침해도 방금까지 한 변경사항이 사라지지 않게 한다.
+ *  closingSavedAt(벌금 면제 기준 시각)은 "인정 시간" 안에 있을 때만 갱신한다 - 그래야
+ *  인정 시간 안에 이미 완료 처리를 받은 뒤, 인정 시간이 지나서 오탈자를 고치는 등의
+ *  사소한 수정을 해도 그 완료 기록이 지워지고 벌금이 붙는 일이 생기지 않는다. */
+async function saveClosing(p, tdy, S, items, opt) {
+  opt = opt || {};
+  const clean = items.filter(x => x.t);
+  ckItems = clean;
+  const now = Date.now();
+  const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
+  const nowInWindow = now >= from && now <= to;
+  const patch = { uid: p.uid, date: tdy, closingItems: clean, updatedAt: now };
+  if (nowInWindow) patch.closingSavedAt = now;
+  await DB.set("daily", dayId(p.uid, tdy), patch);
+  await DB.set("users", p.uid, { checklist: clean.map(x => x.t) });
+  if (opt.toast) {
+    const savedOk = nowInWindow || (() => {
+      const cur = DB.get("daily", dayId(p.uid, tdy)) || {};
+      return cur.closingSavedAt >= from && cur.closingSavedAt <= to;
+    })();
+    toast(savedOk ? "일마감 저장 완료 👍" : "저장됨 · 인정 시간(" + S.closingFrom + "~" + S.closingTo + ") 밖입니다", savedOk ? "ok" : "err");
+  }
 }
 
 function viewReport() {
@@ -1536,7 +1566,7 @@ function viewReport() {
 
     /* 일마감 체크리스트 */
     if (S.closingForAll || dT.type !== "개직") {
-      const items = todayItems(p, dT);
+      const items = todayItems(p, dT, tdy);
       const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
       const saved = dT.closingSavedAt || 0;
       const ok = saved >= from && saved <= to;
@@ -1689,16 +1719,24 @@ function bindReport() {
     toast("삭제됨");
   });
 
-  /* 일마감 체크리스트 */
+  /* 일마감 체크리스트 — 체크/텍스트수정/추가/삭제를 할 때마다 자동 저장된다(디바운스 적용).
+     "저장하기" 버튼은 그대로 두되, 즉시 저장 + 인정시간 안내 토스트 용도로만 남는다. */
   const dT = DB.get("daily", dayId(p.uid, tdy)) || {};
-  const items = todayItems(p, dT);
+  const items = todayItems(p, dT, tdy);
+  let ckAutoTimer = null;
+  const autoSaveClosing = () => {
+    clearTimeout(ckAutoTimer);
+    ckAutoTimer = setTimeout(() => { saveClosing(p, tdy, S, items, { toast: false }); }, 500);
+  };
   $$("[data-cktog]").forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.cktog); items[i].done = !items[i].done; render();
+    const i = Number(b.dataset.cktog); items[i].done = !items[i].done; render(); autoSaveClosing();
   });
   $$("[data-ckdel]").forEach(b => b.onclick = () => {
-    const i = Number(b.dataset.ckdel); items.splice(i, 1); render();
+    const i = Number(b.dataset.ckdel); items.splice(i, 1); render(); autoSaveClosing();
   });
-  $$("[data-cktx]").forEach(el => el.onblur = () => { items[Number(el.dataset.cktx)].t = el.textContent.trim(); });
+  $$("[data-cktx]").forEach(el => el.onblur = () => {
+    items[Number(el.dataset.cktx)].t = el.textContent.trim(); autoSaveClosing();
+  });
   const add = $("#ckAdd");
   if (add) add.onclick = () => {
     items.push({ t: "", done: false }); render();
@@ -1706,17 +1744,9 @@ function bindReport() {
   };
   const save = $("#ckSave");
   if (save) save.onclick = async () => {
+    clearTimeout(ckAutoTimer);
     $$("[data-cktx]").forEach(el => { items[Number(el.dataset.cktx)].t = el.textContent.trim(); });
-    const clean = items.filter(x => x.t);
-    ckItems = clean;
-    const now = Date.now();
-    await DB.set("daily", dayId(p.uid, tdy), {
-      uid: p.uid, date: tdy, closingItems: clean, closingSavedAt: now, updatedAt: now
-    });
-    await DB.set("users", p.uid, { checklist: clean.map(x => x.t) });
-    const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
-    toast(now >= from && now <= to ? "일마감 저장 완료 👍" : "저장됨 · 인정 시간(" + S.closingFrom + "~" + S.closingTo + ") 밖입니다",
-      now >= from && now <= to ? "ok" : "err");
+    await saveClosing(p, tdy, S, items, { toast: true });
   };
 }
 
