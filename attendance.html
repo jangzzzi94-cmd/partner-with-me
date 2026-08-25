@@ -1481,6 +1481,13 @@ function viewReport() {
     '<input class="inp" id="rHosp" placeholder="예: OO정형외과 / OO병원 3층" value="' + esc(d.hospital || "") + '">' +
     '<div class="hint">기준 출근 시각은 ' + typeRule(S, "병원근무").start + " 입니다.</div></div>";
 
+  h += '<div class="' + (d.type === "개직" ? "" : "hide") + '" id="gjPhotoWrap" style="margin-top:13px">' +
+    '<div class="fld"><label>SM보고 및 준비방 보고 캡쳐이미지 올려주세요.</label>' +
+    (d.gaejikPhoto ? '<img src="' + d.gaejikPhoto + '" class="thumb" style="margin-bottom:8px" data-img="' + d.gaejikPhoto + '" data-imgt="개직 · SM보고/준비방 캡쳐">' : "") +
+    '<div class="upl" id="gjUp"><div class="ic">📎</div><div class="t">' + (d.gaejikPhoto ? "이미지 다시 올리기" : "이미지 올리기") + "</div>" +
+    '<div class="s">SM보고 및 준비방 보고 캡쳐이미지 올려주세요.</div></div>' +
+    '<input type="file" accept="image/*" id="gjFile" class="hide"></div></div>';
+
   h += '<div class="' + (d.type === "직출" ? "" : "hide") + '" id="reasonWrap" style="margin-top:13px">' +
     '<div class="fld"><label>직출 사유 (필수)</label>' +
     '<textarea class="inp" id="rReason" placeholder="예) 고객과의 일정 잡는 통화목록 / 연락 사진 첨부&#10;OO고객 10시 방문상담 · 어제 21시 통화 완료">' + esc(d.reason || "") + "</textarea></div>" +
@@ -1591,7 +1598,22 @@ function bindReport() {
     $$("[data-type]").forEach(x => x.classList.toggle("on", x.dataset.type === sel));
     $("#reasonWrap").classList.toggle("hide", sel !== "직출");
     $("#hospWrap").classList.toggle("hide", sel !== "병원근무");
+    $("#gjPhotoWrap").classList.toggle("hide", sel !== "개직");
   });
+
+  /* 개직 · SM보고/준비방 보고 캡쳐이미지 */
+  const gjUp = $("#gjUp"), gjFile = $("#gjFile");
+  if (gjUp) gjUp.onclick = () => gjFile.click();
+  if (gjFile) gjFile.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      toast("이미지 처리 중…");
+      const raw = await compressImage(f, 900, .72);
+      const url = await DB.uploadImage(raw, "gaejik");
+      await DB.set("daily", dayId(p.uid, rDate), { uid: p.uid, date: rDate, gaejikPhoto: url, updatedAt: Date.now() });
+      toast("캡쳐이미지 첨부됨", "ok");
+    } catch (er) { toast(cleanErr(er), "err"); }
+  };
 
   /* 직출 증빙 이미지 */
   const rzUp = $("#rzUp"), rzFile = $("#rzFile");
@@ -2112,6 +2134,7 @@ function dayDetailBody(uid, date) {
     (d.reason ? (canSee ? '<div class="banner i">🚗 직출 사유: <b>' + esc(d.reason) + "</b></div>"
                         : '<div class="banner w">직출 사유는 담당 TL·관리자만 볼 수 있습니다.</div>') : "") +
     (d.reasonPhoto && canSee ? '<div class="fld"><label>직출 증빙</label><img src="' + d.reasonPhoto + '" class="thumb" data-img="' + d.reasonPhoto + '" data-imgt="직출 증빙"></div>' : "") +
+    (d.gaejikPhoto && canSee ? '<div class="fld"><label>SM보고 및 준비방 보고 캡쳐이미지</label><img src="' + d.gaejikPhoto + '" class="thumb" data-img="' + d.gaejikPhoto + '" data-imgt="개직 · SM보고/준비방 캡쳐"></div>' : "") +
     '<div class="grid g2" style="margin-bottom:14px">' +
     '<div class="stat"><div class="lb">출근 등록</div><div class="vl" style="font-size:19px">' + (tsHM(d.checkinAt) || "-") + "</div>" +
     '<div class="sub">기준 ' + S.workStart + "</div></div>" +
