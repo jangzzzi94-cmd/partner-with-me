@@ -225,6 +225,18 @@ async function updateMyAttendanceBirth(birthIso){
     return { ok:true };
 }
 
+// 일마감 체크리스트의 "항목 목록"을 다음날 다시 불러올 수 있게 attendance_profiles.checklist에
+// 저장한다. attendance_profiles는 본인이라도 직접 update 할 수 없고(RLS가 관리자 전용) RPC로만
+// 가능해서, birth/gaejik과 동일한 패턴으로 RPC(attendance_update_my_checklist)를 통해 저장한다.
+async function updateMyAttendanceChecklist(items){
+    const { error } = await supabaseClient.rpc("attendance_update_my_checklist", { p_checklist: items || [] });
+    if(error){
+        console.error(error);
+        return { ok:false, message: error.message };
+    }
+    return { ok:true };
+}
+
 async function adminDeleteAccount(userId){
     const { error } = await supabaseClient.rpc("admin_delete_account", { p_user_id: userId });
     if(error){
