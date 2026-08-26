@@ -311,3 +311,112 @@ $$;
 
 revoke all on function public.attendance_update_my_birth(date) from public;
 grant execute on function public.attendance_update_my_birth(date) to authenticated;
+
+/* ---------------------------------------------------------------------------
+   13) attendance_use_my_gaejik - lets a member spend/refund their OWN 개직
+      (leave day) when submitting their own 다음 근무일 report and picking
+      "개직". attendance_profiles' update policy is admin-only (see 1), so a
+      member trying to decrement their own gaejik count directly (as the
+      report screen used to do via a plain upsert) was rejected by RLS with
+      "권한이 없습니다. 관리자만 가능한 작업입니다." - which also meant the
+      whole report submission aborted before the work-type itself ("개직")
+      ever got saved, so the calendar never showed 개직 for that day either.
+      This RPC is a narrow, self-only escape hatch (same pattern as
+      attendance_update_my_birth): it only ever adjusts the caller's own
+      gaejik count, refuses to push it negative, and writes the same
+      attendance_glog row shape the admin-side change_gaejik flow already
+      writes (name/delta/after/reason/by/at/date) so the "개직 로그" tab
+      keeps working unchanged for self-service entries too.
+   --------------------------------------------------------------------------- */
+create or replace function public.attendance_use_my_gaejik(p_delta int, p_reason text)
+returns int
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+declare
+  v_after int;
+  v_name text;
+  v_glog_id text;
+begin
+  if p_delta is null or p_delta = 0 then
+    raise exception 'Invalid delta';
+  end if;
+
+  update public.attendance_profiles
+  set gaejik = gaejik + p_delta
+  where uid = auth.uid()
+  returning gaejik into v_after;
+
+  if v_after is null then
+    raise exception 'Attendance profile not found';
+  end if;
+  if v_after < 0 then
+    raise exception 'Not enough 개직 remaining';
+  end if;
+
+  select name into v_name from public.profiles where id = auth.uid();
+  v_glog_id := auth.uid()::text || '_' || (extract(epoch from clock_timestamp()) * 1000)::bigint::text;
+
+  insert into public.attendance_glog (id, uid, data)
+  values (
+    v_glog_id,
+    auth.uid(),
+    jsonb_build_object(
+      'uid', auth.uid(),
+      'name', coalesce(v_name, ''),
+      'delta', p_delta,
+      'after', v_after,
+      'reason', p_reason,
+      'auto', false,
+      'by', coalesce(v_name, ''),
+      'at', (extract(epoch from clock_timestamp()) * 1000)::bigint,
+      'date', to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM-DD')
+    )
+  );
+
+  return v_after;
+end;
+$$;
+
+revoke all on function public.attendance_use_my_gaejik(int, text) from public;
+grant execute on function public.attendance_use_my_gaejik(int, text) to authenticated;
+
+-- =========================================================================
+-- 일마감 체크리스트 "항목 목록" 저장용 RPC (attendance_update_my_checklist)
+-- =========================================================================
+-- attendance_profiles 테이블은 본인이라도 직접 update 할 수 없다(RLS가 관리자
+-- 전용 UPDATE만 허용 - attendance_profiles_update_admin). 그래서 일마감 화면에서
+-- 오늘 체크한 "항목 목록"(다음날 체크리스트를 다시 세팅할 때 쓰는 템플릿, 컬럼:
+-- attendance_profiles.checklist, jsonb)을 저장하려던 기존 코드(DB.set("users", ...))는
+-- 관리자 계정에서만 조용히 성공하고, 나머지 팀원들은 전부 실패(에러가 화면에 표시되지
+-- 않고 그냥 삼켜짐)하고 있었다. 그 결과 오늘 체크한 daily.closingItems 자체는 잘
+-- 저장되지만, 다음날 새로 뜨는 체크리스트의 "항목 이름 목록"은 텅 빈 채로 나타나는
+-- 문제가 있었다 ("일마감 내용이 다음날 사라진다"는 버그의 근본 원인).
+--
+-- birth(attendance_update_my_birth), gaejik(attendance_use_my_gaejik)과 동일한
+-- 패턴으로, auth.uid() 범위로 제한된 security definer RPC를 통해서만 본인이
+-- checklist를 쓸 수 있게 한다.
+--
+-- 이미 라이브 DB(Supabase SQL Editor)에 적용 완료됨.
+
+create or replace function public.attendance_update_my_checklist(p_checklist jsonb)
+returns void
+language plpgsql
+security definer
+set search_path to 'public'
+as $function$
+begin
+  update public.attendance_profiles
+  set checklist = coalesce(p_checklist, '[]'::jsonb)
+  where uid = auth.uid();
+
+  if not found then
+    insert into public.attendance_profiles (uid, checklist)
+    values (auth.uid(), coalesce(p_checklist, '[]'::jsonb));
+  end if;
+end;
+$function$;
+
+revoke all on function public.attendance_update_my_checklist(jsonb) from public;
+grant execute on function public.attendance_update_my_checklist(jsonb) to authenticated;

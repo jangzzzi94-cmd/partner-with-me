@@ -1462,8 +1462,23 @@ async function saveClosing(p, tdy, S, items, opt) {
   const nowInWindow = now >= from && now <= to;
   const patch = { uid: p.uid, date: tdy, closingItems: clean, updatedAt: now };
   if (nowInWindow) patch.closingSavedAt = now;
-  await DB.set("daily", dayId(p.uid, tdy), patch);
-  await DB.set("users", p.uid, { checklist: clean.map(x => x.t) });
+  try {
+    await DB.set("daily", dayId(p.uid, tdy), patch);
+    // attendance_profiles(=users)는 본인이라도 테이블을 직접 update할 수 없고(RLS가 관리자
+    // 전용) RPC로만 가능하다 - 예전에는 여기서 그냥 DB.set("users", ...)를 직접 호출해서
+    // 관리자 계정만 조용히 성공하고 나머지 팀원은 전부 실패(에러가 삼켜져서 화면엔 아무 표시도
+    // 안 됨)했다. 그래서 오늘 체크한 항목 자체(daily.closingItems)는 잘 저장돼도, "항목 목록"
+    // 템플릿(users.checklist)이 저장 안 돼서 다음날 체크리스트가 통째로 빈 채로 떴던 것.
+    const chk = await updateMyAttendanceChecklist(clean.map(x => x.t));
+    if (!chk.ok) throw new Error(chk.message);
+    const uid = p.uid, u = DB.cache.users[uid];
+    if (u) u.checklist = clean.map(x => x.t);
+    if (Auth.profile && Auth.profile.uid === uid) Auth.profile.checklist = clean.map(x => x.t);
+    DB.emit();
+  } catch (e) {
+    toast("일마감 저장 실패: " + cleanErr(e), "err");
+    return;
+  }
   if (opt.toast) {
     const savedOk = nowInWindow || (() => {
       const cur = DB.get("daily", dayId(p.uid, tdy)) || {};
