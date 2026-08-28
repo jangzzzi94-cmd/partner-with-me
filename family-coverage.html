@@ -68,7 +68,7 @@
   .hero::after{
     content:"";
     position:absolute; right:-120px; top:-160px; width:420px; height:420px;
-    background:radial-gradient(circle, rgba(201,162,75,0.18) 0%, transparent 70%);
+    background:radial-gradient(circle, rgba(27,45,84,0.55) 0%, transparent 70%);
   }
   .hero-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1;}
   .hero-mark{
@@ -653,8 +653,8 @@ function renderPremiumTable(valid){
   const rows = valid.map(p => `
     <tr>
       <td class="name-cell">${escapeHtml(p.name)}</td>
-      <td class="num col-before">${fmt(p.before)}원</td>
-      <td class="num col-after">${fmt(p.after)}원</td>
+      <td class="num">${fmt(p.before)}원</td>
+      <td class="num">${fmt(p.after)}원</td>
       <td class="num ${p.diff>=0?'pos':'neg'}">${p.diff>=0?'+':'-'}${fmt(Math.abs(p.diff))}원</td>
       <td class="num">${p.pct.toFixed(1)}%</td>
       <td class="num">${fmt(p.diff*12*20)}원</td>
@@ -665,7 +665,7 @@ function renderPremiumTable(valid){
   <div class="card table-scroll">
     <table>
       <thead><tr>
-        <th>이름</th><th class="num col-before">전 보험료</th><th class="num col-after">후 보험료</th>
+        <th>이름</th><th class="num">전 보험료</th><th class="num">후 보험료</th>
         <th class="num">월 절감액</th><th class="num">절감율</th><th class="num">20년 누적 절감액</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -729,7 +729,6 @@ function renderTimeline(valid){
       <div><h3>가족 합산 보험료 절감 누적 그래프</h3><p>보장 조정 후 아낀 보험료를 계속 모아둔다면 이만큼 쌓입니다</p></div>
     </div>
     <div class="bars">${bars}</div>
-    <div class="disclaimer">※ 이자·운용수익을 반영하지 않은 단순 누적(월 절감액 × 12개월 × 경과년수) 기준이며, 실제 저축·투자 결과와는 차이가 있을 수 있습니다.</div>
   </div>`;
 }
 
