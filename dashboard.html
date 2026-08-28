@@ -6,6 +6,14 @@
 <title>대시보드 | With Partners</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* 대시보드 메뉴만 한 줄에 3개씩 배치(병력정리/보장분석표/가족보장분석 →
+     J마켓/팀벌금). hub.html 등 다른 페이지의 .card-grid(2개짜리)는 건드리지
+     않기 위해 assets/style.css는 그대로 두고 이 페이지에서만 덮어쓴다. */
+  .card-grid{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:900px){.card-grid{grid-template-columns:1fr 1fr;}}
+  @media (max-width:640px){.card-grid{grid-template-columns:1fr;}}
+</style>
 </head>
 <body>
 <div class="navbar">
