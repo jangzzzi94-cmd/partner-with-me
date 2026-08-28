@@ -165,7 +165,7 @@ async function adminUpdatePointLogNote(id, note){
 // 읽어온다. 조회에 실패하면(테이블이 아직 없거나 네트워크 오류 등) 화면이 깨지지 않도록
 // 기존 기본값(병력정리 1,000P / 보장분석표 3,000P)으로 대신한다.
 async function getPointCosts(){
-    const defaults = { history: 1000, coverage: 3000 };
+    const defaults = { history: 1000, coverage: 3000, family_coverage: 1000 };
     const { data, error } = await supabaseClient.from("point_costs").select("feature, cost");
     if(error || !data){
         console.error(error);
