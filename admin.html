@@ -501,7 +501,7 @@ document.getElementById("styleSaveBtn").addEventListener("click", async function
 
 // 기능별 포인트 차감 설정 (병력정리/보장분석표 등) -- point_costs 테이블을 직접 읽고 쓴다.
 // RLS 정책상 조회는 로그인한 회원 누구나, 수정은 관리자만 가능하다.
-var pointCostFeatureLabels = { history: "병력정리", coverage: "보장분석표" };
+var pointCostFeatureLabels = { history: "병력정리", coverage: "보장분석표", family_coverage: "가족보장분석" };
 async function loadPointCosts(){
   const wrap = document.getElementById("pointCostRows");
   const { data, error } = await supabaseClient

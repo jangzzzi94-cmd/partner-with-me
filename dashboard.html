@@ -30,6 +30,12 @@
 <p>가입된 보장 내역을 업로드해 보장분석표(전)/(후)를 자동으로 만들고, 종합비교·보장차이까지 한 번에 확인합니다.</p>
 <span class="badge-soon" id="coverageBadge" style="display:none">1회 3,000P</span>
 </a>
+<a href="family-coverage.html" class="feature-card">
+<div class="icon">👨‍👩‍👧‍👦</div>
+<h3>가족보장분석</h3>
+<p>가족 구성원별 보장분석표를 모아 하나의 통합 리포트로 비교하고, PDF로 저장합니다.</p>
+<span class="badge-soon" id="familyCoverageBadge" style="display:none">1회 1,000P</span>
+</a>
 <a href="jmarket.html" class="feature-card">
 <div class="icon">🛒</div>
 <h3>Market J</h3>
@@ -113,6 +119,10 @@
         const coverageBadge = document.getElementById('coverageBadge');
         coverageBadge.textContent = '1회 ' + costs.coverage.toLocaleString() + 'P';
         coverageBadge.style.display = 'inline-block';
+
+        const familyCoverageBadge = document.getElementById('familyCoverageBadge');
+        familyCoverageBadge.textContent = '1회 ' + costs.family_coverage.toLocaleString() + 'P';
+        familyCoverageBadge.style.display = 'inline-block';
 
         const card = document.getElementById('historyCard');
         const badge = document.getElementById('historyBadge');
