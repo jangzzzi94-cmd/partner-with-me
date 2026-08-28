@@ -42,7 +42,7 @@
     line-height:1.5;
     -webkit-font-smoothing:antialiased;
   }
-  .num{font-family:'Roboto Mono','PretendardVariable',monospace;font-variant-numeric:tabular-nums;}
+  .num{font-family:'PretendardVariable','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;font-variant-numeric:tabular-nums;}
 
   /* 제목/헤드라인 전용 서체: HY헤드라인M (PC에 설치되어 있어야 표시되며,
      없는 기기에서는 Pretendard/기본 고딕으로 자동 대체됩니다) */
@@ -185,7 +185,7 @@
     display:flex;align-items:baseline;gap:10px;margin:38px 0 14px;
   }
   .section-title .n{
-    font-family:'Roboto Mono',monospace;color:var(--gold);font-weight:700;font-size:13px;
+    font-family:'PretendardVariable','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;color:var(--gold);font-weight:700;font-size:13px;
     background:var(--navy-900);padding:3px 8px;border-radius:6px;
   }
   .section-title h2{font-size:18px;margin:0;font-weight:700;}
@@ -209,7 +209,7 @@
   tbody td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:middle;text-align:center;}
   tbody tr:hover{background:#FBFAF6;}
   td.name-cell{font-weight:700;}
-  td.num, th.num{font-family:'Roboto Mono',monospace;}
+  td.num, th.num{font-family:'PretendardVariable','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;}
   .pos{color:var(--save);font-weight:700;}
   .neg{color:var(--after);font-weight:700;}
   .muted-cell{color:var(--muted);}
@@ -242,6 +242,16 @@
   .premium-row td.item-cell{background:var(--navy-900);color:#F3EFE2;}
   .premium-row td{border-top:2px solid var(--navy-900);border-bottom:2px solid var(--navy-900);}
 
+  /* 구성→암→뇌→심장... 그룹이 바뀔 때마다(각 그룹의 첫 줄) 하얀 선으로 확실히 구분되게
+     한다. 구분(section-cell) 칸은 배경이 진한 남색이라 옆 그룹과 붙으면 경계가 안 보이던
+     문제가 있었는데, 흰 선을 넣어 모든 그룹 경계가 동일하게 또렷이 나뉘도록 함. */
+  .group-start td{border-top:4px solid #fff !important;}
+
+  /* 전/후 헤더 글씨: thead tr.sub th 규칙이 우선 적용돼 색이 흐리게 나오던 걸,
+     굵고 흰 글씨 + 진한 전/후 색 배경으로 확실히 보이게 함 */
+  thead tr.sub th.col-before{background:var(--before);color:#fff;font-weight:800;}
+  thead tr.sub th.col-after{background:var(--after);color:#fff;font-weight:800;}
+
   .table-scroll{overflow-x:auto;}
 
   /* ---------- TIMELINE / SIGNATURE ---------- */
@@ -256,7 +266,7 @@
     background:linear-gradient(180deg, var(--gold) 0%, #A9832F 100%);
     position:relative;transition:height .5s cubic-bezier(.2,.9,.3,1);
   }
-  .bar-val{font-size:11.5px;font-weight:700;color:var(--navy-900);margin-bottom:6px;font-family:'Roboto Mono',monospace;}
+  .bar-val{font-size:11.5px;font-weight:700;color:var(--navy-900);margin-bottom:6px;font-family:'PretendardVariable','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;}
   .bar-label{margin-top:8px;font-size:11.5px;color:var(--muted);}
   .disclaimer{font-size:11px;color:#A6A395;margin-top:16px;line-height:1.6;}
 
@@ -285,7 +295,7 @@
   .insight-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;}
   .insight-box{background:#FAF8F2;border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
   .insight-box .k{font-size:11.5px;color:var(--muted);margin-bottom:4px;}
-  .insight-box .v{font-size:17px;font-weight:700;font-family:'Roboto Mono',monospace;}
+  .insight-box .v{font-size:17px;font-weight:700;font-family:'PretendardVariable','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;}
   .insight-box .v.pos{color:var(--save);}
 
   .pair-bars{display:flex;flex-direction:column;gap:14px;margin-top:16px;}
@@ -299,7 +309,7 @@
   .pair-bar{height:15px;border-radius:4px;transition:width .4s ease;}
   .pair-bar.b{background:var(--before);}
   .pair-bar.a{background:var(--after);}
-  .pair-amt{font-size:11.5px;font-family:'Roboto Mono',monospace;color:var(--muted);white-space:nowrap;}
+  .pair-amt{font-size:11.5px;font-family:'PretendardVariable','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;color:var(--muted);white-space:nowrap;}
 
   .contrib-bar{display:flex;height:34px;border-radius:8px;overflow:hidden;margin-top:16px;border:1px solid var(--line);}
   .contrib-seg{display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:600;min-width:2px;}
@@ -811,7 +821,9 @@ function renderDetailTable(valid){
   let bodyRows = '';
   itemTemplate.forEach(sec => {
     sec.items.forEach((item, idx) => {
-      bodyRows += '<tr>';
+      // idx===0(그룹 첫 줄)에는 group-start 클래스를 붙여, 구성→암→뇌→심장... 그룹이
+      // 바뀔 때마다 하얀 선으로 확실히 구분되게 한다(모든 그룹 경계에 동일하게 적용).
+      bodyRows += idx === 0 ? '<tr class="group-start">' : '<tr>';
       if(idx === 0){
         bodyRows += `<td class="section-cell" rowspan="${sec.items.length}">${escapeHtml(sec.name)}</td>`;
       }
