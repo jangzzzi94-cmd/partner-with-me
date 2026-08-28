@@ -338,6 +338,24 @@
     .detail-table tbody td{padding:8px 10px;font-size:11.5px;line-height:1.3;}
     .detail-table .section-cell{font-size:11.5px;}
     .detail-table .item-cell{font-size:11.5px;}
+
+    /* ---- 인쇄 시 한눈에 보기 좋게 보완 (내용/문구는 그대로, 시각적 요소만 조정) ----
+       1) 로고 마크를 첫 페이지 오른쪽 위 → 오른쪽 아래로 이동
+       2) 카드/표 테두리를 또렷하게(연한 --line 대신 진한 톤)
+       3) 01번 핵심 비교표(구성원별 보험료 비교)는 글자를 더 키우고 짝수 행에 옅은
+          배경을 넣어 가로로 읽기 쉽게 함 — 03번 상세표는 항목이 많아 이미 최대한
+          압축해둔 상태라 그대로 둔다.
+       4) 히어로(첫 페이지) 핵심 숫자는 vw 단위 대신 고정 크기로 지정해 인쇄 시에도
+          항상 크고 또렷하게 보이게 함 */
+    .hero-mark{ top:auto !important; bottom:28px !important; }
+    .hero h1{ font-size:32px !important; }
+    .hero-stat .value{ font-size:26px !important; }
+    .hero-stat.headline .value{ font-size:36px !important; }
+    .card{ border:1.4px solid #C2BBA6 !important; }
+    .insight-box{ border:1.3px solid #C2BBA6 !important; }
+    table{ font-size:14px; }
+    tbody td{ border-top:1.2px solid #D8D2C0; }
+    tbody tr:nth-child(even){ background:#FAF8F2; }
   }
 </style>
 </head>
