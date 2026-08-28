@@ -224,7 +224,6 @@
   .section-cell{
     background:var(--navy-900);font-weight:800;color:#fff;
     font-size:14.5px;
-    border-right:1px solid var(--line);
   }
   .item-cell{font-weight:500;}
   .col-before{background:var(--before-bg);}
@@ -242,10 +241,13 @@
   .premium-row td.item-cell{background:var(--navy-900);color:#F3EFE2;}
   .premium-row td{border-top:2px solid var(--navy-900);border-bottom:2px solid var(--navy-900);}
 
-  /* 구성→암→뇌→심장... 그룹이 바뀔 때마다(각 그룹의 첫 줄) 하얀 선으로 확실히 구분되게
-     한다. 구분(section-cell) 칸은 배경이 진한 남색이라 옆 그룹과 붙으면 경계가 안 보이던
-     문제가 있었는데, 흰 선을 넣어 모든 그룹 경계가 동일하게 또렷이 나뉘도록 함. */
-  .group-start td{border-top:4px solid #fff !important;}
+  /* ---- 03번 상세 비교표 그리드 통일: 가로/세로 구분선을 같은 굵기(2px 흰색)로 통일해서
+     타일처럼 정돈되게 보이게 함 (가로: 구성→암→뇌→심장... 그룹 경계 / 세로: 구분-보장
+     항목-이름1(전·후)-이름2(전·후)... 각 구간 경계). 이전엔 가로선만 있고 세로선이 없어서
+     통일성이 없었던 걸 보완. */
+  .group-start td{border-top:2px solid #fff !important;}
+  .detail-table th, .detail-table td{border-right:2px solid #fff;}
+  .detail-table th:last-child, .detail-table td:last-child{border-right:none;}
 
   /* 전/후 헤더 글씨: thead tr.sub th 규칙이 우선 적용돼 색이 흐리게 나오던 걸,
      굵고 흰 글씨 + 진한 전/후 색 배경으로 확실히 보이게 함 */
