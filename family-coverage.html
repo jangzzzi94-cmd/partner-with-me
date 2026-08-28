@@ -232,22 +232,25 @@
   th.col-after{background:var(--after);color:#fff;}
   .dim{color:#C9C6B8;}
 
-  /* 03번 상세 비교표 맨 위 "보험료" 줄: 아래 개별 보장 항목들과 같은 연한 색이라 잘 안
-     구분되던 걸, 헤더와 같은 진한 전/후 색을 써서 총액 줄임을 한눈에 알아보게 함 */
-  .premium-row td{font-weight:800;}
-  .premium-row td.col-before{background:var(--before);color:#fff;}
-  .premium-row td.col-after{background:var(--after);color:#fff;}
-  .premium-row td.section-cell,
-  .premium-row td.item-cell{background:var(--navy-900);color:#F3EFE2;}
-  .premium-row td{border-top:2px solid var(--navy-900);border-bottom:2px solid var(--navy-900);}
+  /* 03번 상세 비교표 맨 위 "보험료" 줄: 금액 칸(전/후)만 헤더와 같은 진한 색으로 강조하고,
+     "보험료" 글자 칸(item-cell)은 아래 "보장 항목"들과 똑같이 배경 없이 표기한다
+     (구분 칸 "구성"만 다른 그룹 라벨처럼 남색 유지). */
+  .premium-row td.col-before{background:var(--before);color:#fff;font-weight:800;}
+  .premium-row td.col-after{background:var(--after);color:#fff;font-weight:800;}
+  .premium-row td.item-cell{background:transparent;color:inherit;font-weight:500;}
+  /* 헤더(전/후) 바로 아래 줄이라 위/아래 모두 흰 선으로 감싸 헤더 영역과 분리한다 */
+  .premium-row td{border-top:3px solid #fff;border-bottom:3px solid #fff;}
+  /* 헤더·보험료 줄 안에서는 전/후 색 대비만으로 구분이 충분해, 세로선(아래 참고)을
+     여기서는 빼서 남색 얼룩처럼 보이던 것을 없앤다 */
+  thead th, .premium-row td{border-right:none !important;}
 
-  /* ---- 03번 상세 비교표 그리드 통일: 가로/세로 구분선을 같은 굵기(2px 흰색)로 통일해서
-     타일처럼 정돈되게 보이게 함 (가로: 구성→암→뇌→심장... 그룹 경계 / 세로: 구분-보장
-     항목-이름1(전·후)-이름2(전·후)... 각 구간 경계). 이전엔 가로선만 있고 세로선이 없어서
-     통일성이 없었던 걸 보완. */
-  .group-start td{border-top:2px solid #fff !important;}
-  .detail-table th, .detail-table td{border-right:2px solid #fff;}
-  .detail-table th:last-child, .detail-table td:last-child{border-right:none;}
+  /* ---- 03번 상세 비교표 그리드: 표 중간(암→뇌→심장→수술→후유장해) 그룹 경계는 진한
+     남색 테두리로 확실히 표시하고, 세로선(구분-보장항목-이름1-이름2...)은 얇은 흰 선으로
+     둔다. 맨 위 "구성→암" 경계만 헤더 바로 아래라 위 premium-row 규칙과 맞춰 흰 선으로. */
+  .group-start-first td{border-top:3px solid #fff !important;}
+  .group-start td{border-top:2px solid var(--navy-900) !important;}
+  .detail-table tbody th, .detail-table tbody td{border-right:1.5px solid #fff;}
+  .detail-table tbody th:last-child, .detail-table tbody td:last-child{border-right:none;}
 
   /* 전/후 헤더 글씨: thead tr.sub th 규칙이 우선 적용돼 색이 흐리게 나오던 걸,
      굵고 흰 글씨 + 진한 전/후 색 배경으로 확실히 보이게 함 */
@@ -821,11 +824,13 @@ function renderDetailTable(valid){
   premiumRow += '</tr>';
 
   let bodyRows = '';
-  itemTemplate.forEach(sec => {
+  itemTemplate.forEach((sec, secIdx) => {
     sec.items.forEach((item, idx) => {
-      // idx===0(그룹 첫 줄)에는 group-start 클래스를 붙여, 구성→암→뇌→심장... 그룹이
-      // 바뀔 때마다 하얀 선으로 확실히 구분되게 한다(모든 그룹 경계에 동일하게 적용).
-      bodyRows += idx === 0 ? '<tr class="group-start">' : '<tr>';
+      // idx===0(그룹 첫 줄)마다 경계를 표시한다. "구성→암"(맨 처음, secIdx===0)은 위쪽
+      // 헤더/보험료 줄과 이어지는 자리라 흰 선(group-start-first)으로, 그 뒤 "암→뇌→
+      // 심장→수술→후유장해"처럼 표 중간에서 그룹이 바뀌는 경계는 진한 남색 테두리
+      // (group-start)로 확실히 표시한다.
+      bodyRows += idx === 0 ? `<tr class="${secIdx === 0 ? 'group-start-first' : 'group-start'}">` : '<tr>';
       if(idx === 0){
         bodyRows += `<td class="section-cell" rowspan="${sec.items.length}">${escapeHtml(sec.name)}</td>`;
       }
