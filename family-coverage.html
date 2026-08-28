@@ -59,16 +59,14 @@
 
   /* ---------- HERO ---------- */
   .hero{
-    background:radial-gradient(ellipse at 20% -10%, #1B2D54 0%, var(--navy-900) 55%, var(--navy-950) 100%);
+    background:var(--navy-900);
     color:#EDEAE0;
     padding:44px 28px 36px;
     position:relative;
     overflow:hidden;
   }
   .hero::after{
-    content:"";
-    position:absolute; right:-120px; top:-160px; width:420px; height:420px;
-    background:radial-gradient(circle, rgba(27,45,84,0.55) 0%, transparent 70%);
+    content:none;
   }
   .hero-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1;}
   .hero-mark{
@@ -86,6 +84,7 @@
     margin:0 0 8px;
     font-weight:700;
     letter-spacing:-0.01em;
+    color:#FFFFFF;
   }
   .hero p.sub{
     margin:0 0 28px;
@@ -111,7 +110,7 @@
   .hero-stat.headline{background:rgba(15,27,51,0.55);}
   .hero-stat .label{font-size:12px;color:#9AA2BB;margin-bottom:6px;letter-spacing:.02em;}
   .hero-stat .value{font-size:clamp(20px,2.4vw,30px);font-weight:700;color:#FFFDF7;}
-  .hero-stat.headline .value{color:var(--gold);font-size:clamp(24px,3vw,34px);}
+  .hero-stat.headline .value{color:#FFFFFF;font-size:clamp(24px,3vw,34px);}
   .hero-stat .value small{font-size:14px;font-weight:500;color:#C9CFE0;margin-left:2px;}
   .hero-stat .note{font-size:11.5px;color:#7C84A0;margin-top:4px;}
 
