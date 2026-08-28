@@ -222,7 +222,8 @@
   /* detail table specifics */
   .detail-table{table-layout:fixed;}
   .section-cell{
-    background:#F3F1E9;font-weight:700;color:var(--navy-800);
+    background:var(--navy-900);font-weight:800;color:#fff;
+    font-size:14.5px;
     border-right:1px solid var(--line);
   }
   .item-cell{font-weight:500;}
@@ -231,6 +232,15 @@
   th.col-before{background:var(--before);color:#fff;}
   th.col-after{background:var(--after);color:#fff;}
   .dim{color:#C9C6B8;}
+
+  /* 03번 상세 비교표 맨 위 "보험료" 줄: 아래 개별 보장 항목들과 같은 연한 색이라 잘 안
+     구분되던 걸, 헤더와 같은 진한 전/후 색을 써서 총액 줄임을 한눈에 알아보게 함 */
+  .premium-row td{font-weight:800;}
+  .premium-row td.col-before{background:var(--before);color:#fff;}
+  .premium-row td.col-after{background:var(--after);color:#fff;}
+  .premium-row td.section-cell,
+  .premium-row td.item-cell{background:var(--navy-900);color:#F3EFE2;}
+  .premium-row td{border-top:2px solid var(--navy-900);border-bottom:2px solid var(--navy-900);}
 
   .table-scroll{overflow-x:auto;}
 
@@ -336,7 +346,7 @@
     .detail-table thead th{padding:8px 10px;font-size:11.5px;white-space:normal;line-height:1.3;}
     .detail-table thead tr.sub th{padding:8px 10px;}
     .detail-table tbody td{padding:8px 10px;font-size:11.5px;line-height:1.3;}
-    .detail-table .section-cell{font-size:11.5px;}
+    .detail-table .section-cell{font-size:12.5px;}
     .detail-table .item-cell{font-size:11.5px;}
 
     /* ---- 인쇄 시 한눈에 보기 좋게 보완 (내용/문구는 그대로, 시각적 요소만 조정) ----
@@ -788,7 +798,10 @@ function renderDetailTable(valid){
   valid.forEach(() => { headRow2 += `<th class="num col-before">전</th><th class="num col-after">후</th>`; });
 
   // 보험료 행 (보장분석표 D3/7행 기준, 항목 구조와 별도로 상단에 고정 표시)
-  let premiumRow = '<tr><td class="section-cell">구성</td><td class="item-cell">보험료</td>';
+  // premium-row 클래스: 아래 개별 보장 항목들과 색이 같아 구분이 안 되는 문제를 보완하기
+  // 위해, 헤더에 쓰는 진한 전/후 색(var(--before)/var(--after))을 그대로 써서 표 맨 위
+  // "총 보험료" 줄임을 한눈에 알아보게 한다.
+  let premiumRow = '<tr class="premium-row"><td class="section-cell">구성</td><td class="item-cell">보험료</td>';
   valid.forEach(p => {
     premiumRow += `<td class="num col-before">${fmt(p.before)}원</td>`;
     premiumRow += `<td class="num col-after">${fmt(p.after)}원</td>`;
