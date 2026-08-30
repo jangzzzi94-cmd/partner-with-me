@@ -1655,7 +1655,11 @@ function bindReport() {
     $("#gjPhotoWrap").classList.toggle("hide", sel !== "개직");
   });
 
-  /* 개직 · SM보고/준비방 보고 캡쳐이미지 */
+  /* 개직 · SM보고/준비방 보고 캡쳐이미지
+     사진을 올리는 순간 "개직"으로 자동 제출 + 자동 차감까지 함께 처리한다(별도로
+     "보고 제출" 버튼을 누를 필요 없음). 단, 이미 개직으로 제출되어 차감이 끝난 상태에서
+     사진만 다시 올리는 경우(재업로드)는 중복 차감하지 않는다. 개직→다른 유형으로 바꿔
+     되돌리는(환급) 로직은 아래 #rSave 클릭 핸들러에 그대로 남아있다 - 여기서는 건드리지 않는다. */
   const gjUp = $("#gjUp"), gjFile = $("#gjFile");
   if (gjUp) gjUp.onclick = () => gjFile.click();
   if (gjFile) gjFile.onchange = async e => {
@@ -1664,8 +1668,37 @@ function bindReport() {
       toast("이미지 처리 중…");
       const raw = await compressImage(f, 900, .72);
       const url = await DB.uploadImage(raw, "gaejik");
-      await DB.set("daily", dayId(p.uid, rDate), { uid: p.uid, date: rDate, gaejikPhoto: url, updatedAt: Date.now() });
-      toast("캡쳐이미지 첨부됨", "ok");
+      const cur = DB.get("daily", dayId(p.uid, rDate)) || {};
+      if (cur.type === "출근" && cur.checkinAt) {
+        await DB.set("daily", dayId(p.uid, rDate), { uid: p.uid, date: rDate, gaejikPhoto: url, updatedAt: Date.now() });
+        toast("이미 출근까지 완료된 보고는 수정할 수 없어 사진만 첨부됐습니다. 관리자에게 문의해주세요.", "err");
+        return;
+      }
+      const already = cur.type;
+      const wasUsed = !!cur.gaejikUsed;
+      let used = wasUsed;
+      const typeChanged = already !== "개직";
+      if (!wasUsed) {
+        if (Number(Auth.profile.gaejik || 0) < 1) {
+          await DB.set("daily", dayId(p.uid, rDate), { uid: p.uid, date: rDate, gaejikPhoto: url, updatedAt: Date.now() });
+          toast("개직 잔여가 없어 사진만 첨부됐습니다. 근무 유형은 반영되지 않았습니다.", "err");
+          return;
+        }
+        await useMyGaejik(-1, "개직 사용 · " + fmtDL(rDate)); used = true;
+      }
+      const patch = {
+        uid: p.uid, date: rDate, type: "개직",
+        reason: "", hospital: "",
+        gaejikPhoto: url,
+        gaejikUsed: used, updatedAt: Date.now()
+      };
+      if (typeChanged || !cur.reportAt) patch.reportAt = Date.now();
+      await DB.set("daily", dayId(p.uid, rDate), patch);
+      sel = "개직";
+      $$("[data-type]").forEach(x => x.classList.toggle("on", x.dataset.type === sel));
+      const dl = reportDeadlineTs(rDate, "개직", S);
+      const checkAt = typeChanged || !cur.reportAt ? Date.now() : cur.reportAt;
+      toast(checkAt > dl ? "개직 보고 저장 · 마감 후 제출로 벌금 대상입니다" : "캡쳐이미지 첨부 및 개직 보고 자동 완료", checkAt > dl ? "err" : "ok");
     } catch (er) { toast(cleanErr(er), "err"); }
   };
 
