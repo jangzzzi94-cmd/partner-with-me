@@ -482,10 +482,31 @@ function reportDeadlineTs(date, type, S) {
 /* ============================================================================
    벌금 규칙 엔진 v2
    ============================================================================ */
+/** date가 user.disabledPeriods(비활성 기간 기록) 중 하나에 포함되는지 - 포함되면 그 날은
+ *  벌금 계산을 아예 하지 않는다(단순히 화면에서 숨기는 게 아니라 진짜로 계산을 건너뜀). */
+function inDisabledPeriod(date, periods) {
+  if (!Array.isArray(periods)) return false;
+  return periods.some(p => p && p.from && date >= p.from && (!p.to || date <= p.to));
+}
+/** 비활성화/복구 버튼을 누를 때 disabledPeriods를 함께 갱신해주는 헬퍼.
+ *  on=true(비활성화): 오늘부터 시작하는 새 비활성 기간을 연다(이미 열려있으면 그대로 둔다).
+ *  on=false(복구): 마지막으로 열려있던 기간을 어제 날짜로 닫는다 - 복구한 날부터는 바로
+ *  정상적으로 벌금 대상이 되고, 비활성이었던 공백 기간은 다시 활성화돼도 소급되지 않는다. */
+function toggleDisabledPatch(u, on) {
+  const periods = (Array.isArray(u && u.disabledPeriods) ? u.disabledPeriods : []).map(p => Object.assign({}, p));
+  const openIdx = periods.findIndex(p => p && !p.to);
+  if (on) {
+    if (openIdx === -1) periods.push({ from: today(), to: null });
+  } else if (openIdx !== -1) {
+    periods[openIdx].to = addDays(today(), -1);
+  }
+  return { disabled: on, disabledPeriods: periods };
+}
 function computeDay(date, daily, S, H, user, beforeEffective) {
   const out = [];
   if (!isWorkday(date, H)) return out;
   if (user && !gradeInfo(user).fine) return out;        // 후보자 등급은 전면 면제
+  if (user && inDisabledPeriod(date, user.disabledPeriods)) return out; // 비활성화 기간은 전면 면제
 
   const past = date < today();
   const d = daily || {};
@@ -632,6 +653,7 @@ function rowToUser(r) {
     lastGrant: r.last_grant || "",
     feeStart: r.fee_start || "",
     hidden: !!r.hidden,
+    disabledPeriods: Array.isArray(r.disabled_periods) ? r.disabled_periods : [],
     joinedAt: r.joined_at ? new Date(r.joined_at).getTime() : 0
   };
 }
@@ -648,6 +670,7 @@ function userToAttendanceRow(d) {
   if ("lastGrant" in d) o.last_grant = d.lastGrant || null;
   if ("feeStart" in d) o.fee_start = d.feeStart || null;
   if ("hidden" in d) o.hidden = !!d.hidden;
+  if ("disabledPeriods" in d) o.disabled_periods = d.disabledPeriods || [];
   return o;
 }
 function rowToDoc(r) { return Object.assign({}, r.data || {}, { id: r.id }); }
@@ -1573,8 +1596,14 @@ function viewReport() {
     });
     const tripList = Object.keys(myTrips).map(k => myTrips[k].slice().sort()).sort((a, b) => a[0].localeCompare(b[0]));
 
-    h += '<div class="sec-t">여행/휴가 기간 신청</div>' +
-      '<div class="card">' +
+    // 자주 쓰는 기능이 아니므로 기본은 접힌 상태 - 헤더를 누르면 펼쳐진다.
+    h += '<div class="card" style="padding:0">' +
+      '<div class="row" id="tripToggle" style="cursor:pointer;padding:16px">' +
+      '<span style="font-size:19px">✈️</span>' +
+      '<div class="sp"><div class="nm">여행/휴가 기간 신청</div>' +
+      '<div class="ds">' + (tripList.length ? "예정된 여행 " + tripList.length + "건" : "며칠씩 자리 비울 때 · 평일마다 개직 자동 차감") + "</div></div>" +
+      '<span id="tripChevron" style="font-size:12px;color:#9aa2bb">▾ 펼치기</span></div>' +
+      '<div id="tripBody" class="hide" style="padding:0 16px 16px">' +
       '<div class="banner i">며칠간 여행 등으로 자리를 비우실 때 기간을 한 번에 신청하면, 그 기간의 <b>평일마다 개직이 자동 차감</b>되고 출근·워킹사진·일마감 의무가 모두 면제됩니다.' +
       '<br>시작일은 내일(' + fmtD(tripMin) + ')부터 선택할 수 있습니다 · 잔여 개직 ' + Number(p.gaejik || 0) + "개</div>" +
       '<div class="fld" style="margin-top:12px"><label>시작일</label><input type="date" class="inp" id="tripFrom" min="' + tripMin + '"></div>' +
@@ -1587,7 +1616,7 @@ function viewReport() {
           '<div class="sp"><div class="nm">' + fmtD(dates[0]) + ' ~ ' + fmtD(dates[dates.length - 1]) + '</div>' +
           '<div class="ds">평일 ' + dates.length + '일 · 개직 ' + dates.length + '개 사용</div></div></div>').join("") +
         "</div>" : "") +
-      "</div>";
+      "</div></div>";
   }
 
   {
@@ -1697,6 +1726,12 @@ function bindReport() {
        처리된 날짜를 전부 롤백(환급 + 원상복구)한다.
      - 시작일은 항상 내일 이후만 허용 - 오늘 이미 출근 처리된 날짜는 애초에 포함될 수 없다. */
   const tripMinStr = addDays(tdy, 1);
+  const tripToggle = $("#tripToggle"), tripBody = $("#tripBody"), tripChevron = $("#tripChevron");
+  if (tripToggle) tripToggle.onclick = () => {
+    if (!tripBody) return;
+    const open = tripBody.classList.toggle("hide") === false;
+    if (tripChevron) tripChevron.textContent = open ? "▴ 접기" : "▾ 펼치기";
+  };
   const tripFrom = $("#tripFrom"), tripTo = $("#tripTo"), tripPreview = $("#tripPreview"), tripApply = $("#tripApply");
   function tripWorkdays() {
     if (!tripFrom || !tripTo || !tripFrom.value || !tripTo.value) return null;
@@ -2870,10 +2905,14 @@ function bindAdmin() {
     catch (e) { toast(cleanErr(e), "err"); }
   });
   $$("[data-rej]").forEach(b => b.onclick = () => confirmM("가입을 거절하시겠습니까?", async () => {
-    await DB.set("users", b.dataset.rej, { disabled: true, approved: false }); toast("거절됨");
+    const u0 = DB.get("users", b.dataset.rej) || {};
+    await DB.set("users", b.dataset.rej, Object.assign(toggleDisabledPatch(u0, true), { approved: false }));
+    toast("거절됨");
   }));
   $$("[data-on]").forEach(b => b.onclick = async () => {
-    await DB.set("users", b.dataset.on, { disabled: false, approved: true }); toast("복구됨", "ok");
+    const u0 = DB.get("users", b.dataset.on) || {};
+    await DB.set("users", b.dataset.on, Object.assign(toggleDisabledPatch(u0, false), { approved: true }));
+    toast("복구됨 · 비활성 기간 동안은 벌금이 계산되지 않습니다", "ok");
   });
   $$("[data-mem]").forEach(b => b.onclick = () => openMemberModal(b.dataset.mem));
   $$("[data-profile]").forEach(b => b.onclick = () => openMemberProfile(b.dataset.profile));
@@ -2975,8 +3014,10 @@ function openMemberModal(uid) {
       };
       $("#meGj").onclick = () => { closeModal(); openGaejikModal(uid); };
       $("#meFines").onclick = () => { closeModal(); fineFilterUser = uid; App.finesTab = "all"; go("fines"); };
-      $("#meOff").onclick = () => confirmM("비활성화하면 목록과 집계에서 제외됩니다.", async () => {
-        await DB.set("users", uid, { disabled: true }); closeModal(); toast("비활성화됨");
+      $("#meOff").onclick = () => confirmM("비활성화하면 목록과 집계에서 제외되고, 비활성 기간 동안은 벌금도 계산되지 않습니다.", async () => {
+        const u0 = DB.get("users", uid) || {};
+        await DB.set("users", uid, toggleDisabledPatch(u0, true));
+        closeModal(); toast("비활성화됨");
       });
     }
   });
