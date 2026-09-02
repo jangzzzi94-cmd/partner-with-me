@@ -1514,6 +1514,12 @@ async function saveClosing(p, tdy, S, items, opt) {
   }
 }
 
+/** 여행/휴가 기간 신청·수정 처리 중인지 여부 - bindReport() 안의 지역변수가 아니라 여기
+ *  최상위에 둔다. DB.set/useMyGaejik이 호출될 때마다 DB.emit()이 전체 화면을 다시 그리면서
+ *  버튼 DOM 자체가 새로 만들어져 button.disabled 값이 초기화돼버리기 때문에, 재렌더링을
+ *  거쳐도 살아남는 이 변수로 "처리 중"을 판단해야 실수로 여러 번 눌러도 중복 차감되지 않는다. */
+let tripBusy = false;
+
 function viewReport() {
   const p = Auth.profile, S = SET(), H = HOLIDAYS(), tdy = today();
   const rDate = nextReportDate(H, S);
@@ -1582,40 +1588,38 @@ function viewReport() {
     "<br>유형을 바꾸지 않고 다시 저장하면 제출 시각은 그대로 유지됩니다 · 유형을 바꾼 경우에만 <b>바꾼 시각</b> 기준으로 마감 여부를 다시 판정합니다.</div>";
   h += "</div>";
 
-  /* 여행/휴가 기간 신청 — 며칠씩 자리를 비울 때 기간을 한 번에 신청하면, 그 기간의 평일마다
-     개직이 자동으로 차감되고 출근·워킹사진·일마감 의무가 모두 면제된다. 하루짜리 일반 개직
-     선택(위 버튼)은 이 기능과 무관하게 기존 방식(일마감 등 그대로 적용) 그대로 동작한다. */
+  /* 여행/휴가 기간 신청 — 며칠씩 자리를 비울 때 기간을 신청하면, 그 기간의 평일마다 개직이
+     자동으로 차감되고 출근·워킹사진·일마감 의무가 모두 면제된다. 하루짜리 일반 개직 선택
+     (위 버튼)은 이 기능과 무관하게 기존 방식(일마감 등 그대로 적용) 그대로 동작한다.
+     한 번 등록되면 새로 "신청"하는 게 아니라 기존 기간을 "수정"만 하게 만든다 - 실수로
+     신청 버튼을 여러 번 누르면 그때마다 새로 차감되던 문제를 근본적으로 막기 위함이다.
+     (그래도 남는 이중클릭 문제는 아래 tripBusy 최상위 플래그로 한 번 더 막는다.) */
   {
     const tripMin = addDays(tdy, 1);
-    const myTrips = {};
-    DB.all("daily").forEach(r => {
-      if (r.uid === p.uid && r.gaejikTrip && r.date >= tdy) {
-        const key = r.gaejikTripId || r.date;
-        (myTrips[key] = myTrips[key] || []).push(r.date);
-      }
-    });
-    const tripList = Object.keys(myTrips).map(k => myTrips[k].slice().sort()).sort((a, b) => a[0].localeCompare(b[0]));
+    const activeTripDates = DB.all("daily")
+      .filter(r => r.uid === p.uid && r.gaejikTrip && r.date >= tdy)
+      .map(r => r.date).sort();
+    const hasTrip = activeTripDates.length > 0;
 
     // 자주 쓰는 기능이 아니므로 기본은 접힌 상태 - 헤더를 누르면 펼쳐진다.
     h += '<div class="card" style="padding:0">' +
       '<div class="row" id="tripToggle" style="cursor:pointer;padding:16px">' +
       '<span style="font-size:19px">✈️</span>' +
-      '<div class="sp"><div class="nm">여행/휴가 기간 신청</div>' +
-      '<div class="ds">' + (tripList.length ? "예정된 여행 " + tripList.length + "건" : "며칠씩 자리 비울 때 · 평일마다 개직 자동 차감") + "</div></div>" +
+      '<div class="sp"><div class="nm">여행/휴가 기간 ' + (hasTrip ? "수정" : "신청") + "</div>" +
+      '<div class="ds">' + (hasTrip
+        ? fmtD(activeTripDates[0]) + " ~ " + fmtD(activeTripDates[activeTripDates.length - 1]) + " 등록됨 · 평일 " + activeTripDates.length + "일"
+        : "며칠씩 자리 비울 때 · 평일마다 개직 자동 차감") + "</div></div>" +
       '<span id="tripChevron" style="font-size:12px;color:#9aa2bb">▾ 펼치기</span></div>' +
       '<div id="tripBody" class="hide" style="padding:0 16px 16px">' +
-      '<div class="banner i">며칠간 여행 등으로 자리를 비우실 때 기간을 한 번에 신청하면, 그 기간의 <b>평일마다 개직이 자동 차감</b>되고 출근·워킹사진·일마감 의무가 모두 면제됩니다.' +
+      '<div class="banner i">' + (hasTrip
+        ? "이미 등록된 여행 기간입니다. 날짜를 바꾸면 <b>줄어드는 날짜는 개직이 환급</b>되고 <b>늘어나는 날짜는 추가로 차감</b>됩니다."
+        : "며칠간 여행 등으로 자리를 비우실 때 기간을 신청하면, 그 기간의 <b>평일마다 개직이 자동 차감</b>되고 출근·워킹사진·일마감 의무가 모두 면제됩니다.") +
       '<br>시작일은 내일(' + fmtD(tripMin) + ')부터 선택할 수 있습니다 · 잔여 개직 ' + Number(p.gaejik || 0) + "개</div>" +
-      '<div class="fld" style="margin-top:12px"><label>시작일</label><input type="date" class="inp" id="tripFrom" min="' + tripMin + '"></div>' +
-      '<div class="fld"><label>종료일</label><input type="date" class="inp" id="tripTo" min="' + tripMin + '"></div>' +
+      '<div class="fld" style="margin-top:12px"><label>시작일</label><input type="date" class="inp" id="tripFrom" min="' + tripMin + '" value="' + (hasTrip ? activeTripDates[0] : "") + '"></div>' +
+      '<div class="fld"><label>종료일</label><input type="date" class="inp" id="tripTo" min="' + tripMin + '" value="' + (hasTrip ? activeTripDates[activeTripDates.length - 1] : "") + '"></div>' +
       '<div class="hint" id="tripPreview" style="margin:6px 0 12px"></div>' +
-      '<button class="btn pri full" id="tripApply">여행 기간 신청</button>' +
-      (tripList.length ? '<div style="margin-top:14px">' +
-        '<div class="hint" style="margin-bottom:6px">📌 예정된 여행</div>' +
-        tripList.map(dates => '<div class="row" style="padding:8px 0">' +
-          '<div class="sp"><div class="nm">' + fmtD(dates[0]) + ' ~ ' + fmtD(dates[dates.length - 1]) + '</div>' +
-          '<div class="ds">평일 ' + dates.length + '일 · 개직 ' + dates.length + '개 사용</div></div></div>').join("") +
-        "</div>" : "") +
+      '<button class="btn pri full" id="tripApply"' + (tripBusy ? " disabled" : "") + ">" +
+      (tripBusy ? "처리 중…" : hasTrip ? "여행 기간 수정" : "여행 기간 신청") + "</button>" +
       "</div></div>";
   }
 
@@ -1726,6 +1730,10 @@ function bindReport() {
        처리된 날짜를 전부 롤백(환급 + 원상복구)한다.
      - 시작일은 항상 내일 이후만 허용 - 오늘 이미 출근 처리된 날짜는 애초에 포함될 수 없다. */
   const tripMinStr = addDays(tdy, 1);
+  const activeTripDates = DB.all("daily")
+    .filter(r => r.uid === p.uid && r.gaejikTrip && r.date >= tdy)
+    .map(r => r.date).sort();
+  const activeTripSet = new Set(activeTripDates);
   const tripToggle = $("#tripToggle"), tripBody = $("#tripBody"), tripChevron = $("#tripChevron");
   if (tripToggle) tripToggle.onclick = () => {
     if (!tripBody) return;
@@ -1750,9 +1758,19 @@ function bindReport() {
     const days = tripWorkdays();
     if (!days) { tripPreview.innerHTML = '<span style="color:#e5484d">종료일이 시작일보다 빠릅니다.</span>'; return; }
     if (!days.length) { tripPreview.textContent = "선택한 기간에 평일이 없습니다."; return; }
-    const need = days.length, have = Number(Auth.profile.gaejik || 0);
-    tripPreview.innerHTML = "대상 평일 " + need + "일 · 필요 개직 " + need + "개 · 잔여 " + have + "개" +
-      (have < need ? '<br><span style="color:#e5484d">개직이 ' + (need - have) + "개 부족합니다.</span>" : "");
+    const newSet = new Set(days);
+    const toAdd = days.filter(x => !activeTripSet.has(x));
+    const toRemove = activeTripDates.filter(x => !newSet.has(x));
+    const have = Number(Auth.profile.gaejik || 0);
+    let msg;
+    if (activeTripDates.length) {
+      msg = "대상 평일 " + days.length + "일 · 추가 차감 " + toAdd.length + "개 · 환급 " + toRemove.length + "개 · 잔여 " + have + "개";
+      if (have < toAdd.length) msg += '<br><span style="color:#e5484d">개직이 ' + (toAdd.length - have) + "개 부족합니다.</span>";
+    } else {
+      msg = "대상 평일 " + days.length + "일 · 필요 개직 " + days.length + "개 · 잔여 " + have + "개";
+      if (have < days.length) msg += '<br><span style="color:#e5484d">개직이 ' + (days.length - have) + "개 부족합니다.</span>";
+    }
+    tripPreview.innerHTML = msg;
   }
   if (tripFrom) tripFrom.onchange = () => {
     if (tripFrom.value < tripMinStr) tripFrom.value = tripMinStr;
@@ -1760,24 +1778,33 @@ function bindReport() {
     renderTripPreview();
   };
   if (tripTo) tripTo.onchange = () => { if (tripTo.value < tripMinStr) tripTo.value = tripMinStr; renderTripPreview(); };
+  renderTripPreview();
   if (tripApply) tripApply.onclick = async () => {
+    // tripBusy는 재렌더링에도 살아남는 최상위 플래그 - 이미 처리 중이면 완전히 무시한다
+    // (버튼 disabled만으로는 처리 도중의 재렌더링으로 버튼이 새로 그려지며 풀려버릴 수 있다).
+    if (tripBusy) return;
     if (!tripFrom.value || !tripTo.value) return toast("여행 시작일과 종료일을 선택해주세요", "err");
     if (tripFrom.value < tripMinStr) return toast("시작일은 내일부터 선택할 수 있습니다", "err");
     const days = tripWorkdays();
     if (!days) return toast("종료일이 시작일보다 빠릅니다", "err");
     if (!days.length) return toast("선택한 기간에 평일이 없습니다", "err");
-    const need = days.length, have = Number(Auth.profile.gaejik || 0);
-    if (have < need) return toast("개직이 " + (need - have) + "개 부족합니다 (필요 " + need + "개 · 잔여 " + have + "개)", "err");
-    for (const dd of days) {
+    const newSet = new Set(days);
+    const toAdd = days.filter(dd => !activeTripSet.has(dd));
+    const toRemove = activeTripDates.filter(dd => !newSet.has(dd));
+    if (!toAdd.length && !toRemove.length) return toast("변경된 내용이 없습니다", "err");
+    const have = Number(Auth.profile.gaejik || 0);
+    if (have < toAdd.length) return toast("개직이 " + (toAdd.length - have) + "개 부족합니다 (추가 필요 " + toAdd.length + "개 · 잔여 " + have + "개)", "err");
+    for (const dd of toAdd) {
       const cur0 = DB.get("daily", dayId(p.uid, dd)) || {};
-      if (cur0.type === "출근" && cur0.checkinAt) return toast(fmtD(dd) + "은(는) 이미 출근까지 완료되어 여행으로 신청할 수 없습니다.", "err");
+      if (cur0.type === "출근" && cur0.checkinAt) return toast(fmtD(dd) + "은(는) 이미 출근까지 완료되어 여행에 포함할 수 없습니다.", "err");
     }
-    const tripId = p.uid + "_" + Date.now();
-    const done = [];
-    tripApply.disabled = true;
+    const existingTripId = activeTripDates.length ? (DB.get("daily", dayId(p.uid, activeTripDates[0])) || {}).gaejikTripId : null;
+    const tripId = existingTripId || (p.uid + "_" + Date.now());
+    const addedDone = [], removedDone = [];
+    tripBusy = true;
+    tripApply.disabled = true; tripApply.textContent = "처리 중…";
     try {
-      for (const dd of days) {
-        const prev = DB.get("daily", dayId(p.uid, dd)) || {};
+      for (const dd of toAdd) {
         await useMyGaejik(-1, "개직 사용(여행) · " + fmtDL(dd));
         await DB.set("daily", dayId(p.uid, dd), {
           uid: p.uid, date: dd, type: "개직",
@@ -1785,23 +1812,49 @@ function bindReport() {
           gaejikUsed: true, gaejikTrip: true, gaejikTripId: tripId,
           reportAt: Date.now(), updatedAt: Date.now()
         });
-        done.push({ date: dd, prev });
+        addedDone.push(dd);
       }
-      toast("여행 기간 신청 완료 · 개직 " + need + "개 차감됨", "ok");
+      for (const dd of toRemove) {
+        const cur0 = DB.get("daily", dayId(p.uid, dd)) || {};
+        if (cur0.checkinAt) continue; // 이미 실제 출근 처리된 날은 안전을 위해 손대지 않는다
+        await useMyGaejik(1, "여행 기간 축소 · 환급 · " + fmtDL(dd));
+        await DB.set("daily", dayId(p.uid, dd), {
+          type: null, reason: "", hospital: "",
+          gaejikUsed: false, gaejikTrip: false, gaejikTripId: null,
+          reportAt: null, updatedAt: Date.now()
+        });
+        removedDone.push(dd);
+      }
+      // 겹치는 날짜들도 같은 tripId로 통일(과거에 여러 건으로 흩어져 있었다면 하나로 정리됨)
+      for (const dd of days) {
+        if (addedDone.includes(dd)) continue;
+        const cur0 = DB.get("daily", dayId(p.uid, dd)) || {};
+        if (cur0.gaejikTrip && cur0.gaejikTripId !== tripId) await DB.set("daily", dayId(p.uid, dd), { gaejikTripId: tripId, updatedAt: Date.now() });
+      }
+      toast((activeTripDates.length ? "여행 기간이 수정되었습니다" : "여행 기간 신청 완료") +
+        (toAdd.length ? " · 추가 차감 " + toAdd.length + "개" : "") +
+        (toRemove.length ? " · 환급 " + toRemove.length + "개" : ""), "ok");
     } catch (e) {
-      for (let i = done.length - 1; i >= 0; i--) {
-        const dd = done[i].date, prev = done[i].prev;
+      for (let i = addedDone.length - 1; i >= 0; i--) {
+        const dd = addedDone[i];
         try {
-          await useMyGaejik(1, "여행 신청 실패 롤백 · " + fmtDL(dd));
+          await useMyGaejik(1, "여행 처리 실패 롤백 · " + fmtDL(dd));
+          await DB.set("daily", dayId(p.uid, dd), { type: null, reason: "", hospital: "", gaejikUsed: false, gaejikTrip: false, gaejikTripId: null, reportAt: null, updatedAt: Date.now() });
+        } catch (e2) { console.error(e2); }
+      }
+      for (let i = removedDone.length - 1; i >= 0; i--) {
+        const dd = removedDone[i];
+        try {
+          await useMyGaejik(-1, "여행 처리 실패 롤백(재등록) · " + fmtDL(dd));
           await DB.set("daily", dayId(p.uid, dd), {
-            type: prev.type || null, reason: prev.reason || "", hospital: prev.hospital || "",
-            gaejikUsed: !!prev.gaejikUsed, gaejikTrip: false, gaejikTripId: null,
-            reportAt: prev.reportAt || null, updatedAt: Date.now()
+            uid: p.uid, date: dd, type: "개직", reason: "", hospital: "",
+            gaejikUsed: true, gaejikTrip: true, gaejikTripId: tripId, reportAt: Date.now(), updatedAt: Date.now()
           });
         } catch (e2) { console.error(e2); }
       }
-      toast("여행 신청 중 오류가 발생해 취소했습니다: " + cleanErr(e), "err");
-      tripApply.disabled = false;
+      toast("여행 기간 처리 중 오류가 발생했습니다: " + cleanErr(e), "err");
+    } finally {
+      tripBusy = false;
     }
   };
 
