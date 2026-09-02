@@ -550,8 +550,11 @@ function computeDay(date, daily, S, H, user, beforeEffective) {
                  pending: Date.now() <= dayEnd });
   }
 
-  /* 4) 일마감 — 인정 시간대(기본 13:00~23:59)가 끝나는 순간 바로 확정 벌금으로 잡힌다. */
-  if (!beforeEffective && (S.closingForAll || type !== "개직")) {
+  /* 4) 일마감 — 인정 시간대(기본 13:00~23:59)가 끝나는 순간 바로 확정 벌금으로 잡힌다.
+     단, 여행/휴가 기간으로 신청한 개직(d.gaejikTrip)은 "전체 적용" 설정(closingForAll)과
+     무관하게 일마감 의무 자체를 면제한다 - 하루짜리 일반 개직은 이 예외를 타지 않으므로
+     기존 동작(설정에 따라 일마감 여전히 필요) 그대로 유지된다. */
+  if (!beforeEffective && !d.gaejikTrip && (S.closingForAll || type !== "개직")) {
     const from = atTime(date, S.closingFrom || "13:00");
     const to = atTime(date, S.closingTo || "23:59") + 59000;
     const saved = d.closingSavedAt || 0;
@@ -1182,7 +1185,7 @@ function viewHome() {
         d: c >= S.photoMin ? "완료" : (S.photoFrom || "10:00") + "~" + (S.photoTo || "23:59") + " 인정 · 부족시 " + won(S.photoFine),
         act: c >= S.photoMin ? null : "report" });
     }
-    if (S.closingForAll || dToday.type !== "개직") {
+    if (!dToday.gaejikTrip && (S.closingForAll || dToday.type !== "개직")) {
       const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
       const saved = dToday.closingSavedAt || 0;
       const ok = saved >= from && saved <= to;
@@ -1556,6 +1559,37 @@ function viewReport() {
     "<br>유형을 바꾸지 않고 다시 저장하면 제출 시각은 그대로 유지됩니다 · 유형을 바꾼 경우에만 <b>바꾼 시각</b> 기준으로 마감 여부를 다시 판정합니다.</div>";
   h += "</div>";
 
+  /* 여행/휴가 기간 신청 — 며칠씩 자리를 비울 때 기간을 한 번에 신청하면, 그 기간의 평일마다
+     개직이 자동으로 차감되고 출근·워킹사진·일마감 의무가 모두 면제된다. 하루짜리 일반 개직
+     선택(위 버튼)은 이 기능과 무관하게 기존 방식(일마감 등 그대로 적용) 그대로 동작한다. */
+  {
+    const tripMin = addDays(tdy, 1);
+    const myTrips = {};
+    DB.all("daily").forEach(r => {
+      if (r.uid === p.uid && r.gaejikTrip && r.date >= tdy) {
+        const key = r.gaejikTripId || r.date;
+        (myTrips[key] = myTrips[key] || []).push(r.date);
+      }
+    });
+    const tripList = Object.keys(myTrips).map(k => myTrips[k].slice().sort()).sort((a, b) => a[0].localeCompare(b[0]));
+
+    h += '<div class="sec-t">여행/휴가 기간 신청</div>' +
+      '<div class="card">' +
+      '<div class="banner i">며칠간 여행 등으로 자리를 비우실 때 기간을 한 번에 신청하면, 그 기간의 <b>평일마다 개직이 자동 차감</b>되고 출근·워킹사진·일마감 의무가 모두 면제됩니다.' +
+      '<br>시작일은 내일(' + fmtD(tripMin) + ')부터 선택할 수 있습니다 · 잔여 개직 ' + Number(p.gaejik || 0) + "개</div>" +
+      '<div class="fld" style="margin-top:12px"><label>시작일</label><input type="date" class="inp" id="tripFrom" min="' + tripMin + '"></div>' +
+      '<div class="fld"><label>종료일</label><input type="date" class="inp" id="tripTo" min="' + tripMin + '"></div>' +
+      '<div class="hint" id="tripPreview" style="margin:6px 0 12px"></div>' +
+      '<button class="btn pri full" id="tripApply">여행 기간 신청</button>' +
+      (tripList.length ? '<div style="margin-top:14px">' +
+        '<div class="hint" style="margin-bottom:6px">📌 예정된 여행</div>' +
+        tripList.map(dates => '<div class="row" style="padding:8px 0">' +
+          '<div class="sp"><div class="nm">' + fmtD(dates[0]) + ' ~ ' + fmtD(dates[dates.length - 1]) + '</div>' +
+          '<div class="ds">평일 ' + dates.length + '일 · 개직 ' + dates.length + '개 사용</div></div></div>').join("") +
+        "</div>" : "") +
+      "</div>";
+  }
+
   {
     // 워킹사진/일마감은 휴무일(주말·공휴일)이라고 화면에서 아예 숨기지 않는다 - 자유롭게 일할
     // 수도 있으니 항목은 언제나 열어두고, 그냥 휴무일에는 벌금만 적용되지 않는다는 안내만 준다.
@@ -1588,8 +1622,8 @@ function viewReport() {
         '<input type="file" accept="image/*" id="phFile" class="hide" multiple></div>';
     }
 
-    /* 일마감 체크리스트 */
-    if (S.closingForAll || dT.type !== "개직") {
+    /* 일마감 체크리스트 - 여행/휴가 기간(gaejikTrip)에는 표시하지 않는다 */
+    if (!dT.gaejikTrip && (S.closingForAll || dT.type !== "개직")) {
       const items = todayItems(p, dT, tdy);
       const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
       const saved = dT.closingSavedAt || 0;
@@ -1654,6 +1688,87 @@ function bindReport() {
     $("#hospWrap").classList.toggle("hide", sel !== "병원근무");
     $("#gjPhotoWrap").classList.toggle("hide", sel !== "개직");
   });
+
+  /* 여행/휴가 기간 신청 — 기간(평일 기준)만큼 개직을 한 번에 차감하고, 그 날들을 전부
+     type:"개직" + gaejikTrip:true 로 저장한다. gaejikTrip 플래그가 있으면 computeDay에서
+     일마감 의무까지 면제되고(위 renderTripPreview/computeDay 참고), 개직 자체가 이미
+     출근/워킹사진 면제 유형이라 나머지는 자동으로 함께 면제된다.
+     - 잔여가 모자라면 전체 거부(부분 신청 안 함) - 신청 도중 하루라도 실패하면 그 전까지
+       처리된 날짜를 전부 롤백(환급 + 원상복구)한다.
+     - 시작일은 항상 내일 이후만 허용 - 오늘 이미 출근 처리된 날짜는 애초에 포함될 수 없다. */
+  const tripMinStr = addDays(tdy, 1);
+  const tripFrom = $("#tripFrom"), tripTo = $("#tripTo"), tripPreview = $("#tripPreview"), tripApply = $("#tripApply");
+  function tripWorkdays() {
+    if (!tripFrom || !tripTo || !tripFrom.value || !tripTo.value) return null;
+    if (tripFrom.value > tripTo.value) return null;
+    const out = [];
+    let dd = tripFrom.value, guard = 0;
+    while (dd <= tripTo.value && guard++ < 370) {
+      if (isWorkday(dd, H)) out.push(dd);
+      dd = addDays(dd, 1);
+    }
+    return out;
+  }
+  function renderTripPreview() {
+    if (!tripPreview) return;
+    if (!tripFrom.value || !tripTo.value) { tripPreview.textContent = ""; return; }
+    const days = tripWorkdays();
+    if (!days) { tripPreview.innerHTML = '<span style="color:#e5484d">종료일이 시작일보다 빠릅니다.</span>'; return; }
+    if (!days.length) { tripPreview.textContent = "선택한 기간에 평일이 없습니다."; return; }
+    const need = days.length, have = Number(Auth.profile.gaejik || 0);
+    tripPreview.innerHTML = "대상 평일 " + need + "일 · 필요 개직 " + need + "개 · 잔여 " + have + "개" +
+      (have < need ? '<br><span style="color:#e5484d">개직이 ' + (need - have) + "개 부족합니다.</span>" : "");
+  }
+  if (tripFrom) tripFrom.onchange = () => {
+    if (tripFrom.value < tripMinStr) tripFrom.value = tripMinStr;
+    if (tripTo) { tripTo.min = tripFrom.value; if (tripTo.value && tripTo.value < tripFrom.value) tripTo.value = tripFrom.value; }
+    renderTripPreview();
+  };
+  if (tripTo) tripTo.onchange = () => { if (tripTo.value < tripMinStr) tripTo.value = tripMinStr; renderTripPreview(); };
+  if (tripApply) tripApply.onclick = async () => {
+    if (!tripFrom.value || !tripTo.value) return toast("여행 시작일과 종료일을 선택해주세요", "err");
+    if (tripFrom.value < tripMinStr) return toast("시작일은 내일부터 선택할 수 있습니다", "err");
+    const days = tripWorkdays();
+    if (!days) return toast("종료일이 시작일보다 빠릅니다", "err");
+    if (!days.length) return toast("선택한 기간에 평일이 없습니다", "err");
+    const need = days.length, have = Number(Auth.profile.gaejik || 0);
+    if (have < need) return toast("개직이 " + (need - have) + "개 부족합니다 (필요 " + need + "개 · 잔여 " + have + "개)", "err");
+    for (const dd of days) {
+      const cur0 = DB.get("daily", dayId(p.uid, dd)) || {};
+      if (cur0.type === "출근" && cur0.checkinAt) return toast(fmtD(dd) + "은(는) 이미 출근까지 완료되어 여행으로 신청할 수 없습니다.", "err");
+    }
+    const tripId = p.uid + "_" + Date.now();
+    const done = [];
+    tripApply.disabled = true;
+    try {
+      for (const dd of days) {
+        const prev = DB.get("daily", dayId(p.uid, dd)) || {};
+        await useMyGaejik(-1, "개직 사용(여행) · " + fmtDL(dd));
+        await DB.set("daily", dayId(p.uid, dd), {
+          uid: p.uid, date: dd, type: "개직",
+          reason: "", hospital: "",
+          gaejikUsed: true, gaejikTrip: true, gaejikTripId: tripId,
+          reportAt: Date.now(), updatedAt: Date.now()
+        });
+        done.push({ date: dd, prev });
+      }
+      toast("여행 기간 신청 완료 · 개직 " + need + "개 차감됨", "ok");
+    } catch (e) {
+      for (let i = done.length - 1; i >= 0; i--) {
+        const dd = done[i].date, prev = done[i].prev;
+        try {
+          await useMyGaejik(1, "여행 신청 실패 롤백 · " + fmtDL(dd));
+          await DB.set("daily", dayId(p.uid, dd), {
+            type: prev.type || null, reason: prev.reason || "", hospital: prev.hospital || "",
+            gaejikUsed: !!prev.gaejikUsed, gaejikTrip: false, gaejikTripId: null,
+            reportAt: prev.reportAt || null, updatedAt: Date.now()
+          });
+        } catch (e2) { console.error(e2); }
+      }
+      toast("여행 신청 중 오류가 발생해 취소했습니다: " + cleanErr(e), "err");
+      tripApply.disabled = false;
+    }
+  };
 
   /* 개직 · SM보고/준비방 보고 캡쳐이미지
      사진을 올리는 순간 "개직"으로 자동 제출 + 자동 차감까지 함께 처리한다(별도로
