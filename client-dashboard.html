@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대시보드 | With Partners</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* 카드 3개를 한 줄에 배치 (기존 dashboard.html의 5개짜리 그리드와 별개로,
+   이 페이지 전용으로만 적용) */
+.card-grid{grid-template-columns:1fr 1fr 1fr;}
+@media (max-width:900px){.card-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:640px){.card-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="navbar">
+<a href="client-dashboard.html" class="brand">With <span>Partners</span></a>
+<nav><a href="admin.html" id="adminLink" style="display:none">관리자</a><a href="admin-limits.html" id="adminLimitsLink" style="display:none">당타사한도</a><a href="profile.html">프로필</a><a href="#" id="logoutLink">로그아웃</a></nav>
+</div>
+
+<div class="dash-wrap">
+<h1>안녕하세요<span id="userEmail"></span> 👋</h1>
+<p class="sub">이용하실 기능을 선택해주세요</p>
+<p class="sub" id="pointsLine" style="display:none"></p>
+<button type="button" class="btn-ghost" id="showRulesBtn" style="margin-bottom:24px;">📌 이용 규칙 보기</button>
+
+<div class="card-grid">
+  <a href="history.html" class="feature-card" id="historyCard">
+    <div class="icon">📋</div>
+    <h3>병력정리</h3>
+    <p>기본진료정보와 세부진료정보를 업로드해 자동으로 병력을 정리하고 고지사항 텍스트를 생성합니다.</p>
+    <span class="badge-soon" id="historyBadge" style="display:none">승인 대기중</span>
+  </a>
+  <a href="coverage.html" class="feature-card">
+    <div class="icon">📊</div>
+    <h3>보장분석표</h3>
+    <p>가입된 보장 내역을 업로드해 보장분석표(전)/(후)를 자동으로 만들고, 종합비교·보장차이까지 한 번에 확인합니다.</p>
+    <span class="badge-soon" id="coverageBadge" style="display:none">1회 3,000P</span>
+  </a>
+  <a href="family-coverage.html" class="feature-card">
+    <div class="icon">👨‍👩‍👧‍👦</div>
+    <h3>가족보장분석</h3>
+    <p>가족 구성원별 보장분석표를 모아 하나의 통합 리포트로 비교하고, PDF로 저장합니다.</p>
+    <span class="badge-soon" id="familyCoverageBadge" style="display:none">1회 1,000P</span>
+  </a>
+</div>
+</div>
+
+<div id="ruleModalOverlay" class="modal-overlay" style="display:none">
+<div class="modal-card" style="max-width:520px;">
+<div class="modal-header">
+<h2>이용 규칙</h2>
+<button type="button" class="modal-close" id="ruleModalClose" aria-label="닫기">&times;</button>
+</div>
+<div class="modal-body">
+<div id="ruleModalRows">불러오는 중...</div>
+</div>
+</div>
+</div>
+
+<script src="assets/supabase-client.js"></script>
+<script>
+(async ()=>{
+  const session = await requireLogin();
+  if(session){
+    document.getElementById('userEmail').textContent = ', ' + session.user.email;
+    const profile = await getMyProfile();
+    if(profile){
+      document.getElementById('userEmail').textContent = ', ' + (profile.nickname || session.user.email);
+      if(profile.role === 'admin'){
+        document.getElementById('adminLink').style.display = 'inline';
+        document.getElementById('adminLimitsLink').style.display = 'inline';
+      }
+      if(profile.role === 'admin' || profile.role === 'gold'){
+        // 관리자/골드 회원: 무제한 무료 이용
+      } else {
+        const costs = await getPointCosts();
+        const pointsLine = document.getElementById('pointsLine');
+        pointsLine.textContent = '보유 포인트: ' + (profile.points || 0) + 'P';
+        pointsLine.style.display = 'block';
+
+        const coverageBadge = document.getElementById('coverageBadge');
+        coverageBadge.textContent = '1회 ' + costs.coverage.toLocaleString() + 'P';
+        coverageBadge.style.display = 'inline-block';
+
+        const familyCoverageBadge = document.getElementById('familyCoverageBadge');
+        familyCoverageBadge.textContent = '1회 ' + costs.family_coverage.toLocaleString() + 'P';
+        familyCoverageBadge.style.display = 'inline-block';
+
+        const card = document.getElementById('historyCard');
+        const badge = document.getElementById('historyBadge');
+        card.removeAttribute('href');
+        if(profile.approval_status !== 'approved'){
+          badge.textContent = '승인 대기중';
+          badge.style.display = 'inline-block';
+          card.style.opacity = '0.5';
+          card.addEventListener('click', function(e){
+            e.preventDefault();
+            alert('관리자 승인 후 이용할 수 있습니다.');
+          });
+        } else {
+          badge.textContent = '1회 ' + costs.history.toLocaleString() + 'P';
+          badge.style.display = 'inline-block';
+          card.addEventListener('click', function(e){
+            e.preventDefault();
+            if((profile.points || 0) < costs.history){
+              alert('포인트가 부족합니다. (병력정리 이용에 ' + costs.history.toLocaleString() + 'P가 필요합니다. 보유 포인트: ' + (profile.points || 0) + 'P)\n관리자에게 포인트 충전을 요청해주세요.');
+              return;
+            }
+            window.location.href = 'history.html';
+          });
+        }
+      }
+    }
+  }
+})();
+
+function renderRuleRows(rows){
+  const wrap = document.getElementById('ruleModalRows');
+  wrap.innerHTML = '';
+  if(!rows || rows.length === 0){
+    wrap.textContent = '등록된 규칙이 없습니다.';
+    return;
+  }
+  rows.forEach(function(row){
+    const item = document.createElement('div');
+    item.className = 'modal-info-row';
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'flex-start';
+    item.style.gap = '4px';
+    const label = document.createElement('div');
+    label.className = 'modal-info-label';
+    label.textContent = row.title;
+    const value = document.createElement('div');
+    value.className = 'modal-info-value';
+    value.style.textAlign = 'left';
+    value.style.whiteSpace = 'pre-wrap';
+    value.style.color = 'var(--muted)';
+    value.style.fontSize = '13px';
+    value.textContent = row.content;
+    item.appendChild(label);
+    item.appendChild(value);
+    wrap.appendChild(item);
+  });
+}
+
+async function openRuleModal(){
+  document.getElementById('ruleModalOverlay').style.display = 'flex';
+  const wrap = document.getElementById('ruleModalRows');
+  wrap.textContent = '불러오는 중...';
+  let rows = null;
+  try{
+    if(typeof getSiteRules === 'function'){
+      rows = await getSiteRules();
+    }
+  }catch(e){
+    console.error('규칙 불러오기 실패', e);
+  }
+  renderRuleRows(rows);
+}
+function closeRuleModal(){
+  document.getElementById('ruleModalOverlay').style.display = 'none';
+}
+document.getElementById('showRulesBtn').addEventListener('click', openRuleModal);
+document.getElementById('ruleModalClose').addEventListener('click', closeRuleModal);
+document.getElementById('ruleModalOverlay').addEventListener('click', function(e){
+  if(e.target === this) closeRuleModal();
+});
+
+document.getElementById('logoutLink').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  await logout();
+});
+</script>
+</body>
+</html>
