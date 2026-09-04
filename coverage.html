@@ -571,16 +571,27 @@ function wireDragSelect(container){
     }
     if(clearedCells.length){
       pushDeleteHistory({ kind:"range", container, cells: clearedCells });
-      // Ctrl+Z를 눌렀을 때 방금 지운 칸에 남아있는 포커스 때문에 브라우저의
-      // (아무 의미 없는) 텍스트 입력 되돌리기로 가로채이지 않도록, 방금 지운
-      // 범위 안의 칸에 포커스가 남아있다면 포커스를 비워서 아래 document
-      // Ctrl+Z 핸들러가 되돌리기를 처리하도록 한다.
-      const active = document.activeElement;
-      if(active && active.dataset && active.dataset.gridrow!==undefined && active.dataset.gridcol!==undefined){
-        const ar = Number(active.dataset.gridrow), ac = Number(active.dataset.gridcol);
-        if(ar>=rowMin && ar<=rowMax && ac>=colMin && ac<=colMax) active.blur();
-      }
+      // 포커스는 지운 칸에 그대로 남겨둔다(포커스를 비우면 화살표 키가 칸
+      // 이동이 아니라 페이지 스크롤로 동작해버린다). 대신 Ctrl+Z가 이 칸의
+      // 브라우저 기본 텍스트 되돌리기로 가로채이지 않도록, 아래 keydown
+      // 핸들러가 포커스 위치와 무관하게 방금 지운 범위를 먼저 복구한다.
     }
+  });
+
+  // Ctrl+Z(맥은 Cmd+Z) - 방금 드래그 범위를 지운 직후에는 포커스가 그 칸(주로
+  // input/textarea)에 그대로 남아있어서, document 레벨 되돌리기 핸들러는
+  // "텍스트 입력 중"이라 판단해 건드리지 않고 지나간다. 그러면 브라우저가
+  // 그 칸의 (의미 없는) 자체 되돌리기를 대신 실행해버리므로, 가장 최근
+  // 되돌리기 기록이 범위 삭제("range")일 때는 포커스 위치와 상관없이 여기서
+  // 먼저 처리하고 document 핸들러로는 넘어가지 않게 막는다.
+  container.addEventListener("keydown", (e)=>{
+    const isUndoKey = (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z");
+    if(!isUndoKey) return;
+    const last = deleteHistory[deleteHistory.length - 1];
+    if(!last || last.kind !== "range") return; // 그 외의 경우는 기존 document 레벨 처리에 맡긴다
+    e.preventDefault();
+    e.stopPropagation();
+    undoLastDelete();
   });
 }
 
