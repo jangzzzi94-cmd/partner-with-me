@@ -506,6 +506,24 @@ function wireDragSelect(container){
     e.clipboardData.setData("text/plain", tsv);
     e.preventDefault();
   });
+
+  container.addEventListener("keydown", (e)=>{
+    if(e.key !== "Delete" && e.key !== "Backspace") return;
+    if(!selection) return;
+    const rowMin=Math.min(selection.r1,selection.r2), rowMax=Math.max(selection.r1,selection.r2);
+    const colMin=Math.min(selection.c1,selection.c2), colMax=Math.max(selection.c1,selection.c2);
+    if(rowMin===rowMax && colMin===colMax) return; // 칸 하나만 선택된 상태는 기본 편집 동작(글자 삭제)에 맡긴다
+    e.preventDefault();
+    for(let r=rowMin;r<=rowMax;r++){
+      for(let c=colMin;c<=colMax;c++){
+        const el = container.querySelector(`[data-gridrow="${r}"][data-gridcol="${c}"]`);
+        if(el && !el.disabled && !el.readOnly){
+          el.value = "";
+          el.dispatchEvent(new Event("input", {bubbles:true}));
+        }
+      }
+    }
+  });
 }
 
 function normalizeSpace(s){ return String(s==null?"":s).replace(/ /g," ").replace(/\s+/g," ").trim(); }
