@@ -350,6 +350,14 @@ function undoLastDelete(){
       if(src){ src.kept = true; applyKeptUI(); }
     }
     renderAfterSheet();
+  } else if(entry.kind === "range"){
+    entry.cells.forEach(cell=>{
+      const el = entry.container.querySelector(`[data-gridrow="${cell.row}"][data-gridcol="${cell.col}"]`);
+      if(el){
+        el.value = cell.value;
+        el.dispatchEvent(new Event("input", {bubbles:true}));
+      }
+    });
   }
 }
 
@@ -514,13 +522,27 @@ function wireDragSelect(container){
     const colMin=Math.min(selection.c1,selection.c2), colMax=Math.max(selection.c1,selection.c2);
     if(rowMin===rowMax && colMin===colMax) return; // 칸 하나만 선택된 상태는 기본 편집 동작(글자 삭제)에 맡긴다
     e.preventDefault();
+    const clearedCells = [];
     for(let r=rowMin;r<=rowMax;r++){
       for(let c=colMin;c<=colMax;c++){
         const el = container.querySelector(`[data-gridrow="${r}"][data-gridcol="${c}"]`);
         if(el && !el.disabled && !el.readOnly){
+          clearedCells.push({ row:r, col:c, value: el.value });
           el.value = "";
           el.dispatchEvent(new Event("input", {bubbles:true}));
         }
+      }
+    }
+    if(clearedCells.length){
+      pushDeleteHistory({ kind:"range", container, cells: clearedCells });
+      // Ctrl+Z를 눌렀을 때 방금 지운 칸에 남아있는 포커스 때문에 브라우저의
+      // (아무 의미 없는) 텍스트 입력 되돌리기로 가로채이지 않도록, 방금 지운
+      // 범위 안의 칸에 포커스가 남아있다면 포커스를 비워서 아래 document
+      // Ctrl+Z 핸들러가 되돌리기를 처리하도록 한다.
+      const active = document.activeElement;
+      if(active && active.dataset && active.dataset.gridrow!==undefined && active.dataset.gridcol!==undefined){
+        const ar = Number(active.dataset.gridrow), ac = Number(active.dataset.gridcol);
+        if(ar>=rowMin && ar<=rowMax && ac>=colMin && ac<=colMax) active.blur();
       }
     }
   });
