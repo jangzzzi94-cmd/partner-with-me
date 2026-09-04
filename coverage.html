@@ -411,6 +411,7 @@ function wireGridEnterNav(container){
     const isHorizontal = e.key === "ArrowLeft" || e.key === "ArrowRight";
     const isVertical = e.key === "ArrowUp" || e.key === "ArrowDown";
     if(!isHorizontal && !isVertical) return;
+    if(e.shiftKey) return; // Shift+화살표(범위 선택 확장)는 wireDragSelect가 처리한다
     // number 타입 입력창은 selectionStart를 읽을 수 없고(브라우저 제약) 화살표로 값 안에서
     // 커서를 옮기거나 스핀 버튼(위/아래 화살표로 값 증감)을 조작하는 기본 동작을 그대로
     // 살려두기 위해 건드리지 않는다.
@@ -452,6 +453,9 @@ function wireGridEnterNav(container){
    선택한 범위가 탭/줄바꿈으로 구분된 텍스트로 클립보드에 복사된다.
    붙여넣기는 기존 wireExcelPaste()가 그대로 처리한다 (탭/줄바꿈이 들어있는
    텍스트를 data-gridrow/data-gridcol 기준으로 채워 넣음).
+   마우스 드래그 외에도, 칸에 포커스가 있는 상태에서 Shift+화살표를 누르면
+   같은 방식으로 범위가 넓혀진다(엑셀의 Shift+화살표와 동일). 이렇게 선택한
+   범위도 Ctrl+C 복사, Delete/Backspace로 한번에 지우기 모두 동일하게 동작한다.
    ========================================================================= */
 function wireDragSelect(container){
   if(!container || container.__dragSelectWired) return;
@@ -496,6 +500,38 @@ function wireDragSelect(container){
     }
   });
   document.addEventListener("mouseup", ()=>{ mouseDown = false; });
+
+  // Shift+화살표로 마우스 드래그처럼 범위를 넓혀가며 선택한다. Shift 없이
+  // 화살표만 누르면(칸 이동은 wireGridEnterNav가 처리) 지금까지 선택돼있던
+  // 범위 표시는 걷어내서, 다음에 Shift+화살표를 누르면 그 새 칸부터 다시
+  // 범위가 시작되게 한다.
+  container.addEventListener("keydown", (e)=>{
+    const isArrow = e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown";
+    if(!isArrow) return;
+    if(!e.shiftKey){
+      if(selection){ selection = null; clearHighlight(); }
+      return;
+    }
+    const target = e.target;
+    if(!target || !target.dataset || target.dataset.gridrow===undefined || target.dataset.gridcol===undefined) return;
+    if(target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") return;
+
+    const dr = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    const dc = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+    const cursor = selection ? { row: selection.r2, col: selection.c2 } : { row: Number(target.dataset.gridrow), col: Number(target.dataset.gridcol) };
+    const nextRow = cursor.row + dr, nextCol = cursor.col + dc;
+    const nextEl = container.querySelector(`[data-gridrow="${nextRow}"][data-gridcol="${nextCol}"]`);
+    if(!nextEl) return; // 표 경계 밖으로는 더 넓히지 않는다
+    e.preventDefault();
+
+    if(!selection){
+      anchor = { row: Number(target.dataset.gridrow), col: Number(target.dataset.gridcol) };
+    }
+    selection = { r1: anchor.row, c1: anchor.col, r2: nextRow, c2: nextCol };
+    highlightRange(selection.r1, selection.c1, selection.r2, selection.c2);
+    nextEl.focus();
+    if(nextEl.select) nextEl.select();
+  });
 
   container.addEventListener("copy", (e)=>{
     if(!selection) return;
