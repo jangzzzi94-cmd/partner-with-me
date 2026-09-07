@@ -1481,7 +1481,11 @@ function todayItems(p, dToday, dateKey) {
  *  사소한 수정을 해도 그 완료 기록이 지워지고 벌금이 붙는 일이 생기지 않는다. */
 async function saveClosing(p, tdy, S, items, opt) {
   opt = opt || {};
-  const clean = items.filter(x => x.t);
+  // 예전에는 텍스트가 비어있는 항목을 저장할 때마다 걸러냈는데, 그러면 "항목 추가"를
+  // 누른 직후(아직 아무 글자도 안 쓴 상태)에 포커스가 잠깐이라도 벗어나면(blur) 바로
+  // 자동저장이 걸려 방금 추가한 빈 항목이 그대로 사라져버렸다. 이제는 내용이 비어있어도
+  // 지우지 않고 그대로 둔다 - 정말 지우고 싶은 항목은 "삭제" 버튼으로 직접 지운다.
+  const clean = items;
   ckItems = clean;
   const now = Date.now();
   const from = atTime(tdy, S.closingFrom), to = atTime(tdy, S.closingTo) + 59000;
