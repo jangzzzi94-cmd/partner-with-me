@@ -945,11 +945,30 @@ async function loadResumeFile(file){
     const afterRaw = readColumnsFromWorksheet(wsAfter);
     if(!beforeRaw.length) throw new Error("보장분석표(전) 시트에서 상품 데이터를 찾지 못했습니다.");
 
-    const beforeColumns = beforeRaw.map(c=>({
+    // "유지"/자동연동 표시가 있던 열을 알아내는 데는 두 가지를 함께 쓴다.
+    // 1) 숨김 시트(_wp_kept)에 저장해둔 정확한 인덱스 값 -- 앱이 다운로드해줄 때 자동으로
+    //    남기며, 엑셀에서 열었다 저장해도(숨김 시트는 그대로 보존되므로) 색이 달라지는 것과
+    //    상관없이 정확하게 복원된다.
+    // 2) 셀 색 자체 -- 회원이 엑셀에서 직접 열어 상품 열에 (앱이 쓰는 색이 아니어도) 원하는
+    //    색을 칠해 스스로 "이건 유지야"라고 새로 표시해둔 경우까지 인식하기 위한 것으로,
+    //    isKeptFillCell()이 투명·흰색이 아닌 색이면 폭넓게 인정한다.
+    // 둘 중 하나라도 "유지"로 표시돼 있으면 유지로 복원한다(둘 다 아닐 때만 유지 아님).
+    let explicitKeptBeforeIdx = null, explicitCarryoverAfterIdx = null;
+    try{
+      const keptWs = wb.getWorksheet("_wp_kept");
+      if(keptWs){
+        const parseIdxList = s => cellText(s).split(",").map(x=>x.trim()).filter(Boolean).map(Number).filter(n=>Number.isInteger(n) && n>=0);
+        explicitKeptBeforeIdx = parseIdxList(keptWs.getCell("A1").value);
+        explicitCarryoverAfterIdx = parseIdxList(keptWs.getCell("A2").value);
+      }
+    }catch(markerErr){ console.error("유지 표시 숨김 값 읽기 실패(색 표시만으로 판단):", markerErr); }
+
+    const beforeColumns = beforeRaw.map((c,i)=>({
       header: { insurer:c.insurer, productName:c.productName, duration:c.duration, term:c.term, premium:c.premium, holder:c.holder },
       amounts: c.amounts,
       textTags: c.text45 ? c.text45.split(",").map(s=>s.trim()).filter(Boolean) : [],
-      kept: !!c.wasKept, // 저장 당시 "유지" 표시(연한 노란 배경)돼 있던 상품은 그대로 유지 상태로 복원
+      // 저장 당시 "유지" 표시(숨김 인덱스 또는 색칠)가 있던 상품은 그대로 유지 상태로 복원
+      kept: !!(c.wasKept || (explicitKeptBeforeIdx && explicitKeptBeforeIdx.includes(i))),
       id: "b" + (nextBeforeColId++),
     }));
     lastResult = {
@@ -958,12 +977,13 @@ async function loadResumeFile(file){
       baseName: file.name.replace(/\.(xlsx|xlsm)$/i,""),
     };
 
-    const rawAfterColumns = afterRaw.map(c=>{
+    const rawAfterColumns = afterRaw.map((c,i)=>{
       const items = { ...c.amounts };
       if(c.text45) items["45"] = c.text45;
       // 저장 당시 자동연동(=(전)에서 유지 중이던 상품) 표시가 돼 있던 열은 일단 "carryover"로
       // 표시해두고, 아래에서 어떤 (전) 상품과 짝인지 순서대로 다시 연결한다.
-      return { source: c.wasKept ? "carryover" : "manual", sourceId:null, alias:"", lastMatchedPlanId:null,
+      const wasCarryover = !!(c.wasKept || (explicitCarryoverAfterIdx && explicitCarryoverAfterIdx.includes(i)));
+      return { source: wasCarryover ? "carryover" : "manual", sourceId:null, alias:"", lastMatchedPlanId:null,
         productName:c.productName, insurer:c.insurer, duration:c.duration, term:c.term,
         premium:c.premium, holder:c.holder, items };
     });
@@ -1239,14 +1259,30 @@ function fillSheetColumns(ws, columns, getField){
   });
 }
 
-// 셀의 채우기 색이 "유지"/자동연동 표시용 KEPT_CELL_FILL(연한 노랑, FFF6E8B5)과
-// 같은지 확인한다. "이전 보장분석표 불러오기"에서 어떤 상품이 유지 중이었는지
-// 알아내는 데 쓴다(엑셀 파일 자체에는 그 값을 별도로 저장해두지 않고, 화면에
-// 보이는 것과 똑같은 색으로만 표시해두었기 때문에 색을 보고 역으로 판단한다).
+// 셀에 색이 칠해져 있는지 확인한다. "이전 보장분석표 불러오기"에서 어떤 상품이
+// 유지 중이었는지 알아내는 보조 수단으로 쓴다 -- 요즘은 숨김 시트(_wp_kept)에
+// 정확한 값을 함께 저장해두고 그걸 우선으로 쓰지만, 회원이 다운로드한 파일을
+// 엑셀에서 직접 열어 (앱이 쓰는 연한 노랑이 아니어도) 상품 열에 원하는 색을
+// 칠해서 "이건 유지야"라고 직접 표시해두는 경우도 그대로 인식되게 하기 위해
+// 색 판정 자체는 특정 색 하나(FFF6E8B5)만 인정하지 않고, 투명·흰색이 아닌
+// 색이면 전부 "칠해짐(=유지)"으로 폭넓게 인정한다.
 function isKeptFillCell(cell){
   const fill = cell && cell.style && cell.style.fill;
-  if(!fill || fill.type !== "pattern" || !fill.fgColor) return false;
-  return String(fill.fgColor.argb || "").toUpperCase() === "FFF6E8B5";
+  if(!fill || fill.type !== "pattern") return false;
+  if(fill.pattern && fill.pattern !== "solid") return false; // 줄무늬 등 무늬 채우기는 판단하지 않는다
+  const fg = fill.fgColor;
+  if(!fg) return false;
+  if(fg.argb){
+    const argb = String(fg.argb).toUpperCase();
+    if(argb === "00000000") return false; // 완전 투명
+    const rgb = argb.length >= 6 ? argb.slice(-6) : argb; // 앞 2자리는 알파값이라 제외하고 RGB만 비교
+    if(rgb === "FFFFFF") return false; // 흰색은 "칠해지지 않음"과 같게 취급
+    return true;
+  }
+  // 표준 팔레트가 아니라 "테마 색"을 고르면 argb 없이 테마 번호만 있을 수 있다.
+  // 테마 0번(배경/흰색 계열)만 "칠해지지 않음"으로 보고, 그 외 테마 색은 칠해진 것으로 본다.
+  if(typeof fg.theme === "number") return fg.theme !== 0;
+  return false;
 }
 
 // fillSheetColumns()의 역방향: 이미 채워진 보장분석표(전)/(후) 시트에서
@@ -1625,6 +1661,21 @@ dlBtn.addEventListener("click", async ()=>{
       let hiddenWs = wb.getWorksheet("_wp_job");
       if(!hiddenWs) hiddenWs = wb.addWorksheet("_wp_job", { state: "veryHidden" });
       hiddenWs.getCell("A1").value = currentJobId;
+    }
+
+    // "유지" 상태는 원래 엑셀 셀 배경색(연한 노랑)만 보고 다시 읽어들였는데, 파일을
+    // 엑셀 등에서 열었다 저장하는 과정에서 색상 표현이 미묘하게 달라지면(테마색으로
+    // 바뀌거나 등) 색만으로는 다시 알아내지 못할 수 있다. 그래서 색 표시는 그대로 두되,
+    // 어떤 열이 유지/자동연동이었는지도 숨김 시트에 인덱스로 명확히 함께 남겨서, 다시
+    // 불러올 때는 이 값을 우선으로 쓰고(색이 달라졌어도 정확히 복원됨), 이 값이 없는
+    // 예전 파일에 한해서만 기존 방식대로 색을 보고 판단한다.
+    {
+      let keptWs = wb.getWorksheet("_wp_kept");
+      if(!keptWs) keptWs = wb.addWorksheet("_wp_kept", { state: "veryHidden" });
+      const keptBeforeIdx = lastResult.columns.map((c,i)=> c.kept ? i : -1).filter(i=>i>=0);
+      const carryoverAfterIdx = afterColumns.map((c,i)=> c.source==="carryover" ? i : -1).filter(i=>i>=0);
+      keptWs.getCell("A1").value = keptBeforeIdx.join(",");
+      keptWs.getCell("A2").value = carryoverAfterIdx.join(",");
     }
 
     const buf2 = await wb.xlsx.writeBuffer();
