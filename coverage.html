@@ -1150,10 +1150,14 @@ function renderPreview(result){
   const numericRowDefs = ROW_DEFS.filter(([row])=>!TEXT_ROWS.has(row));
   numericRowDefs.forEach(([row, group, item], ri)=>{
     let sum = 0;
-    result.columns.forEach(c=> sum += (c.amounts[row]||0));
+    result.columns.forEach(c=> sum += numOrZero(c.amounts[row]));
     html += `<tr><td class="label stick-l0">${group||""}</td><td class="label stick-l60">${item}</td><td class="label stick-l210 pv-sum" data-row="${row}">${sum?sum.toLocaleString():""}</td>`;
     result.columns.forEach((c,i)=>{
-      html += `<td><input type="number" class="pv-item-input" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${c.amounts[row]||""}" placeholder="0"></td>`;
+      // 보장분석표(후)/마스터와 마찬가지로 숫자뿐 아니라 "미가입"/"무제한" 같은 텍스트도
+      // 그대로 입력할 수 있도록 일반 텍스트 입력창으로 그린다(합계는 numOrZero로 텍스트를
+      // 0으로 취급). number 타입이 아니어야 화살표 키 좌우 이동도 다른 표들과 똑같이 된다.
+      const val = c.amounts[row]!=null ? c.amounts[row] : "";
+      html += `<td><input type="text" class="pv-item-input" data-col="${i}" data-row="${row}" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(val).replace(/"/g,"&quot;")}"></td>`;
     });
     html += `</tr>`;
   });
@@ -1192,10 +1196,11 @@ function renderPreview(result){
       const i = Number(inp.dataset.col), row = inp.dataset.row;
       const c = lastResult && lastResult.columns[i];
       if(!c) return;
-      const n = parseFloat(inp.value);
-      if(!isNaN(n) && n>0) c.amounts[row] = n; else delete c.amounts[row];
+      // 숫자든 "미가입"/"무제한" 같은 텍스트든 입력한 그대로 저장한다(af-item과 동일한
+      // 방식). 합계 계산에서만 numOrZero로 텍스트를 0으로 취급한다.
+      if(inp.value.trim()) c.amounts[row] = inp.value; else delete c.amounts[row];
       let sum = 0;
-      table.querySelectorAll(`.pv-item-input[data-row="${row}"]`).forEach(el2=> sum += (Number(el2.value)||0));
+      table.querySelectorAll(`.pv-item-input[data-row="${row}"]`).forEach(el2=> sum += numOrZero(el2.value));
       const sumTd = table.querySelector(`.pv-sum[data-row="${row}"]`);
       if(sumTd) sumTd.textContent = sum ? sum.toLocaleString() : "";
     });
@@ -1995,7 +2000,7 @@ function sumAfterPremiums(list){
 function beforeRowSum(row){
   if(!lastResult) return 0;
   let sum = 0;
-  lastResult.columns.forEach(c=> sum += (c.amounts[row]||0));
+  lastResult.columns.forEach(c=> sum += numOrZero(c.amounts[row]));
   return sum;
 }
 function afterRowSum(row){
