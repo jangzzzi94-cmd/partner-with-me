@@ -1992,15 +1992,15 @@ function bindReport() {
     toast("삭제됨");
   });
 
-  /* 일마감 체크리스트 — 체크/텍스트수정/추가/삭제를 할 때마다 자동 저장된다(디바운스 적용).
-     "저장하기" 버튼은 그대로 두되, 즉시 저장 + 인정시간 안내 토스트 용도로만 남는다. */
+  /* 일마감 체크리스트 — 체크/텍스트수정/추가/삭제를 할 때마다 자동 저장된다.
+     "저장하기" 버튼은 그대로 두되, 즉시 저장 + 인정시간 안내 토스트 용도로만 남는다.
+     예전에는 저장을 0.5초 지연시켰다가(디바운스) 한꺼번에 보냈는데, 그러면 체크한
+     직후 0.5초 안에 다른 탭으로 이동하거나 새로고침·창을 닫으면 그 저장이 아예
+     날아가서 "체크했는데 다음에 보면 풀려있다"는 문제가 생겼다. 지연 없이 클릭/수정
+     즉시 저장을 시작하도록 바꿔서 이 유실 구간을 없앤다. */
   const dT = DB.get("daily", dayId(p.uid, tdy)) || {};
   const items = todayItems(p, dT, tdy);
-  let ckAutoTimer = null;
-  const autoSaveClosing = () => {
-    clearTimeout(ckAutoTimer);
-    ckAutoTimer = setTimeout(() => { saveClosing(p, tdy, S, items, { toast: false }); }, 500);
-  };
+  const autoSaveClosing = () => { saveClosing(p, tdy, S, items, { toast: false }); };
   $$("[data-cktog]").forEach(b => b.onclick = () => {
     const i = Number(b.dataset.cktog); items[i].done = !items[i].done; render(); autoSaveClosing();
   });
@@ -2017,7 +2017,6 @@ function bindReport() {
   };
   const save = $("#ckSave");
   if (save) save.onclick = async () => {
-    clearTimeout(ckAutoTimer);
     $$("[data-cktx]").forEach(el => { items[Number(el.dataset.cktx)].t = el.textContent.trim(); });
     await saveClosing(p, tdy, S, items, { toast: true });
   };
