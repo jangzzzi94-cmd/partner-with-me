@@ -1069,14 +1069,26 @@ resumeDropZone.addEventListener("drop", (e)=>{
   if(file) loadResumeFile(file);
 });
 
-// 원본 서식지 D7의 SUMPRODUCT(--IFERROR(VALUE(SUBSTITUTE(...,"원","")),0)) 수식과
-// 동일한 계산: 상품별 보험료 텍스트에서 "원"/","를 떼고 숫자로 바꿀 수 있는 것만 모두 더함
-// ("보험료미제공"처럼 숫자가 아닌 값은 0으로 취급).
+// 보험료 텍스트에서 "원"/","만 뗀 뒤 남은 문자열 전체가 순수한 숫자일 때만 그 값을 쓴다.
+// parseFloat는 "32,110원 (예상)"처럼 숫자 뒤에 다른 글자가 더 있어도 앞부분(32110)만 읽어
+// 부분적으로 합계에 포함시켜버리는데, 그러면 안 되고 숫자가 아닌 글자가 하나라도 섞여 있으면
+// (원본 서식지 D7의 SUMPRODUCT(--IFERROR(VALUE(SUBSTITUTE(...,"원","")),0)) 수식이 엑셀에서
+// VALUE()로 통째로 숫자 변환을 시도하다 실패하면 0으로 처리하는 것과 똑같이) 합계에서 아예
+// 제외해야 한다.
+function strictPremiumNum(raw){
+  const s = String(raw==null?"":raw).replace(/,/g,"").replace(/원/g,"").trim();
+  if(s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+// 상품별 보험료 텍스트에서 위 규칙으로 숫자로 인정되는 것만 모두 더함
+// ("보험료미제공"처럼 숫자가 아닌 값이나, 숫자와 글자가 섞인 값은 0으로 취급).
 function sumPremiums(columns){
   let sum = 0;
   columns.forEach(c=>{
-    const n = parseFloat(String(c.header.premium||"").replace(/,/g,"").replace(/원/g,""));
-    if(!isNaN(n)) sum += n;
+    const n = strictPremiumNum(c.header.premium);
+    if(n != null) sum += n;
   });
   return sum;
 }
@@ -1219,8 +1231,11 @@ function renderPreview(result){
 // 보험료 문자열("50,000원", "50000" 등)을 원본 서식이 기대하는 순수 숫자로 변환.
 // 셀 자체에 #,##0"원" 서식이 이미 걸려 있으므로 "원" 표시는 엑셀이 알아서 붙여준다.
 function parsePremiumNumber(raw){
-  const n = parseFloat(String(raw||"").replace(/,/g,"").replace(/원/g,""));
-  return isNaN(n) ? null : n;
+  // sumPremiums/sumAfterPremiums와 같은 기준(strictPremiumNum)을 써야, 화면에 보이는 합계와
+  // 다운로드한 엑셀에 실제로 쓰이는 값(그리고 그 값으로 계산되는 엑셀 자체 합계 수식)이
+  // 서로 어긋나지 않는다. 숫자와 글자가 섞인 값을 여기서 부분적으로 숫자로 잘라 써버리면,
+  // 화면 합계에서는 빠졌는데 다운로드한 파일에는 그 금액이 들어가 있는 식으로 불일치가 생긴다.
+  return strictPremiumNum(raw);
 }
 
 // 보장분석표(전)/(후) 시트 한 장에 컬럼 데이터를 채워 넣는다.
@@ -1985,8 +2000,8 @@ const AFTER_META_FIELDS = [
 function sumAfterPremiums(list){
   let sum = 0;
   list.forEach(c=>{
-    const n = parseFloat(String(c.premium||"").replace(/,/g,"").replace(/원/g,""));
-    if(!isNaN(n)) sum += n;
+    const n = strictPremiumNum(c.premium);
+    if(n != null) sum += n;
   });
   return sum;
 }
