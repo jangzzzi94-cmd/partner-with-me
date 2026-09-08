@@ -2009,6 +2009,8 @@ function bindReport() {
   });
   $$("[data-cktx]").forEach(el => el.onblur = () => {
     items[Number(el.dataset.cktx)].t = el.textContent.trim(); autoSaveClosing();
+    // 입력 중이라 미뤄뒀던 실시간 다시 그리기가 있으면, 이 항목에서 벗어난 지금 적용한다.
+    if (_pendingR) { _pendingR = false; scheduleRender(); }
   });
   const add = $("#ckAdd");
   if (add) add.onclick = () => {
@@ -3202,9 +3204,16 @@ function scheduleRender() {
   _rt = setTimeout(() => {
     if ($("#ovl")) { _pendingR = true; return; }
     const a = document.activeElement;
+    // 일마감 체크리스트 항목(contenteditable)에 포커스가 있는 동안(=한글을 입력/조합 중일
+    // 가능성이 있는 동안)에는 다른 사람의 실시간 변경이나 내 저장 결과가 돌아와 화면을
+    // 통째로 다시 그리면, 입력 중이던 글자가 자모로 흩어지거나("아" -> "ㅇㅏ") 같은
+    // 키를 여러 번 누른 것처럼 겹쳐 써지는 문제가 생긴다. contenteditable은 input/textarea와
+    // 달리 selectionStart로 커서 위치를 되살릴 수도 없어서, 포커스가 있는 동안은 다시
+    // 그리지 않고 이 항목에서 벗어날 때(blur)까지 미룬다. PC보다 모바일 키보드에서 자모를
+    // 한 글자씩 조합해 넣는 방식 때문에 특히 심하게 나타난다.
+    if (a && a.dataset && a.dataset.cktx) { _pendingR = true; return; }
     let key = null, ss = null;
     if (a && a.dataset && a.dataset.ct) key = '[data-ct="' + a.dataset.ct + '"]';
-    else if (a && a.dataset && a.dataset.cktx) key = '[data-cktx="' + a.dataset.cktx + '"]';
     else if (a && a.id) key = "#" + a.id;
     try { ss = a && a.selectionStart; } catch (e) { }
     render();
