@@ -1016,7 +1016,9 @@ async function loadResumeFile(file){
     const beforeColumns = beforeRaw.map((c,i)=>({
       header: { insurer:c.insurer, productName:c.productName, duration:c.duration, term:c.term, premium:c.premium, holder:c.holder },
       amounts: c.amounts,
-      textTags: c.text45 ? c.text45.split(",").map(s=>s.trim()).filter(Boolean) : [],
+      // 화면에서 줄바꿈으로 구분해 입력한 태그도(쉼표로 구분한 태그와 마찬가지로) 그대로
+      // 복원되도록, 직접 입력할 때와 같은 구분자(줄바꿈 또는 쉼표)로 나눈다.
+      textTags: c.text45 ? c.text45.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean) : [],
       // 저장 당시 "유지" 표시(숨김 인덱스 또는 색칠)가 있던 상품은 그대로 유지 상태로 복원
       kept: !!(c.wasKept || (explicitKeptBeforeIdx && explicitKeptBeforeIdx.includes(i))),
       id: "b" + (nextBeforeColId++),
@@ -1671,7 +1673,9 @@ dlBtn.addEventListener("click", async ()=>{
     wsBefore.getCell("C2").value = lastResult.customerName || lastResult.baseName || "";
     fillSheetColumns(wsBefore, lastResult.columns, (c, field)=>{
       if(field === "amounts") return c.amounts;
-      if(field === "text45") return (c.textTags && c.textTags.length) ? c.textTags.join(", ") : "";
+      // 화면(미리보기)에 보이는 그대로 줄바꿈으로 저장한다 -- 쉼표(", ")로 합쳐버리면
+      // 다운로드한 엑셀/재업로드 시 화면에 입력했던 줄바꿈 구조가 사라진다.
+      if(field === "text45") return (c.textTags && c.textTags.length) ? c.textTags.join("\n") : "";
       return c.header[field];
     });
     applyKeptFillToMetaCells(wsBefore, lastResult.columns, c=>!!c.kept);
@@ -2322,7 +2326,7 @@ function syncAfterCarryoverFromBefore(){
   const newCarryover = keptCols.map(src=>{
     if(existingBySource.has(src.id)) return existingBySource.get(src.id);
     const items = { ...src.amounts };
-    if(src.textTags && src.textTags.length) items["45"] = src.textTags.join(", ");
+    if(src.textTags && src.textTags.length) items["45"] = src.textTags.join("\n");
     return {
       source:"carryover", sourceId: src.id, alias:"", lastMatchedPlanId:null,
       productName: src.header.productName||"", insurer: src.header.insurer||"",
