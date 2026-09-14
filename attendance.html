@@ -1463,13 +1463,44 @@ let ckItemsDate = null;  // ckItems가 어느 날짜(tdy) 것인지 - 자정을 
                           // 있어도 어제 체크리스트가 오늘 것인 양 계속 보이지 않도록 날짜가
                           // 바뀌면 새로 불러온다.
 
+// 오늘 기록(daily.closingItems)이 아직 없는(=오늘 처음 여는) 경우, 항목의 체크 상태를
+// 무조건 false로 초기화하지 않고 "가장 최근에 저장된 날"의 체크 상태를 이어받는다.
+// 이 체크리스트 항목들은 "문단속 확인" 같은 매일 반복되는 마감 루틴이 아니라
+// "강해옥님 청구"처럼 고객별로 한 번 완료하면 계속 완료로 남아있어야 하는 업무 목록으로
+// 쓰이고 있어서, 날짜가 바뀔 때마다 체크가 전부 풀리면 회원 입장에선 "체크한 게 자꾸
+// 풀린다"는 오류로 보인다. DB.cache.daily는 부팅 시 전체 기간이 이미 다 로드돼 있으므로
+// (DB.loadAll 참고) 별도 서버 조회 없이 바로 과거 기록을 찾을 수 있다.
+function findLatestClosingDoneMap(uid, beforeDateKey) {
+  const prefix = uid + "__";
+  let bestDate = null, bestItems = null;
+  for (const id in DB.cache.daily) {
+    if (!id.startsWith(prefix)) continue;
+    const rec = DB.cache.daily[id];
+    if (!rec || !Array.isArray(rec.closingItems) || !rec.closingItems.length) continue;
+    const d = rec.date || id.slice(prefix.length);
+    if (d >= beforeDateKey) continue; // 오늘/미래 기록은 제외하고 "그 이전"만 본다
+    if (!bestDate || d > bestDate) { bestDate = d; bestItems = rec.closingItems; }
+  }
+  const map = {};
+  if (bestItems) bestItems.forEach(x => { if (x && x.t) map[x.t] = !!x.done; });
+  return map;
+}
+
 function todayItems(p, dToday, dateKey) {
   if (ckItems && ckItemsDate === dateKey) return ckItems;
   ckItemsDate = dateKey;
-  if (Array.isArray(dToday.closingItems) && dToday.closingItems.length)
+  if (Array.isArray(dToday.closingItems) && dToday.closingItems.length) {
     ckItems = dToday.closingItems.map(x => ({ t: x.t, done: !!x.done }));
-  else
-    ckItems = (p.checklist || []).map(t => ({ t: typeof t === "string" ? t : (t.t || ""), done: false }));
+  } else {
+    // 오늘 기록이 없는 첫 진입: 항목 목록(p.checklist)은 그대로 쓰되, 체크 상태는
+    // 가장 최근 저장된 날의 상태를 이어받는다(같은 이름의 항목만 매칭). 새로 추가된
+    // 항목처럼 과거 기록에 없는 항목은 기존과 동일하게 false로 시작한다.
+    const doneMap = findLatestClosingDoneMap(p.uid, dateKey);
+    ckItems = (p.checklist || []).map(t => {
+      const text = typeof t === "string" ? t : (t.t || "");
+      return { t: text, done: !!doneMap[text] };
+    });
+  }
   return ckItems;
 }
 
