@@ -1081,7 +1081,6 @@ function render() {
 
   bindGlobal();
   setTimeout(maybeShowPayAlert, 300);
-  setTimeout(maybeShowGoalPopup, 700);
 }
 
 function bootScreen() {
@@ -1184,15 +1183,38 @@ function openMyModal() {
 function copyText(t) { try { navigator.clipboard.writeText(t); } catch (e) { } }
 
 /* ============================================================================
-   벌금 즉시 납부 알림
+   벌금 즉시 납부 알림 → (닫으면 이어서) 목표 안내창
    ============================================================================ */
+/** 지금 페이지가 "새로고침(리로드)"으로 열린 것인지 판단한다. 대시보드에서 링크를
+ *  눌러 들어온 것(navigate)이나 뒤/앞으로 가기(back_forward)와 구분하기 위해 쓴다 -
+ *  목표 안내창은 "로그인 후 팀 벌금 페이지에 들어갔을 때"만 뜨고 새로고침할 때는
+ *  뜨지 않아야 하기 때문. Navigation Timing API가 없는 구형 환경에서는 안전하게
+ *  false(=새로고침 아님)로 취급한다. */
+function isPageReload() {
+  try {
+    const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+    if (nav) return nav.type === "reload";
+    if (performance.navigation) return performance.navigation.type === performance.navigation.TYPE_RELOAD;
+  } catch (e) { /* ignore */ }
+  return false;
+}
+/** 지금 열려 있는 모달(#ovl)이 다른 모달로 바로 이어지지 않고 완전히 사라지면 fn을
+ *  한 번 호출한다. "미납 벌금 안내창을 닫으면(납부 등록/나중에/닫기 모두 포함) 이어서
+ *  목표 안내창을 띄운다"는 순차 동작에 쓴다. */
+function onModalFullyClosed(fn) {
+  const mo = new MutationObserver(() => {
+    if (!$("#ovl")) { mo.disconnect(); fn(); }
+  });
+  mo.observe(document.body, { childList: true });
+}
 function maybeShowPayAlert() {
   if (App.payShown || !Auth.profile || !Auth.profile.approved) return;
   if ($("#ovl")) return;
-  const list = unpaidOf(Auth.profile.uid);
-  if (!list.length) return;
   App.payShown = true;
+  const list = unpaidOf(Auth.profile.uid);
+  if (!list.length) { maybeShowGoalPopup(); return; }
   openPayModal(list, true);
+  onModalFullyClosed(maybeShowGoalPopup);
 }
 
 /* ============================================================================
@@ -2349,15 +2371,17 @@ function bindGoal() {
 
 /** 벌금 페이지에 "들어갈 때"(go("fines")로 다른 화면에서 넘어올 때)만 한 번 호출된다.
  *  관리자가 목표 탭 › 승인 관리에서 꺼두었거나(goalPopupOnEntry===false), 본인이 만든
- *  목표가 하나도 없으면 띄우지 않는다. */
-/** 미납 벌금 안내창(maybeShowPayAlert)과 똑같은 방식 - 어느 탭을 클릭해서가 아니라
- *  대시보드에서 이 페이지로 "들어올 때"(페이지가 처음 로드될 때) 한 번만 뜬다.
- *  render()가 재호출될 때마다 다시 뜨지 않도록 App.goalPopupShown으로 한 번만 실행되게
- *  막고, 이미 다른 모달(예: 미납 벌금 안내창)이 떠 있으면 그걸 방해하지 않는다. */
+ *  목표가 하나도 없으면 띄우지 않는다.
+ *
+ *  미납 벌금 안내창(maybeShowPayAlert)과 짝을 이룬다 - 어느 탭을 클릭해서가 아니라
+ *  대시보드에서 이 페이지로 "들어올 때" 한 번만 뜨고, 미납 벌금이 있었다면 그 안내창을
+ *  닫은 직후에 이어서 뜬다(maybeShowPayAlert의 onModalFullyClosed 콜백). 새로고침으로
+ *  들어온 경우에는(isPageReload) 뜨지 않는다. */
 function maybeShowGoalPopup() {
   if (App.goalPopupShown) return;
   if (!Auth.profile || !Auth.profile.approved) return;
   if ($("#ovl")) return;
+  if (isPageReload()) return;
   const S = SET();
   if (S.goalPopupOnEntry === false) return;
   if (!myGoals().length) return; // 만든 목표가 없으면 띄우지 않아도 됨
