@@ -636,6 +636,7 @@ const TABLES = {
   daily:    { table: "attendance_daily",    json: true, uid: true, date: true },
   fines:    { table: "attendance_fines",    json: true, uid: true },
   glog:     { table: "attendance_glog",     json: true, uid: true },
+  goals:    { table: "attendance_goals",    json: true, uid: true },
   holidays: { table: "attendance_holidays", json: true },
   settings: { table: "attendance_settings", json: true }
 };
@@ -677,7 +678,7 @@ function rowToDoc(r) { return Object.assign({}, r.data || {}, { id: r.id }); }
 
 const DB = {
   mode: "demo", ready: false, sb: null,
-  cache: { users: {}, daily: {}, fines: {}, glog: {}, holidays: {}, settings: {} },
+  cache: { users: {}, daily: {}, fines: {}, glog: {}, goals: {}, holidays: {}, settings: {} },
   subs: [],
   onChange(fn) { this.subs.push(fn); },
   emit() { this.subs.forEach(f => { try { f(); } catch (e) { console.error(e); } }); }
@@ -825,6 +826,52 @@ function SET() { return Object.assign({}, DEFAULT_SETTINGS, DB.get("settings", "
 function HOLIDAYS() { return DB.cache.holidays; }
 function USERS() { return DB.all("users").sort((a, b) => (a.name || "").localeCompare(b.name || "", "ko")); }
 function ACTIVE_USERS() { return USERS().filter(u => u.approved && !u.disabled); }
+
+/* ============================================================================
+   목표(개인 KPI) — 팀벌금 페이지에서 각자 원하는 목표를 자유롭게 여러 개 만들고
+   진행률(숫자)을 스스로 갱신한다. 새 목표를 등록하거나("신규") 이미 승인된 목표의
+   내용(이름/수치/기간/순위포함 여부)을 고치면("수정") 관리자 승인이 있어야 실제
+   값에 반영되고 순위 계산에도 쓰인다 - 승인 전 제안 내용은 goals.pendingEdit에
+   따로 담아두고, 승인/거절 전까지는 기존 승인된 값 그대로 순위에 쓰인다. 반면
+   진행률(progress) 자체는 매일 스스로 바꾸는 숫자라 승인 없이 바로 반영된다.
+
+   ⚠ 다른 admin-only 테이블(attendance_profiles 등)과 달리 attendance_goals는
+   본인 행에 한해 RLS가 직접 update/insert/delete를 허용한다(attendance_fines와
+   동일한 패턴). 즉 "승인 후에만 반영"이라는 규칙은 이 화면(UI)이 지키는 약속이지,
+   DB가 강제하는 것은 아니다 - 개발자 도구로 자기 자신의 goals 행을 직접 고쳐
+   스스로 승인 상태를 만드는 것까지는 막지 못한다. 같은 신뢰 수준을 이미 쓰고
+   있는 벌금 현황 등 다른 기능과 동일한 수준의 보호다. */
+function myGoals() { return goalsOf(Auth.profile.uid); }
+function goalsOf(uid) { return DB.all("goals").filter(g => g.uid === uid).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); }
+function blankGoal() {
+  return {
+    uid: Auth.profile.uid, title: "", target: 0, unit: "", periodStart: today(), periodEnd: today(),
+    includeInRank: true, progress: 0, status: "pending", pendingEdit: null,
+    createdAt: Date.now(), updatedAt: Date.now()
+  };
+}
+// 진행률(0~1). target이 0 이하면 계산할 수 없으니 0으로 취급하고, 100%를 넘는
+// 초과 달성분은 순위 계산·진행바 모두 100%로 잘라서 쓴다(목표 1개의 최대 기여도를
+// 넘어서지 않게 하기 위함).
+function goalRatio(g) {
+  const t = Number(g.target || 0), pr = Number(g.progress || 0);
+  if (!(t > 0)) return 0;
+  return Math.max(0, Math.min(1, pr / t));
+}
+// 순위 점수 = 승인되고(approved) 순위 포함(includeInRank) 체크된 목표들끼리 100%를
+// N등분해서, 목표별 달성률만큼만 인정해 더한 값. 순위 포함 목표가 하나도 없으면
+// null(순위 계산에서 제외 · 화면엔 "-"로 표시).
+function goalScore(uid) {
+  const list = goalsOf(uid).filter(g => g.status === "approved" && g.includeInRank);
+  if (!list.length) return null;
+  const per = 100 / list.length;
+  return list.reduce((s, g) => s + goalRatio(g) * per, 0);
+}
+function goalStatusBadge(g) {
+  if (g.status === "rejected") return '<span class="bdg r">반려됨</span>';
+  if (g.status === "pending") return '<span class="bdg n">승인 대기</span>';
+  return g.pendingEdit ? '<span class="bdg n">수정 승인 대기</span>' : '<span class="bdg g">승인됨</span>';
+}
 
 function collectFines(opt) {
   opt = opt || {};
@@ -2056,6 +2103,107 @@ function bindReport() {
 }
 
 /* ============================================================================
+   목표 — 팀벌금 페이지에 들어올 때마다 보이는 "내 목표" 카드. 렌더링/모달만
+   여기 두고, 실제 클릭 이벤트 연결은 bindFines()에서 한다.
+   ============================================================================ */
+function goalsCard() {
+  const list = myGoals();
+  const includedCount = list.filter(g => g.status === "approved" && g.includeInRank).length;
+  let h = '<div class="card"><div class="card-h"><h3>🎯 내 목표</h3><div class="sp"></div>' +
+    '<button class="btn sm pri" id="goalAdd">+ 목표 추가</button></div>';
+  h += '<div class="hint" style="margin-bottom:10px">숫자로 증명하는 목표를 자유롭게 여러 개 만들고 진행 상황을 직접 기록하세요. ' +
+    '새로 만들거나 내용을 고치면 관리자 승인 후 순위표에 반영됩니다(진행률 숫자만 바꾸는 건 바로 반영돼요). ' +
+    (includedCount ? "순위 포함 " + includedCount + "개 · 목표 1개당 최대 " + (100 / includedCount).toFixed(1) + "%" : "아직 순위표에 포함된(승인된) 목표가 없어요") +
+    "</div>";
+  h += list.length ? list.map(g => goalRow(g)).join("") : '<div class="empty">아직 만든 목표가 없습니다</div>';
+  h += "</div>";
+  return h;
+}
+function goalRow(g) {
+  const pct = Math.round(goalRatio(g) * 1000) / 10;
+  return '<div class="card" style="margin:10px 0;padding:12px">' +
+    '<div class="row" style="align-items:flex-start">' +
+    '<div class="sp"><div class="nm">' + esc(g.title || "(제목 없음)") + " " + goalStatusBadge(g) + "</div>" +
+    '<div class="ds">' + esc(g.periodStart || "") + " ~ " + esc(g.periodEnd || "") +
+    (g.status === "approved" ? (g.includeInRank ? " · 순위 포함" : " · 순위 미포함") : "") + "</div></div>" +
+    '<button class="btn xs" data-goaledit="' + g.id + '">수정</button>' +
+    '<button class="btn xs dan" data-goaldel="' + g.id + '">삭제</button>' +
+    "</div>" +
+    '<div style="height:7px;background:#eef1f6;border-radius:4px;margin-top:9px;overflow:hidden">' +
+    '<div style="height:100%;width:' + Math.min(100, pct) + '%;background:linear-gradient(90deg,#8fd3c8,var(--ok))"></div></div>' +
+    '<div class="row" style="margin-top:9px;gap:8px;align-items:center">' +
+    '<input type="number" class="inp" data-goalprogress="' + g.id + '" value="' + Number(g.progress || 0) + '" style="max-width:110px" step="any">' +
+    '<div style="color:var(--tx3);font-size:12.5px">/ ' + Number(g.target || 0) + " " + esc(g.unit || "") + " (" + pct + "%)</div>" +
+    '<button class="btn xs ok" data-goalsave="' + g.id + '" style="margin-left:auto">저장</button></div>' +
+    (g.pendingEdit ? '<div class="hint" style="margin-top:8px">⏳ 수정 제안: ' + esc(g.pendingEdit.title) + " · " +
+      Number(g.pendingEdit.target || 0) + esc(g.pendingEdit.unit || "") + " · " + esc(g.pendingEdit.periodStart || "") + "~" + esc(g.pendingEdit.periodEnd || "") +
+      (g.pendingEdit.includeInRank ? " · 순위 포함" : " · 순위 미포함") + " (관리자 승인 대기 중 · 승인 전까지는 기존 값 그대로 순위에 반영됩니다)</div>" : "") +
+    "</div>";
+}
+function openGoalModal(goalId) {
+  const g = goalId ? DB.get("goals", goalId) : null;
+  const isNew = !g;
+  const seed = g ? (g.pendingEdit || g) : blankGoal();
+  modal({
+    title: isNew ? "목표 추가" : "목표 수정",
+    body:
+      '<div class="fld"><label>목표 이름</label><input class="inp" id="gTitle" placeholder="예: 이번달 신규 계약 10건" value="' + esc(seed.title || "") + '"></div>' +
+      '<div class="grid g2">' +
+      '<div class="fld"><label>목표 수치</label><input class="inp" type="number" step="any" id="gTarget" value="' + Number(seed.target || 0) + '"></div>' +
+      '<div class="fld"><label>단위 (선택)</label><input class="inp" id="gUnit" placeholder="건, 만원 등" value="' + esc(seed.unit || "") + '"></div></div>' +
+      '<div class="grid g2">' +
+      '<div class="fld"><label>시작일</label><input class="inp" type="date" id="gFrom" value="' + esc(seed.periodStart || today()) + '"></div>' +
+      '<div class="fld"><label>종료일</label><input class="inp" type="date" id="gTo" value="' + esc(seed.periodEnd || today()) + '"></div></div>' +
+      '<div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
+      '<input type="checkbox" id="gRank"' + (seed.includeInRank !== false ? " checked" : "") + '> 달성 순위표에 포함</label>' +
+      '<div class="hint" style="margin:0">체크한 목표들끼리 100%를 나눠 가져요(개수가 많을수록 목표 1개의 비중은 작아집니다)</div></div>' +
+      (isNew ? '<div class="banner i">등록하면 관리자 승인 후 순위표에 반영됩니다.</div>'
+        : '<div class="banner i">' + (g.status === "approved" ? "이미 승인된 목표라, 수정 내용은 관리자 승인 후 반영돼요(승인 전까지는 기존 값 그대로 순위에 쓰입니다)." : "아직 승인 전인 목표라 바로 고쳐집니다.") + "</div>"),
+    okText: isNew ? "등록" : "저장",
+    onOk: async () => {
+      const title = $("#gTitle").value.trim();
+      const target = Number($("#gTarget").value) || 0;
+      const unit = $("#gUnit").value.trim();
+      const periodStart = $("#gFrom").value, periodEnd = $("#gTo").value;
+      const includeInRank = $("#gRank").checked;
+      if (!title) { toast("목표 이름을 입력해주세요", "err"); return false; }
+      if (periodStart && periodEnd && periodEnd < periodStart) { toast("종료일이 시작일보다 빠릅니다", "err"); return false; }
+      const fields = { title, target, unit, periodStart, periodEnd, includeInRank };
+      if (isNew) {
+        await DB.add("goals", Object.assign(blankGoal(), fields));
+        toast("목표를 등록했습니다 · 관리자 승인 후 순위표에 반영됩니다", "ok");
+      } else if (g.status === "approved") {
+        await DB.set("goals", g.id, { pendingEdit: fields, updatedAt: Date.now() });
+        toast("수정 제안을 보냈습니다 · 관리자 승인 후 반영됩니다", "ok");
+      } else {
+        await DB.set("goals", g.id, Object.assign(fields, { status: "pending", pendingEdit: null, updatedAt: Date.now() }));
+        toast("수정했습니다 · 관리자 승인 대기", "ok");
+      }
+    }
+  });
+}
+function openGoalDetailModal(uid) {
+  const u = DB.get("users", uid); if (!u) return;
+  // 다른 회원 목표는 승인된 것만 공개한다(본인 화면에서는 승인 대기/반려도 함께 보임).
+  const list = goalsOf(uid).filter(g => g.status === "approved");
+  const score = goalScore(uid);
+  modal({
+    title: esc(u.name) + "님의 목표",
+    body: '<div class="stat acc-g" style="margin-bottom:14px"><div class="lb">달성 순위 점수</div><div class="vl">' +
+      (score != null ? (Math.round(score * 10) / 10) + "%" : "-") + "</div></div>" +
+      (list.length ? list.map(g => {
+        const pct = Math.round(goalRatio(g) * 1000) / 10;
+        return '<div class="card" style="margin:8px 0;padding:11px">' +
+          '<div class="nm">' + esc(g.title) + (g.includeInRank ? ' <span class="bdg g">순위 포함</span>' : "") + "</div>" +
+          '<div class="ds">' + esc(g.periodStart || "") + " ~ " + esc(g.periodEnd || "") + "</div>" +
+          '<div style="height:6px;background:#eef1f6;border-radius:4px;margin-top:8px;overflow:hidden">' +
+          '<div style="height:100%;width:' + Math.min(100, pct) + '%;background:linear-gradient(90deg,#8fd3c8,var(--ok))"></div></div>' +
+          '<div class="ds" style="margin-top:6px">' + Number(g.progress || 0) + " / " + Number(g.target || 0) + " " + esc(g.unit || "") + " · " + pct + "%</div></div>";
+      }).join("") : '<div class="empty">공개된(승인된) 목표가 없습니다</div>')
+  });
+}
+
+/* ============================================================================
    벌금
    ============================================================================ */
 let fineFilterUser = "all", fineMonth = "all", fineSel = new Set();
@@ -2078,7 +2226,9 @@ function viewFines() {
   if (fineMonth !== "all") list = list.filter(f => f.date.startsWith(fineMonth));
   const months = Array.from(new Set(all.map(f => monthOf(f.date)))).sort().reverse();
 
-  let h = '<div class="card"><div class="card-h"><h3>💳 벌금 입금 계좌</h3></div>' +
+  let h = goalsCard();
+
+  h += '<div class="card"><div class="card-h"><h3>💳 벌금 입금 계좌</h3></div>' +
     '<div class="acct"><span class="t">' + esc(S.account) + '</span><button class="btn xs" id="cpA">복사</button></div>' +
     '<div class="hint" style="margin-top:9px">입금 후 이체 캡쳐를 올리면 관리자가 확인합니다. 여러 건을 한 번에 묶어서도 가능합니다.</div></div>';
 
@@ -2137,6 +2287,19 @@ function viewFines() {
 
 function bindFines() {
   const admin = Auth.isAdmin();
+  const ga = $("#goalAdd"); if (ga) ga.onclick = () => openGoalModal(null);
+  $$("[data-goaledit]").forEach(b => b.onclick = () => openGoalModal(b.dataset.goaledit));
+  $$("[data-goaldel]").forEach(b => b.onclick = () => confirmM("이 목표를 삭제하시겠습니까?", async () => {
+    await DB.del("goals", b.dataset.goaldel); toast("삭제됨");
+  }));
+  $$("[data-goalsave]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.goalsave;
+    const inp = $('[data-goalprogress="' + id + '"]');
+    const v = Number(inp.value);
+    if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return; }
+    await DB.set("goals", id, { progress: v, updatedAt: Date.now() });
+    toast("진행률 저장됨", "ok");
+  });
   $("#cpA").onclick = () => { copyText(SET().account); toast("계좌 복사됨", "ok"); };
   $$("[data-ftab]").forEach(b => b.onclick = () => { App.finesTab = b.dataset.ftab; fineSel.clear(); render(); });
   const fu = $("#fUser"); if (fu) fu.onchange = e => { fineFilterUser = e.target.value; render(); };
@@ -2687,7 +2850,7 @@ function viewRank() {
     '<button class="btn sm" id="rNow">이번달</button></div></div>';
 
   h += '<div class="seg sm" style="margin-bottom:12px">' +
-    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["log", "개직 로그"]]
+    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["goal", "목표 순위"], ["log", "개직 로그"]]
       .map(([k, t]) => '<button data-rtab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
 
   if (tab === "fine") {
@@ -2741,6 +2904,31 @@ function viewRank() {
         : '<div class="empty">팀원이 없습니다</div>') + "</div>";
   }
 
+  if (tab === "goal") {
+    const rows = ACTIVE_USERS().map(u => ({
+      u, score: goalScore(u.uid),
+      cnt: goalsOf(u.uid).filter(g => g.status === "approved" && g.includeInRank).length
+    })).sort((a, b) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score) || a.u.name.localeCompare(b.u.name, "ko"));
+    const myScore = goalScore(p.uid);
+
+    h += '<div class="grid g2">' +
+      '<div class="stat acc-g"><div class="lb">내 달성 점수</div><div class="vl" style="font-size:19px">' +
+      (myScore != null ? (Math.round(myScore * 10) / 10) + "%" : "-") + "</div></div>" +
+      '<div class="stat"><div class="lb">내 순위</div><div class="vl">' +
+      ((rows.findIndex(x => x.u.uid === p.uid) + 1) || "-") + "<span style='font-size:13px;color:var(--tx3)'>/" + rows.length + "</span></div></div></div>";
+
+    h += '<div class="sec-t">목표 달성 순위</div><div class="hint" style="margin-bottom:8px">회원을 누르면 그 회원이 승인받은 목표와 진행 상황을 볼 수 있어요.</div>' +
+      '<div class="card pad0">' +
+      (rows.length ? rows.map((x, i) =>
+        '<div class="row" data-goalview="' + x.u.uid + '" style="cursor:pointer">' +
+        '<div class="rk ' + (x.score ? (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") : "") + '">' + (i + 1) + "</div>" +
+        '<div class="sp"><div class="nm">' + esc(x.u.name) + (x.u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") + "</div>" +
+        '<div class="ds">순위 포함 목표 ' + x.cnt + "개</div></div>" +
+        '<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:' + (x.score ? "var(--ok)" : "var(--tx3)") + '">' +
+        (x.score != null ? (Math.round(x.score * 10) / 10) + "%" : "-") + "</div></div></div>").join("")
+        : '<div class="empty">팀원이 없습니다</div>') + "</div>";
+  }
+
   if (tab === "log") {
     const logs = DB.all("glog").sort((a, b) => (b.at || 0) - (a.at || 0));
     h += '<div class="card pad0">' +
@@ -2766,6 +2954,7 @@ function bindRank() {
   $("#rNext").onclick = () => shift(1);
   $("#rNow").onclick = () => { App.month = monthOf(today()); render(); };
   $$("[data-gj]").forEach(b => b.onclick = () => openGaejikModal(b.dataset.gj));
+  $$("[data-goalview]").forEach(b => b.onclick = () => openGoalDetailModal(b.dataset.goalview));
 }
 
 function openGaejikModal(uid) {
@@ -2805,12 +2994,47 @@ function viewAdmin() {
   if (!Auth.isAdmin()) return '<div class="card">권한이 없습니다.</div>';
   const tab = App.adminTab;
   let h = '<div class="seg sm" style="margin-bottom:14px">' +
-    [["member", "팀원"], ["paylog", "납부로그"], ["holiday", "공휴일"], ["settings", "규칙"]]
+    [["member", "팀원"], ["goals", "목표 승인"], ["paylog", "납부로그"], ["holiday", "공휴일"], ["settings", "규칙"]]
       .map(([k, t]) => '<button data-atab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
   if (tab === "member") h += adminMembers();
+  if (tab === "goals") h += adminGoals();
   if (tab === "paylog") h += adminPayLog();
   if (tab === "holiday") h += adminHolidays();
   if (tab === "settings") h += adminSettings();
+  return h;
+}
+
+function adminGoals() {
+  const pend = DB.all("goals").filter(g => g.status === "pending" || g.pendingEdit)
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const approvedRest = DB.all("goals").filter(g => g.status === "approved" && !g.pendingEdit)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  let h = '<div class="sec-t">승인 대기 ' + pend.length + "건</div><div class='card pad0'>" +
+    (pend.length ? pend.map(g => {
+      const u = DB.get("users", g.uid);
+      const isEdit = g.status === "approved" && g.pendingEdit;
+      const show = isEdit ? g.pendingEdit : g;
+      return '<div class="row" style="align-items:flex-start">' +
+        '<div class="sp"><div class="nm">' + esc(u ? u.name : "?") + " · " + esc(show.title || "") +
+        (isEdit ? ' <span class="bdg n">수정 제안</span>' : ' <span class="bdg n">신규</span>') + "</div>" +
+        '<div class="ds">' + Number(show.target || 0) + esc(show.unit || "") + " · " + esc(show.periodStart || "") + "~" + esc(show.periodEnd || "") +
+        (show.includeInRank ? " · 순위 포함" : " · 순위 미포함") + "</div>" +
+        (isEdit ? '<div class="ds" style="color:var(--tx3)">기존: ' + esc(g.title) + " · " + Number(g.target || 0) + esc(g.unit || "") + "</div>" : "") +
+        "</div>" +
+        '<button class="btn xs ok" data-gappr="' + g.id + '">승인</button>' +
+        '<button class="btn xs dan" data-grej="' + g.id + '">거절</button></div>';
+    }).join("") : '<div class="empty">대기 중인 목표가 없습니다</div>') + "</div>";
+
+  h += '<div class="sec-t">승인된 목표 (' + approvedRest.length + "건)</div><div class='card pad0'>" +
+    (approvedRest.length ? approvedRest.map(g => {
+      const u = DB.get("users", g.uid);
+      const pct = Math.round(goalRatio(g) * 1000) / 10;
+      return '<div class="row"><div class="sp"><div class="nm">' + esc(u ? u.name : "?") + " · " + esc(g.title) + "</div>" +
+        '<div class="ds">' + Number(g.progress || 0) + "/" + Number(g.target || 0) + esc(g.unit || "") + " (" + pct + "%) · " + esc(g.periodStart || "") + "~" + esc(g.periodEnd || "") +
+        (g.includeInRank ? " · 순위 포함" : " · 순위 미포함") + "</div></div>" +
+        '<button class="btn xs dan" data-grej="' + g.id + '">반려</button></div>';
+    }).join("") : '<div class="empty">승인된 목표가 없습니다</div>') + "</div>";
   return h;
 }
 
@@ -2989,6 +3213,25 @@ function adminSettings() {
 
 function bindAdmin() {
   $$("[data-atab]").forEach(b => b.onclick = () => { App.adminTab = b.dataset.atab; render(); });
+  $$("[data-gappr]").forEach(b => b.onclick = async () => {
+    const g = DB.get("goals", b.dataset.gappr); if (!g) return;
+    try {
+      if (g.pendingEdit) {
+        await DB.set("goals", g.id, Object.assign({}, g.pendingEdit, {
+          pendingEdit: null, status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name
+        }));
+      } else {
+        await DB.set("goals", g.id, { status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name });
+      }
+      toast("승인 완료", "ok");
+    } catch (e) { toast(cleanErr(e), "err"); }
+  });
+  $$("[data-grej]").forEach(b => b.onclick = () => confirmM("이 목표를 거절(또는 반려)하시겠습니까?", async () => {
+    const g = DB.get("goals", b.dataset.grej); if (!g) return;
+    if (g.pendingEdit) await DB.set("goals", g.id, { pendingEdit: null }); // 수정 제안만 취소, 기존 승인값 유지
+    else await DB.set("goals", g.id, { status: "rejected" });
+    toast("처리되었습니다");
+  }));
   $$("[data-appr]").forEach(b => b.onclick = async () => {
     try { await DB.set("users", b.dataset.appr, { approved: true }); toast("승인 완료 · 등급은 후보자입니다 (팀원 → 관리에서 변경)", "ok"); }
     catch (e) { toast(cleanErr(e), "err"); }
