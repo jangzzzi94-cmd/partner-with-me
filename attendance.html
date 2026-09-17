@@ -1187,9 +1187,9 @@ function copyText(t) { try { navigator.clipboard.writeText(t); } catch (e) { } }
    ============================================================================ */
 /** 지금 페이지가 "새로고침(리로드)"으로 열린 것인지 판단한다. 대시보드에서 링크를
  *  눌러 들어온 것(navigate)이나 뒤/앞으로 가기(back_forward)와 구분하기 위해 쓴다 -
- *  목표 안내창은 "로그인 후 팀 벌금 페이지에 들어갔을 때"만 뜨고 새로고침할 때는
- *  뜨지 않아야 하기 때문. Navigation Timing API가 없는 구형 환경에서는 안전하게
- *  false(=새로고침 아님)로 취급한다. */
+ *  미납 벌금 안내창과 목표 안내창 모두 "로그인 후 팀 벌금 페이지에 들어갔을 때"만
+ *  뜨고 새로고침할 때는 뜨지 않아야 하기 때문. Navigation Timing API가 없는 구형
+ *  환경에서는 안전하게 false(=새로고침 아님)로 취급한다. */
 function isPageReload() {
   try {
     const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
@@ -1210,6 +1210,7 @@ function onModalFullyClosed(fn) {
 function maybeShowPayAlert() {
   if (App.payShown || !Auth.profile || !Auth.profile.approved) return;
   if ($("#ovl")) return;
+  if (isPageReload()) { App.payShown = true; return; } // 새로고침이면 미납 벌금 안내창도 띄우지 않음(목표 안내창과 동일)
   App.payShown = true;
   const list = unpaidOf(Auth.profile.uid);
   if (!list.length) { maybeShowGoalPopup(); return; }
