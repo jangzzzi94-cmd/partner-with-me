@@ -847,8 +847,19 @@ function blankGoal() {
   return {
     uid: Auth.profile.uid, title: "", target: 0, unit: "", periodStart: today(), periodEnd: today(),
     includeInRank: true, progress: 0, status: "pending", pendingEdit: null,
-    createdAt: Date.now(), updatedAt: Date.now()
+    createdAt: Date.now(), updatedAt: Date.now(), log: []
   };
+}
+/** 목표 하나의 변동 이력(등록·수정·진행률 갱신·승인·거절 등)을 그 목표 자신의
+ *  goals.log 배열 안에 이어붙인다. 별도의 로그 테이블을 새로 만들지 않고(회원 본인이
+ *  직접 쓰는 이벤트까지 포함해야 해서, admin-only insert인 attendance_glog는 쓸 수
+ *  없다) goals 행 자체에 담아두면, own-or-admin update 정책만으로 회원 본인/관리자
+ *  모두 안전하게 기록을 남길 수 있다. 최근 50건만 유지한다. */
+function pushGoalLog(g, action, detail) {
+  const log = (g && Array.isArray(g.log)) ? g.log.slice() : [];
+  log.push({ action, detail: detail || "", by: (Auth.profile && Auth.profile.name) || "?", at: Date.now() });
+  if (log.length > 50) log.splice(0, log.length - 50);
+  return log;
 }
 // 진행률(0~1). target이 0 이하면 계산할 수 없으니 0으로 취급하고, 100%를 넘는
 // 초과 달성분은 순위 계산·진행바 모두 100%로 잘라서 쓴다(목표 1개의 최대 기여도를
@@ -2143,13 +2154,17 @@ function goalRow(g) {
       (g.pendingEdit.includeInRank ? " · 순위 포함" : " · 순위 미포함") + " (관리자 승인 대기 중 · 승인 전까지는 기존 값 그대로 순위에 반영됩니다)</div>" : "") +
     "</div>";
 }
-function openGoalModal(goalId) {
+/** goalId가 없으면 본인이 새 목표를 등록하는 폼. goalId가 있으면 수정 폼인데,
+ *  adminEdit가 true면(관리자가 순위표에서 다른 회원의 목표를 직접 고칠 때) 승인
+ *  절차 없이 즉시 반영되고, 진행 수치도 함께 고칠 수 있다. */
+function openGoalModal(goalId, adminEdit) {
   const g = goalId ? DB.get("goals", goalId) : null;
   const isNew = !g;
   const seed = g ? (g.pendingEdit || g) : blankGoal();
   modal({
-    title: isNew ? "목표 추가" : "목표 수정",
+    title: (isNew ? "목표 추가" : "목표 수정") + (adminEdit && g ? " (관리자)" : ""),
     body:
+      (adminEdit && g ? '<div class="hint" style="margin-bottom:8px">' + esc((DB.get("users", g.uid) || {}).name || "") + "님의 목표를 관리자 권한으로 수정합니다.</div>" : "") +
       '<div class="fld"><label>목표 이름</label><input class="inp" id="gTitle" placeholder="예: 이번달 신규 계약 10건" value="' + esc(seed.title || "") + '"></div>' +
       '<div class="grid g2">' +
       '<div class="fld"><label>목표 수치</label><input class="inp" type="number" step="any" id="gTarget" value="' + Number(seed.target || 0) + '"></div>' +
@@ -2160,7 +2175,9 @@ function openGoalModal(goalId) {
       '<div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
       '<input type="checkbox" id="gRank"' + (seed.includeInRank !== false ? " checked" : "") + '> 달성 순위표에 포함</label>' +
       '<div class="hint" style="margin:0">체크한 목표들끼리 100%를 나눠 가져요(개수가 많을수록 목표 1개의 비중은 작아집니다)</div></div>' +
-      (isNew ? '<div class="banner i">등록하면 관리자 승인 후 순위표에 반영됩니다.</div>'
+      (adminEdit && g ? '<div class="fld"><label>진행 수치</label><input class="inp" type="number" step="any" id="gProgress" value="' + Number(g.progress || 0) + '"></div>' : "") +
+      (adminEdit && g ? '<div class="banner i">관리자 권한으로 수정하면 승인 절차 없이 즉시 반영됩니다.</div>'
+        : isNew ? '<div class="banner i">등록하면 관리자 승인 후 순위표에 반영됩니다.</div>'
         : '<div class="banner i">' + (g.status === "approved" ? "이미 승인된 목표라, 수정 내용은 관리자 승인 후 반영돼요(승인 전까지는 기존 값 그대로 순위에 쓰입니다)." : "아직 승인 전인 목표라 바로 고쳐집니다.") + "</div>"),
     okText: isNew ? "등록" : "저장",
     onOk: async () => {
@@ -2172,14 +2189,22 @@ function openGoalModal(goalId) {
       if (!title) { toast("목표 이름을 입력해주세요", "err"); return false; }
       if (periodStart && periodEnd && periodEnd < periodStart) { toast("종료일이 시작일보다 빠릅니다", "err"); return false; }
       const fields = { title, target, unit, periodStart, periodEnd, includeInRank };
-      if (isNew) {
-        await DB.add("goals", Object.assign(blankGoal(), fields));
+      if (adminEdit && g) {
+        const progress = Number($("#gProgress").value) || 0;
+        const log = pushGoalLog(g, "관리자 수정", title);
+        await DB.set("goals", g.id, Object.assign({}, fields, { progress, pendingEdit: null, updatedAt: Date.now(), log }));
+        toast("관리자 권한으로 즉시 수정되었습니다", "ok");
+      } else if (isNew) {
+        const log = pushGoalLog(null, "등록", title);
+        await DB.add("goals", Object.assign(blankGoal(), fields, { log }));
         toast("목표를 등록했습니다 · 관리자 승인 후 순위표에 반영됩니다", "ok");
       } else if (g.status === "approved") {
-        await DB.set("goals", g.id, { pendingEdit: fields, updatedAt: Date.now() });
+        const log = pushGoalLog(g, "수정 제안", title);
+        await DB.set("goals", g.id, { pendingEdit: fields, updatedAt: Date.now(), log });
         toast("수정 제안을 보냈습니다 · 관리자 승인 후 반영됩니다", "ok");
       } else {
-        await DB.set("goals", g.id, Object.assign(fields, { status: "pending", pendingEdit: null, updatedAt: Date.now() }));
+        const log = pushGoalLog(g, "수정", title);
+        await DB.set("goals", g.id, Object.assign(fields, { status: "pending", pendingEdit: null, updatedAt: Date.now(), log }));
         toast("수정했습니다 · 관리자 승인 대기", "ok");
       }
     }
@@ -2187,8 +2212,10 @@ function openGoalModal(goalId) {
 }
 function openGoalDetailModal(uid) {
   const u = DB.get("users", uid); if (!u) return;
-  // 다른 회원 목표는 승인된 것만 공개한다(본인 화면에서는 승인 대기/반려도 함께 보임).
-  const list = goalsOf(uid).filter(g => g.status === "approved");
+  const admin = Auth.isAdmin();
+  // 관리자는 아직 승인되지 않은 목표(대기/반려)도 함께 보고 바로 수정할 수 있다.
+  // 그 외에는 승인된 것만 공개한다(본인 화면에서는 승인 대기/반려도 함께 보임).
+  const list = admin ? goalsOf(uid) : goalsOf(uid).filter(g => g.status === "approved");
   const score = goalScore(uid);
   modal({
     title: esc(u.name) + "님의 목표",
@@ -2197,12 +2224,21 @@ function openGoalDetailModal(uid) {
       (list.length ? list.map(g => {
         const pct = Math.round(goalRatio(g) * 1000) / 10;
         return '<div class="card" style="margin:8px 0;padding:11px">' +
-          '<div class="nm">' + esc(g.title) + (g.includeInRank ? ' <span class="bdg g">순위 포함</span>' : "") + "</div>" +
-          '<div class="ds">' + esc(g.periodStart || "") + " ~ " + esc(g.periodEnd || "") + "</div>" +
+          '<div class="row" style="align-items:flex-start">' +
+          '<div class="sp"><div class="nm">' + esc(g.title) + (g.includeInRank ? ' <span class="bdg g">순위 포함</span>' : "") +
+          (admin ? " " + goalStatusBadge(g) : "") + "</div>" +
+          '<div class="ds">' + esc(g.periodStart || "") + " ~ " + esc(g.periodEnd || "") + "</div></div>" +
+          (admin ? '<button class="btn xs" data-goaladminedit="' + g.id + '">수정</button>' : "") +
+          "</div>" +
           '<div style="height:6px;background:#eef1f6;border-radius:4px;margin-top:8px;overflow:hidden">' +
           '<div style="height:100%;width:' + Math.min(100, pct) + '%;background:linear-gradient(90deg,#8fd3c8,var(--ok))"></div></div>' +
           '<div class="ds" style="margin-top:6px">' + Number(g.progress || 0) + " / " + Number(g.target || 0) + " " + esc(g.unit || "") + " · " + pct + "%</div></div>";
-      }).join("") : '<div class="empty">공개된(승인된) 목표가 없습니다</div>')
+      }).join("") : '<div class="empty">' + (admin ? "만든 목표가 없습니다" : "공개된(승인된) 목표가 없습니다") + "</div>"),
+    after: () => {
+      $$("[data-goaladminedit]", $("#ovl")).forEach(b => b.onclick = () => {
+        closeModal(); openGoalModal(b.dataset.goaladminedit, true);
+      });
+    }
   });
 }
 
@@ -2238,15 +2274,20 @@ function goalRankCard() {
     '<div class="stat"><div class="lb">내 순위</div><div class="vl">' +
     ((rows.findIndex(x => x.u.uid === p.uid) + 1) || "-") + "<span style='font-size:13px;color:var(--tx3)'>/" + rows.length + "</span></div></div></div>";
 
-  h += '<div class="sec-t">목표 달성 순위</div><div class="hint" style="margin-bottom:8px">회원을 누르면 그 회원이 승인받은 목표와 진행 상황을 볼 수 있어요.</div>' +
+  h += '<div class="sec-t">목표 달성 순위</div><div class="hint" style="margin-bottom:8px">회원을 누르면 그 회원이 승인받은 목표와 진행 상황을 볼 수 있어요' +
+    (Auth.isAdmin() ? " (관리자는 그 자리에서 수정도 가능합니다)" : "") + ".</div>" +
     '<div class="card pad0">' +
-    (rows.length ? rows.map((x, i) =>
-      '<div class="row" data-goalview="' + x.u.uid + '" style="cursor:pointer">' +
-      '<div class="rk ' + (x.score ? (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") : "") + '">' + (i + 1) + "</div>" +
-      '<div class="sp"><div class="nm">' + esc(x.u.name) + (x.u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") + "</div>" +
-      '<div class="ds">순위 포함 목표 ' + x.cnt + "개</div></div>" +
-      '<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:' + (x.score ? "var(--ok)" : "var(--tx3)") + '">' +
-      (x.score != null ? (Math.round(x.score * 10) / 10) + "%" : "-") + "</div></div></div>").join("")
+    (rows.length ? rows.map((x, i) => {
+      const pct = Math.max(0, Math.min(100, Math.round((x.score || 0) * 10) / 10));
+      return '<div class="row" data-goalview="' + x.u.uid + '" style="cursor:pointer">' +
+        '<div class="rk ' + (x.score ? (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") : "") + '">' + (i + 1) + "</div>" +
+        '<div class="sp"><div class="nm">' + esc(x.u.name) + (x.u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") + "</div>" +
+        '<div style="height:5px;background:#eef1f6;border-radius:3px;margin-top:6px;overflow:hidden">' +
+        '<div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,#8fd3c8,var(--ok));border-radius:3px"></div></div>' +
+        '<div class="ds">순위 포함 목표 ' + x.cnt + "개</div></div>" +
+        '<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:' + (x.score ? "var(--ok)" : "var(--tx3)") + '">' +
+        (x.score != null ? pct + "%" : "-") + "</div></div></div>";
+    }).join("")
       : '<div class="empty">팀원이 없습니다</div>') + "</div>";
   return h;
 }
@@ -2264,7 +2305,9 @@ function bindGoal() {
     const inp = $('[data-goalprogress="' + id + '"]');
     const v = Number(inp.value);
     if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return; }
-    await DB.set("goals", id, { progress: v, updatedAt: Date.now() });
+    const g0 = DB.get("goals", id);
+    const log = pushGoalLog(g0, "진행률 갱신", Number((g0 && g0.progress) || 0) + " → " + v);
+    await DB.set("goals", id, { progress: v, updatedAt: Date.now(), log });
     toast("진행률 저장됨", "ok");
   });
 
@@ -2274,20 +2317,23 @@ function bindGoal() {
     $$("[data-gappr]").forEach(b => b.onclick = async () => {
       const g = DB.get("goals", b.dataset.gappr); if (!g) return;
       try {
+        const title = g.pendingEdit ? g.pendingEdit.title : g.title;
+        const log = pushGoalLog(g, g.pendingEdit ? "수정 제안 승인" : "승인", title);
         if (g.pendingEdit) {
           await DB.set("goals", g.id, Object.assign({}, g.pendingEdit, {
-            pendingEdit: null, status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name
+            pendingEdit: null, status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name, log
           }));
         } else {
-          await DB.set("goals", g.id, { status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name });
+          await DB.set("goals", g.id, { status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name, log });
         }
         toast("승인 완료", "ok");
       } catch (e) { toast(cleanErr(e), "err"); }
     });
     $$("[data-grej]").forEach(b => b.onclick = () => confirmM("이 목표를 거절(또는 반려)하시겠습니까?", async () => {
       const g = DB.get("goals", b.dataset.grej); if (!g) return;
-      if (g.pendingEdit) await DB.set("goals", g.id, { pendingEdit: null }); // 수정 제안만 취소, 기존 승인값 유지
-      else await DB.set("goals", g.id, { status: "rejected" });
+      const log = pushGoalLog(g, g.pendingEdit ? "수정 제안 거절" : "반려", g.title);
+      if (g.pendingEdit) await DB.set("goals", g.id, { pendingEdit: null, log }); // 수정 제안만 취소, 기존 승인값 유지
+      else await DB.set("goals", g.id, { status: "rejected", log });
       toast("처리되었습니다");
     }));
   }
@@ -2934,7 +2980,7 @@ function viewRank() {
     '<button class="btn sm" id="rNow">이번달</button></div></div>';
 
   h += '<div class="seg sm" style="margin-bottom:12px">' +
-    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["log", "개직 로그"]]
+    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["log", "개직 로그"], ["goallog", "목표 로그"]]
       .map(([k, t]) => '<button data-rtab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
 
   if (tab === "fine") {
@@ -2998,6 +3044,28 @@ function viewRank() {
         '<div class="ds">' + tsFmtFull(l.at) + " · " + esc(l.by || "-") + " · 이후 " + l.after + "개</div></div>" +
         (l.auto ? '<span class="bdg p">자동</span>' : '<span class="bdg n">수동</span>') + "</div>").join("")
         : '<div class="empty">변동 내역이 없습니다</div>') + "</div>";
+  }
+
+  if (tab === "goallog") {
+    // 별도 로그 테이블 대신, 각 목표(goals) 행 자신의 log 배열(등록·수정·진행률 갱신·
+    // 승인·거절 등)을 모두 모아 시간순으로 보여준다. 목표를 삭제하면 그 목표의 이력도
+    // 함께 사라진다.
+    const entries = [];
+    DB.all("goals").forEach(g => {
+      const u = DB.get("users", g.uid);
+      (Array.isArray(g.log) ? g.log : []).forEach(l => entries.push({
+        action: l.action, detail: l.detail, by: l.by, at: l.at,
+        uname: u ? u.name : "?", goalTitle: g.title || "(제목 없음)"
+      }));
+    });
+    entries.sort((a, b) => (b.at || 0) - (a.at || 0));
+    h += '<div class="card pad0">' +
+      (entries.length ? entries.slice(0, 150).map(l =>
+        '<div class="row"><span class="bdg n" style="min-width:74px;justify-content:center;text-align:center">' + esc(l.action || "-") + "</span>" +
+        '<div class="sp"><div class="nm">' + esc(l.uname) + ' <span style="color:var(--tx3);font-weight:600">· ' + esc(l.goalTitle) + "</span></div>" +
+        (l.detail ? '<div class="ds">' + esc(String(l.detail)) + "</div>" : "") +
+        '<div class="ds">' + tsFmtFull(l.at) + " · " + esc(l.by || "-") + "</div></div></div>").join("")
+        : '<div class="empty">기록이 없습니다</div>') + "</div>";
   }
   return h;
 }
