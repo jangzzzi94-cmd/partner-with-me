@@ -962,8 +962,10 @@ const App = {
   view: "home",
   month: today().slice(0, 7),
   finesTab: "unpaid",
+  finesCalOpen: false,
   adminTab: "member",
   rankTab: "fine",
+  goalTab: "mine",
   checkDate: today(),
   booting: true,
   payShown: false
@@ -975,6 +977,7 @@ const ICONS = {
   report: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="m8.5 15 2 2 4-4"/></svg>',
   fine: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15 9.2A3 3 0 0 0 9.5 10c0 2.8 5 1.7 5 4.2A3 3 0 0 1 9 15M12 6.5v11"/></svg>',
   cal: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>',
+  goal: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.3"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1"/></svg>',
   rank: '<svg viewBox="0 0 24 24"><path d="M4 20v-6M12 20V6M20 20v-9"/></svg>',
   admin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1v.2a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-2.8-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3.8 15H3.6a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 5 8.3l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.8 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7h.2a2 2 0 1 1 0 4h-.1Z"/></svg>'
 };
@@ -985,7 +988,7 @@ function navItems() {
     { k: "checkin", t: "출근", i: "checkin" },
     { k: "report", t: "보고", i: "report" },
     { k: "fines", t: "벌금", i: "fine" },
-    { k: "cal", t: "캘린더", i: "cal" },
+    { k: "goal", t: "목표", i: "goal" },
     { k: "rank", t: "순위", i: "rank" }
   ];
   if (Auth.isAdmin()) base.push({ k: "admin", t: "관리", i: "admin" });
@@ -1040,7 +1043,7 @@ function render() {
       case "checkin": body = viewCheckin(); break;
       case "report": body = viewReport(); break;
       case "fines": body = viewFines(); break;
-      case "cal": body = viewCal(); break;
+      case "goal": body = viewGoal(); break;
       case "rank": body = viewRank(); break;
       case "admin": body = viewAdmin(); break;
       default: body = viewHome();
@@ -2204,6 +2207,93 @@ function openGoalDetailModal(uid) {
 }
 
 /* ============================================================================
+   목표 탭 — "내 목표" · "달성 순위" · (관리자만) "승인 관리" 를 한 화면에서 다룬다.
+   ============================================================================ */
+function viewGoal() {
+  const admin = Auth.isAdmin();
+  const tabs = [["mine", "내 목표"], ["rank", "달성 순위"]];
+  if (admin) tabs.push(["approve", "승인 관리"]);
+  const tab = tabs.some(([k]) => k === App.goalTab) ? App.goalTab : "mine";
+
+  let h = '<div class="seg sm" style="margin-bottom:14px">' +
+    tabs.map(([k, t]) => '<button data-gtab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
+
+  if (tab === "mine") h += goalsCard();
+  else if (tab === "rank") h += goalRankCard();
+  else if (tab === "approve" && admin) h += adminGoals();
+  return h;
+}
+
+function goalRankCard() {
+  const p = Auth.profile;
+  const rows = ACTIVE_USERS().map(u => ({
+    u, score: goalScore(u.uid),
+    cnt: goalsOf(u.uid).filter(g => g.status === "approved" && g.includeInRank).length
+  })).sort((a, b) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score) || a.u.name.localeCompare(b.u.name, "ko"));
+  const myScore = goalScore(p.uid);
+
+  let h = '<div class="grid g2">' +
+    '<div class="stat acc-g"><div class="lb">내 달성 점수</div><div class="vl" style="font-size:19px">' +
+    (myScore != null ? (Math.round(myScore * 10) / 10) + "%" : "-") + "</div></div>" +
+    '<div class="stat"><div class="lb">내 순위</div><div class="vl">' +
+    ((rows.findIndex(x => x.u.uid === p.uid) + 1) || "-") + "<span style='font-size:13px;color:var(--tx3)'>/" + rows.length + "</span></div></div></div>";
+
+  h += '<div class="sec-t">목표 달성 순위</div><div class="hint" style="margin-bottom:8px">회원을 누르면 그 회원이 승인받은 목표와 진행 상황을 볼 수 있어요.</div>' +
+    '<div class="card pad0">' +
+    (rows.length ? rows.map((x, i) =>
+      '<div class="row" data-goalview="' + x.u.uid + '" style="cursor:pointer">' +
+      '<div class="rk ' + (x.score ? (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") : "") + '">' + (i + 1) + "</div>" +
+      '<div class="sp"><div class="nm">' + esc(x.u.name) + (x.u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") + "</div>" +
+      '<div class="ds">순위 포함 목표 ' + x.cnt + "개</div></div>" +
+      '<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:' + (x.score ? "var(--ok)" : "var(--tx3)") + '">' +
+      (x.score != null ? (Math.round(x.score * 10) / 10) + "%" : "-") + "</div></div></div>").join("")
+      : '<div class="empty">팀원이 없습니다</div>') + "</div>";
+  return h;
+}
+
+function bindGoal() {
+  $$("[data-gtab]").forEach(b => b.onclick = () => { App.goalTab = b.dataset.gtab; render(); });
+
+  const ga = $("#goalAdd"); if (ga) ga.onclick = () => openGoalModal(null);
+  $$("[data-goaledit]").forEach(b => b.onclick = () => openGoalModal(b.dataset.goaledit));
+  $$("[data-goaldel]").forEach(b => b.onclick = () => confirmM("이 목표를 삭제하시겠습니까?", async () => {
+    await DB.del("goals", b.dataset.goaldel); toast("삭제됨");
+  }));
+  $$("[data-goalsave]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.goalsave;
+    const inp = $('[data-goalprogress="' + id + '"]');
+    const v = Number(inp.value);
+    if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return; }
+    await DB.set("goals", id, { progress: v, updatedAt: Date.now() });
+    toast("진행률 저장됨", "ok");
+  });
+
+  $$("[data-goalview]").forEach(b => b.onclick = () => openGoalDetailModal(b.dataset.goalview));
+
+  if (Auth.isAdmin()) {
+    $$("[data-gappr]").forEach(b => b.onclick = async () => {
+      const g = DB.get("goals", b.dataset.gappr); if (!g) return;
+      try {
+        if (g.pendingEdit) {
+          await DB.set("goals", g.id, Object.assign({}, g.pendingEdit, {
+            pendingEdit: null, status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name
+          }));
+        } else {
+          await DB.set("goals", g.id, { status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name });
+        }
+        toast("승인 완료", "ok");
+      } catch (e) { toast(cleanErr(e), "err"); }
+    });
+    $$("[data-grej]").forEach(b => b.onclick = () => confirmM("이 목표를 거절(또는 반려)하시겠습니까?", async () => {
+      const g = DB.get("goals", b.dataset.grej); if (!g) return;
+      if (g.pendingEdit) await DB.set("goals", g.id, { pendingEdit: null }); // 수정 제안만 취소, 기존 승인값 유지
+      else await DB.set("goals", g.id, { status: "rejected" });
+      toast("처리되었습니다");
+    }));
+  }
+}
+
+/* ============================================================================
    벌금
    ============================================================================ */
 let fineFilterUser = "all", fineMonth = "all", fineSel = new Set();
@@ -2226,11 +2316,15 @@ function viewFines() {
   if (fineMonth !== "all") list = list.filter(f => f.date.startsWith(fineMonth));
   const months = Array.from(new Set(all.map(f => monthOf(f.date)))).sort().reverse();
 
-  let h = goalsCard();
-
-  h += '<div class="card"><div class="card-h"><h3>💳 벌금 입금 계좌</h3></div>' +
+  let h = '<div class="card"><div class="card-h"><h3>💳 벌금 입금 계좌</h3></div>' +
     '<div class="acct"><span class="t">' + esc(S.account) + '</span><button class="btn xs" id="cpA">복사</button></div>' +
     '<div class="hint" style="margin-top:9px">입금 후 이체 캡쳐를 올리면 관리자가 확인합니다. 여러 건을 한 번에 묶어서도 가능합니다.</div></div>';
+
+  h += '<div class="card" style="padding:0;overflow:hidden">' +
+    '<button class="btn sm full" id="finesCalToggle" style="justify-content:center;border-radius:0">' +
+    (App.finesCalOpen ? "📅 캘린더 접기 ▲" : "📅 벌금 캘린더보기 ▼") + "</button>" +
+    (App.finesCalOpen ? '<div id="finesCalWrap" style="padding:12px 0 0">' + viewCal() + "</div>" : "") +
+    "</div>";
 
   h += '<div class="grid g3">' +
     '<div class="stat acc-r"><div class="lb">미납</div><div class="vl" style="font-size:18px">' + won(sumFines(all, f => f.status === "unpaid" && !f.waived)) + "</div></div>" +
@@ -2287,19 +2381,9 @@ function viewFines() {
 
 function bindFines() {
   const admin = Auth.isAdmin();
-  const ga = $("#goalAdd"); if (ga) ga.onclick = () => openGoalModal(null);
-  $$("[data-goaledit]").forEach(b => b.onclick = () => openGoalModal(b.dataset.goaledit));
-  $$("[data-goaldel]").forEach(b => b.onclick = () => confirmM("이 목표를 삭제하시겠습니까?", async () => {
-    await DB.del("goals", b.dataset.goaldel); toast("삭제됨");
-  }));
-  $$("[data-goalsave]").forEach(b => b.onclick = async () => {
-    const id = b.dataset.goalsave;
-    const inp = $('[data-goalprogress="' + id + '"]');
-    const v = Number(inp.value);
-    if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return; }
-    await DB.set("goals", id, { progress: v, updatedAt: Date.now() });
-    toast("진행률 저장됨", "ok");
-  });
+  const fct = $("#finesCalToggle");
+  if (fct) fct.onclick = () => { App.finesCalOpen = !App.finesCalOpen; render(); };
+  if (App.finesCalOpen) bindCal();
   $("#cpA").onclick = () => { copyText(SET().account); toast("계좌 복사됨", "ok"); };
   $$("[data-ftab]").forEach(b => b.onclick = () => { App.finesTab = b.dataset.ftab; fineSel.clear(); render(); });
   const fu = $("#fUser"); if (fu) fu.onchange = e => { fineFilterUser = e.target.value; render(); };
@@ -2767,7 +2851,7 @@ function viewCal() {
   }
   h += "</div></div>";
 
-  h += '<div class="sec-t">' + M + "월 상세 (" + fines.length + "건)</div><div class='card pad0'>" +
+  h += "<div class='card pad0'>" +
     (fines.length ? fines.slice(0, 60).map(fineRow).join("") +
       (fines.length > 60 ? '<div class="empty">…외 ' + (fines.length - 60) + "건</div>" : "")
       : '<div class="empty">이번달 벌금이 없습니다 🎉</div>') + "</div>";
@@ -2850,7 +2934,7 @@ function viewRank() {
     '<button class="btn sm" id="rNow">이번달</button></div></div>';
 
   h += '<div class="seg sm" style="margin-bottom:12px">' +
-    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["goal", "목표 순위"], ["log", "개직 로그"]]
+    [["fine", "벌금 순위"], ["gaejik", "개직 순위"], ["log", "개직 로그"]]
       .map(([k, t]) => '<button data-rtab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
 
   if (tab === "fine") {
@@ -2904,31 +2988,6 @@ function viewRank() {
         : '<div class="empty">팀원이 없습니다</div>') + "</div>";
   }
 
-  if (tab === "goal") {
-    const rows = ACTIVE_USERS().map(u => ({
-      u, score: goalScore(u.uid),
-      cnt: goalsOf(u.uid).filter(g => g.status === "approved" && g.includeInRank).length
-    })).sort((a, b) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score) || a.u.name.localeCompare(b.u.name, "ko"));
-    const myScore = goalScore(p.uid);
-
-    h += '<div class="grid g2">' +
-      '<div class="stat acc-g"><div class="lb">내 달성 점수</div><div class="vl" style="font-size:19px">' +
-      (myScore != null ? (Math.round(myScore * 10) / 10) + "%" : "-") + "</div></div>" +
-      '<div class="stat"><div class="lb">내 순위</div><div class="vl">' +
-      ((rows.findIndex(x => x.u.uid === p.uid) + 1) || "-") + "<span style='font-size:13px;color:var(--tx3)'>/" + rows.length + "</span></div></div></div>";
-
-    h += '<div class="sec-t">목표 달성 순위</div><div class="hint" style="margin-bottom:8px">회원을 누르면 그 회원이 승인받은 목표와 진행 상황을 볼 수 있어요.</div>' +
-      '<div class="card pad0">' +
-      (rows.length ? rows.map((x, i) =>
-        '<div class="row" data-goalview="' + x.u.uid + '" style="cursor:pointer">' +
-        '<div class="rk ' + (x.score ? (i === 0 ? "r1" : i === 1 ? "r2" : i === 2 ? "r3" : "") : "") + '">' + (i + 1) + "</div>" +
-        '<div class="sp"><div class="nm">' + esc(x.u.name) + (x.u.uid === p.uid ? ' <span class="bdg b">나</span>' : "") + "</div>" +
-        '<div class="ds">순위 포함 목표 ' + x.cnt + "개</div></div>" +
-        '<div style="text-align:right"><div style="font-size:17px;font-weight:800;color:' + (x.score ? "var(--ok)" : "var(--tx3)") + '">' +
-        (x.score != null ? (Math.round(x.score * 10) / 10) + "%" : "-") + "</div></div></div>").join("")
-        : '<div class="empty">팀원이 없습니다</div>') + "</div>";
-  }
-
   if (tab === "log") {
     const logs = DB.all("glog").sort((a, b) => (b.at || 0) - (a.at || 0));
     h += '<div class="card pad0">' +
@@ -2954,7 +3013,6 @@ function bindRank() {
   $("#rNext").onclick = () => shift(1);
   $("#rNow").onclick = () => { App.month = monthOf(today()); render(); };
   $$("[data-gj]").forEach(b => b.onclick = () => openGaejikModal(b.dataset.gj));
-  $$("[data-goalview]").forEach(b => b.onclick = () => openGoalDetailModal(b.dataset.goalview));
 }
 
 function openGaejikModal(uid) {
@@ -2994,10 +3052,9 @@ function viewAdmin() {
   if (!Auth.isAdmin()) return '<div class="card">권한이 없습니다.</div>';
   const tab = App.adminTab;
   let h = '<div class="seg sm" style="margin-bottom:14px">' +
-    [["member", "팀원"], ["goals", "목표 승인"], ["paylog", "납부로그"], ["holiday", "공휴일"], ["settings", "규칙"]]
+    [["member", "팀원"], ["paylog", "납부로그"], ["holiday", "공휴일"], ["settings", "규칙"]]
       .map(([k, t]) => '<button data-atab="' + k + '" class="' + (tab === k ? "on" : "") + '">' + t + "</button>").join("") + "</div>";
   if (tab === "member") h += adminMembers();
-  if (tab === "goals") h += adminGoals();
   if (tab === "paylog") h += adminPayLog();
   if (tab === "holiday") h += adminHolidays();
   if (tab === "settings") h += adminSettings();
@@ -3213,25 +3270,6 @@ function adminSettings() {
 
 function bindAdmin() {
   $$("[data-atab]").forEach(b => b.onclick = () => { App.adminTab = b.dataset.atab; render(); });
-  $$("[data-gappr]").forEach(b => b.onclick = async () => {
-    const g = DB.get("goals", b.dataset.gappr); if (!g) return;
-    try {
-      if (g.pendingEdit) {
-        await DB.set("goals", g.id, Object.assign({}, g.pendingEdit, {
-          pendingEdit: null, status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name
-        }));
-      } else {
-        await DB.set("goals", g.id, { status: "approved", approvedAt: Date.now(), approvedBy: Auth.profile.name });
-      }
-      toast("승인 완료", "ok");
-    } catch (e) { toast(cleanErr(e), "err"); }
-  });
-  $$("[data-grej]").forEach(b => b.onclick = () => confirmM("이 목표를 거절(또는 반려)하시겠습니까?", async () => {
-    const g = DB.get("goals", b.dataset.grej); if (!g) return;
-    if (g.pendingEdit) await DB.set("goals", g.id, { pendingEdit: null }); // 수정 제안만 취소, 기존 승인값 유지
-    else await DB.set("goals", g.id, { status: "rejected" });
-    toast("처리되었습니다");
-  }));
   $$("[data-appr]").forEach(b => b.onclick = async () => {
     try { await DB.set("users", b.dataset.appr, { approved: true }); toast("승인 완료 · 등급은 후보자입니다 (팀원 → 관리에서 변경)", "ok"); }
     catch (e) { toast(cleanErr(e), "err"); }
@@ -3404,7 +3442,7 @@ function bindView() {
     case "checkin": bindCheckin(); break;
     case "report": bindReport(); break;
     case "fines": bindFines(); break;
-    case "cal": bindCal(); break;
+    case "goal": bindGoal(); break;
     case "rank": bindRank(); break;
     case "admin": bindAdmin(); break;
   }
