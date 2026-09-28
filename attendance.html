@@ -2366,14 +2366,12 @@ function goalRow(g) {
 }
 /** freq가 daily/weekly/monthly/yearly인 반복 목표용 카드 - 숫자 입력 대신 "이번 기간
  *  체크" 버튼과, 최근 기간들을 한눈에 보고 바로 체크/해제할 수 있는 칩 목록을 보여준다. */
-/** 매주/매달/매년 목표 카드의 펼침 상태(goal id 집합) - 매일 목표는 매일 확인해야
- *  하니 항상 펼쳐서 보여주고(특히 "내 목표" 안내창에서), 매주/매달/매년은 그때그때
- *  체크할 때만 펼쳐서 보도록 기본은 접어둔다(새로고침하면 초기화되는 화면 전용 상태). */
+/** 반복 목표(매일/매주/매달/매년) 카드는 전부 기본으로 접어두고, "체크하기"를
+ *  눌러야 입력칸이 펼쳐진다(goal id 집합, 새로고침하면 초기화되는 화면 전용 상태). */
 let goalRowOpen = new Set();
 function goalRowRecurring(g) {
-  const collapsible = g.freq !== "daily";
-  if (collapsible && !goalRowOpen.has(g.id)) return goalRowRecurringCollapsed(g);
-  return goalRowRecurringFull(g, collapsible);
+  if (!goalRowOpen.has(g.id)) return goalRowRecurringCollapsed(g);
+  return goalRowRecurringFull(g, true);
 }
 /** 매주/매달/매년 목표를 접어둔 상태 - 제목·진행 상황만 한 줄로 보여주고,
  *  체크하려면 눌러서 펼쳐야 한다("내 목표" 안내창이 매일 목표로만 북적이지 않게). */
