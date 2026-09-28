@@ -915,7 +915,14 @@ function enumeratePeriodKeys(freq, from, to) {
   return keys;
 }
 function goalPeriodKeys(g) { return enumeratePeriodKeys(g.freq, g.periodStart, g.periodEnd); }
-function goalCheckedCount(g) { const ck = g.checks || {}; return goalPeriodKeys(g).filter(k => ck[k]).length; }
+/** 기간별 값(checks[key])은 이제 체크(true/false)가 아니라 그 기간에 입력한 숫자다.
+ *  "완료된 기간" = 그 기간에 입력한 값이 목표 수치(target) 이상인 기간. */
+function goalPeriodValue(g, key) { const v = (g.checks || {})[key]; return Number.isFinite(v) ? v : 0; }
+function goalCheckedCount(g) {
+  const t = Number(g.target || 0), ck = g.checks || {};
+  if (!(t > 0)) return 0;
+  return goalPeriodKeys(g).filter(k => Number.isFinite(ck[k]) && ck[k] >= t).length;
+}
 function goalTotalPeriods(g) { return goalPeriodKeys(g).length; }
 function currentPeriodKey(freq) {
   const t = today();
@@ -927,27 +934,28 @@ function currentPeriodKey(freq) {
 /** 목표 카드/상세보기에 공통으로 쓰는 진행 상황 한 줄 요약. */
 function goalProgressText(g) {
   const pct = Math.round(goalRatio(g) * 1000) / 10;
-  if (g.freq && g.freq !== "none") return goalCheckedCount(g) + " / " + goalTotalPeriods(g) + freqUnitLabel(g.freq) + " 달성 (" + pct + "%)";
+  if (g.freq && g.freq !== "none") return goalCheckedCount(g) + " / " + goalTotalPeriods(g) + freqUnitLabel(g.freq) + " 목표 달성 (평균 " + pct + "%)";
   return Number(g.progress || 0) + " / " + Number(g.target || 0) + " " + (g.unit || "") + " (" + pct + "%)";
 }
-/** 기간별 체크 목록을(최근 것부터) 칩으로 그린다. editable이면 클릭해서 그 자리에서
- *  과거 기간까지 바로 체크/해제할 수 있고(data-goalperiod), 아니면 보기 전용(뱃지)이다
+/** 기간별 기록을(최근 것부터) 칩으로 그린다. editable이면 클릭해서 그 기간의 숫자를
+ *  바로 입력/수정할 수 있고(openGoalPeriodEditModal), 아니면 보기 전용(뱃지)이다
  *  - 랭킹에서 다른 회원 상세를 볼 때처럼 "명예 리스트"로만 보여줄 때 쓴다. */
 function goalPeriodListHTML(g, opts) {
   const keys = goalPeriodKeys(g);
   if (!keys.length) return "";
-  const checks = g.checks || {};
+  const target = Number(g.target || 0), unit = esc(g.unit || "");
   const editable = !!(opts && opts.editable);
   const limit = (opts && opts.limit) || keys.length;
   const shown = keys.slice(-limit).slice().reverse();
   const omitted = keys.length - shown.length;
   return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">' +
     shown.map(k => {
-      const on = !!checks[k];
-      const label = esc(periodLabel(g.freq, k));
+      const v = goalPeriodValue(g, k);
+      const done = target > 0 && v >= target;
+      const label = esc(periodLabel(g.freq, k)) + " " + v + (target > 0 ? "/" + target : "") + unit;
       return editable
-        ? '<button type="button" class="btn xs ' + (on ? "ok" : "") + '" data-goalperiod="' + g.id + '" data-period="' + k + '" style="padding:4px 9px">' + (on ? "✅ " : "⬜ ") + label + "</button>"
-        : '<span class="bdg ' + (on ? "g" : "n") + '">' + (on ? "✅ " : "⬜ ") + label + "</span>";
+        ? '<button type="button" class="btn xs ' + (done ? "ok" : "") + '" data-goalperiodedit="' + g.id + '" data-period="' + k + '" style="padding:4px 9px">' + (done ? "✅ " : v > 0 ? "🔸 " : "⬜ ") + label + "</button>"
+        : '<span class="bdg ' + (done ? "g" : v > 0 ? "n" : "n") + '">' + (done ? "✅ " : v > 0 ? "🔸 " : "⬜ ") + label + "</span>";
     }).join("") +
     (omitted > 0 ? '<span class="hint" style="margin:0">…외 ' + omitted + "개</span>" : "") +
     "</div>";
@@ -969,26 +977,50 @@ function pushGoalLog(g, action, detail) {
   if (log.length > 50) log.splice(0, log.length - 50);
   return log;
 }
-/** 반복 목표(매일/매주/매달/매년)의 한 기간(key)을 체크/체크 해제한다. 목표 자신의
+/** 반복 목표(매일/매주/매달/매년)의 한 기간(key)에 숫자를 기록한다(기존 숫자 목표와
+ *  같은 방식 - progress 하나 대신, 기간마다 progress를 하나씩 갖는 셈이다). 목표 자신의
  *  goals.checks에 직접 반영하고(own-or-admin RLS로 보호), 로그도 함께 남긴다. */
-async function toggleGoalPeriod(id, key) {
+async function setGoalPeriodValue(id, key, value) {
   const g0 = DB.get("goals", id); if (!g0) return;
   const checks = Object.assign({}, g0.checks || {});
-  const willCheck = !checks[key];
-  if (willCheck) checks[key] = true; else delete checks[key];
-  const label = periodLabel(g0.freq, key);
-  const log = pushGoalLog(g0, willCheck ? "체크" : "체크 해제", label);
+  checks[key] = value;
+  const target = Number(g0.target || 0);
+  const label = periodLabel(g0.freq, key) + ": " + value + (target > 0 ? "/" + target : "") + (g0.unit || "");
+  const log = pushGoalLog(g0, "기간 기록", label);
   await DB.set("goals", id, { checks, updatedAt: Date.now(), log });
-  toast(willCheck ? label + " 체크 완료" : label + " 체크를 해제했습니다", "ok");
+  toast(label + " 저장됨", "ok");
 }
-// 진행률(0~1). target이 0 이하면 계산할 수 없으니 0으로 취급하고, 100%를 넘는
-// 초과 달성분은 순위 계산·진행바 모두 100%로 잘라서 쓴다(목표 1개의 최대 기여도를
-// 넘어서지 않게 하기 위함).
+/** 기간별 목록(goalPeriodListHTML)에서 과거 기간을 눌렀을 때 뜨는, 숫자 하나만 입력하는
+ *  작은 창 - 오늘/이번 주 등 "현재 기간"이 아닌 지난 기간의 기록을 고칠 때 쓴다. */
+function openGoalPeriodEditModal(id, key) {
+  const g = DB.get("goals", id); if (!g) return;
+  const cur = goalPeriodValue(g, key);
+  modal({
+    title: esc(g.title || "") + " · " + esc(periodLabel(g.freq, key)),
+    body: '<div class="fld"><label>기록할 수치' + (Number(g.target || 0) > 0 ? " (목표 " + Number(g.target || 0) + esc(g.unit || "") + ")" : "") + "</label>" +
+      '<input class="inp" type="number" step="any" id="gpVal" value="' + cur + '"></div>',
+    okText: "저장",
+    onOk: async () => {
+      const v = Number($("#gpVal").value);
+      if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return false; }
+      await setGoalPeriodValue(id, key, v);
+    }
+  });
+}
+// 진행률(0~1). target이 0 이하면 계산할 수 없으니 0으로 취급하고, 기간 하나의 초과
+// 달성분은(예: 목표 3명인데 5명 만남) 그 기간에서는 100%로 잘라서 평균에 반영한다
+// (목표 1개의 최대 기여도를 넘어서지 않게 하기 위함).
+function goalPeriodRatio(g, key) {
+  const t = Number(g.target || 0);
+  if (!(t > 0)) return 0;
+  return Math.max(0, Math.min(1, goalPeriodValue(g, key) / t));
+}
 function goalRatio(g) {
   if (g.freq && g.freq !== "none") {
-    const total = goalTotalPeriods(g);
-    if (!total) return 0;
-    return Math.max(0, Math.min(1, goalCheckedCount(g) / total));
+    const keys = goalPeriodKeys(g);
+    if (!keys.length) return 0;
+    const sum = keys.reduce((s, k) => s + goalPeriodRatio(g, k), 0);
+    return Math.max(0, Math.min(1, sum / keys.length));
   }
   const t = Number(g.target || 0), pr = Number(g.progress || 0);
   if (!(t > 0)) return 0;
@@ -2309,7 +2341,8 @@ function goalRowRecurring(g) {
   const pct = Math.round(goalRatio(g) * 1000) / 10;
   const curKey = currentPeriodKey(g.freq);
   const inRange = goalPeriodKeys(g).includes(curKey);
-  const checkedNow = !!(g.checks || {})[curKey];
+  const curVal = goalPeriodValue(g, curKey);
+  const target = Number(g.target || 0), unit = esc(g.unit || "");
   return '<div class="card" style="margin:10px 0;padding:12px">' +
     '<div class="row" style="align-items:flex-start">' +
     '<div class="sp"><div class="nm">' + esc(g.title || "(제목 없음)") + " " + goalStatusBadge(g) +
@@ -2323,11 +2356,15 @@ function goalRowRecurring(g) {
     '<div style="height:100%;width:' + Math.min(100, pct) + '%;background:linear-gradient(90deg,#8fd3c8,var(--ok))"></div></div>' +
     '<div class="row" style="margin-top:9px;gap:8px;align-items:center">' +
     (inRange
-      ? '<button type="button" class="btn sm ' + (checkedNow ? "ok" : "pri") + '" data-goalperiod="' + g.id + '" data-period="' + curKey + '">' +
-        (checkedNow ? "✅ " + freqCheckLabel(g.freq) + " 완료" : "☐ " + freqCheckLabel(g.freq) + " 체크") + "</button>"
-      : '<span class="hint" style="margin:0">목표 기간이 아니어서 체크할 수 없습니다</span>') +
-    '<div style="color:var(--tx3);font-size:12.5px;margin-left:auto">' + goalProgressText(g) + "</div></div>" +
+      ? '<div style="font-size:12.5px;color:var(--tx3);white-space:nowrap">' + esc(freqCheckLabel(g.freq)) + " 기록</div>" +
+        '<input type="number" class="inp" data-goalperiodinput="' + g.id + '" value="' + curVal + '" style="max-width:100px" step="any">' +
+        '<div style="color:var(--tx3);font-size:12.5px">/ ' + target + " " + unit + "</div>" +
+        '<button class="btn xs ok" data-goalperiodsave="' + g.id + '" data-period="' + curKey + '" style="margin-left:auto">저장</button>'
+      : '<span class="hint" style="margin:0">목표 기간이 아니어서 기록할 수 없습니다</span>') +
+    "</div>" +
+    '<div style="color:var(--tx3);font-size:12.5px;margin-top:6px">' + goalProgressText(g) + "</div>" +
     goalPeriodListHTML(g, { editable: true, limit: 14 }) +
+    '<div class="hint" style="margin-top:8px">위 목록에서 지난 기간을 눌러 그때 기록도 고칠 수 있어요.</div>' +
     (g.pendingEdit ? '<div class="hint" style="margin-top:8px">⏳ 수정 제안: ' + pendingEditSummary(g.pendingEdit) + " (관리자 승인 대기 중 · 승인 전까지는 기존 값 그대로 순위에 반영됩니다)</div>" : "") +
     "</div>";
 }
@@ -2347,10 +2384,10 @@ function openGoalModal(goalId, adminEdit) {
       '<div class="fld"><label>목표 이름</label><input class="inp" id="gTitle" placeholder="예: 이번달 신규 계약 10건 / 매일 3명 만나기" value="' + esc(seed.title || "") + '"></div>' +
       '<div class="fld"><label>증명 방식</label><select class="inp" id="gFreq">' +
       GOAL_FREQ.map(([k, t]) => '<option value="' + k + '"' + (seedFreq === k ? " selected" : "") + ">" + t + "</option>").join("") +
-      "</select><div class=\"hint\" style=\"margin:4px 0 0\">매일/매주/매달/매년을 고르면 숫자 대신 그 주기마다 체크해서 달성을 기록해요(예: 매일 선택 → 하루하루 체크한 날짜 수로 달성률을 계산).</div></div>" +
-      '<div class="grid g2" id="gTargetWrap" style="' + (seedFreq !== "none" ? "display:none" : "") + '">' +
-      '<div class="fld"><label>목표 수치</label><input class="inp" type="number" step="any" id="gTarget" value="' + Number(seed.target || 0) + '"></div>' +
-      '<div class="fld"><label>단위 (선택)</label><input class="inp" id="gUnit" placeholder="건, 만원 등" value="' + esc(seed.unit || "") + '"></div></div>' +
+      "</select><div class=\"hint\" style=\"margin:4px 0 0\">매일/매주/매달/매년을 고르면, 한 번에 다 채우는 게 아니라 그 주기마다(하루마다·주마다 등) 아래 목표 수치를 새로 채워서 증명해요(예: 매일 3명 만나기 → 매일 몇 명 만났는지를 입력).</div></div>" +
+      '<div class="grid g2" id="gTargetWrap">' +
+      '<div class="fld"><label>목표 수치' + (seedFreq !== "none" ? " (주기마다)" : "") + '</label><input class="inp" type="number" step="any" id="gTarget" value="' + Number(seed.target || 0) + '"></div>' +
+      '<div class="fld"><label>단위 (선택)</label><input class="inp" id="gUnit" placeholder="건, 명 등" value="' + esc(seed.unit || "") + '"></div></div>' +
       '<div class="grid g2">' +
       '<div class="fld"><label>시작일</label><input class="inp" type="date" id="gFrom" value="' + esc(seed.periodStart || today()) + '"></div>' +
       '<div class="fld"><label>종료일</label><input class="inp" type="date" id="gTo" value="' + esc(seed.periodEnd || today()) + '"></div></div>' +
@@ -2359,7 +2396,7 @@ function openGoalModal(goalId, adminEdit) {
       '<div class="hint" style="margin:0">체크한 목표들끼리 100%를 나눠 가져요(개수가 많을수록 목표 1개의 비중은 작아집니다)</div></div>' +
       (showProgressField ? '<div class="fld" id="gProgressWrap"><label>진행 수치</label><input class="inp" type="number" step="any" id="gProgress" value="' + Number(g.progress || 0) + '"></div>' : "") +
       (adminEdit && g ? '<div class="banner i">관리자 권한으로 수정하면 승인 절차 없이 즉시 반영됩니다.' +
-        (g.freq && g.freq !== "none" ? " (기간별 체크 기록은 이 창에서는 바뀌지 않습니다 - 증명 방식을 바꾸면 기존 체크 기록은 초기화됩니다)" : "") + "</div>"
+        (g.freq && g.freq !== "none" ? " (기간별 기록은 이 창에서는 바뀌지 않습니다 - 증명 방식을 바꾸면 기존 기록은 초기화됩니다)" : "") + "</div>"
         : isNew ? '<div class="banner i">등록하면 관리자 승인 후 순위표에 반영됩니다.</div>'
         : '<div class="banner i">' + (g.status === "approved" ? "이미 승인된 목표라, 수정 내용은 관리자 승인 후 반영돼요(승인 전까지는 기존 값 그대로 순위에 쓰입니다)." : "아직 승인 전인 목표라 바로 고쳐집니다.") + "</div>"),
     okText: isNew ? "등록" : "저장",
@@ -2398,10 +2435,6 @@ function openGoalModal(goalId, adminEdit) {
         await DB.set("goals", g.id, patch);
         toast("수정했습니다 · 관리자 승인 대기", "ok");
       }
-    },
-    after: () => {
-      const freqSel = $("#gFreq"), wrap = $("#gTargetWrap");
-      if (freqSel && wrap) freqSel.onchange = e => { wrap.style.display = e.target.value === "none" ? "" : "none"; };
     }
   });
 }
@@ -2508,7 +2541,14 @@ function bindGoal() {
     await DB.set("goals", id, { progress: v, updatedAt: Date.now(), log });
     toast("진행률 저장됨", "ok");
   });
-  $$("[data-goalperiod]").forEach(b => b.onclick = () => toggleGoalPeriod(b.dataset.goalperiod, b.dataset.period));
+  $$("[data-goalperiodsave]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.goalperiodsave, key = b.dataset.period;
+    const inp = $('[data-goalperiodinput="' + id + '"]');
+    const v = Number(inp.value);
+    if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return; }
+    await setGoalPeriodValue(id, key, v);
+  });
+  $$("[data-goalperiodedit]").forEach(b => b.onclick = () => openGoalPeriodEditModal(b.dataset.goalperiodedit, b.dataset.period));
 
   $$("[data-goalview]").forEach(b => b.onclick = () => openGoalDetailModal(b.dataset.goalview));
 
@@ -2595,11 +2635,16 @@ function bindGoalPopup() {
     const mb = ovl.querySelector(".mod-b");
     if (mb) { mb.innerHTML = goalsCard(); bindGoalPopup(); }
   });
-  Array.from(ovl.querySelectorAll("[data-goalperiod]")).forEach(b => b.onclick = async () => {
-    await toggleGoalPeriod(b.dataset.goalperiod, b.dataset.period);
+  Array.from(ovl.querySelectorAll("[data-goalperiodsave]")).forEach(b => b.onclick = async () => {
+    const id = b.dataset.goalperiodsave, key = b.dataset.period;
+    const inp = ovl.querySelector('[data-goalperiodinput="' + id + '"]');
+    const v = Number(inp.value);
+    if (!Number.isFinite(v)) { toast("숫자를 입력해주세요", "err"); return; }
+    await setGoalPeriodValue(id, key, v);
     const mb = ovl.querySelector(".mod-b");
     if (mb) { mb.innerHTML = goalsCard(); bindGoalPopup(); }
   });
+  Array.from(ovl.querySelectorAll("[data-goalperiodedit]")).forEach(b => b.onclick = () => openGoalPeriodEditModal(b.dataset.goalperiodedit, b.dataset.period));
 }
 
 /* ============================================================================
@@ -3409,8 +3454,8 @@ function adminGoals() {
       const u = DB.get("users", g.uid);
       const isEdit = g.status === "approved" && g.pendingEdit;
       const show = isEdit ? g.pendingEdit : g;
-      const showMain = show.freq && show.freq !== "none" ? esc(freqLabel(show.freq)) : (Number(show.target || 0) + esc(show.unit || ""));
-      const gMain = g.freq && g.freq !== "none" ? esc(freqLabel(g.freq)) : (Number(g.target || 0) + esc(g.unit || ""));
+      const showMain = (show.freq && show.freq !== "none" ? esc(freqLabel(show.freq)) + " · " : "") + Number(show.target || 0) + esc(show.unit || "") + (show.freq && show.freq !== "none" ? "/회" : "");
+      const gMain = (g.freq && g.freq !== "none" ? esc(freqLabel(g.freq)) + " · " : "") + Number(g.target || 0) + esc(g.unit || "") + (g.freq && g.freq !== "none" ? "/회" : "");
       return '<div class="row" style="align-items:flex-start">' +
         '<div class="sp"><div class="nm">' + esc(u ? u.name : "?") + " · " + esc(show.title || "") +
         (isEdit ? ' <span class="bdg n">수정 제안</span>' : ' <span class="bdg n">신규</span>') + "</div>" +
