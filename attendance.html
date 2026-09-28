@@ -937,27 +937,43 @@ function goalProgressText(g) {
   if (g.freq && g.freq !== "none") return goalCheckedCount(g) + " / " + goalTotalPeriods(g) + freqUnitLabel(g.freq) + " 목표 달성 (평균 " + pct + "%)";
   return Number(g.progress || 0) + " / " + Number(g.target || 0) + " " + (g.unit || "") + " (" + pct + "%)";
 }
-/** 기간별 기록을(최근 것부터) 칩으로 그린다. editable이면 클릭해서 그 기간의 숫자를
- *  바로 입력/수정할 수 있고(openGoalPeriodEditModal), 아니면 보기 전용(뱃지)이다
- *  - 랭킹에서 다른 회원 상세를 볼 때처럼 "명예 리스트"로만 보여줄 때 쓴다. */
+/** 반복 목표의 "달성 기록" 펼침/접힘 상태 - goal id를 담아두는 집합. 새로고침하면
+ *  초기화되는 화면 전용 상태라 DB에는 저장하지 않는다(fineFilterUser 등과 같은 패턴). */
+let goalPeriodOpen = new Set();
+/** 달성한 기간만(최근 것부터) 증표(뱃지)처럼 그린다 - 못 채운 기간은 아예 보여주지
+ *  않는다(달성 여부를 나열하는 체크리스트가 아니라, 달성한 것만 남기는 명예의 전당
+ *  같은 목록으로). editable이면 클릭해서 그 기간의 숫자를 고칠 수 있다(openGoalPeriodEditModal). */
 function goalPeriodListHTML(g, opts) {
-  const keys = goalPeriodKeys(g);
-  if (!keys.length) return "";
-  const target = Number(g.target || 0), unit = esc(g.unit || "");
+  const target = Number(g.target || 0);
+  if (!(target > 0)) return '<div class="hint" style="margin:8px 0 0">목표 수치를 정하면 달성한 기간이 여기 증표로 쌓여요</div>';
+  const unit = esc(g.unit || "");
   const editable = !!(opts && opts.editable);
-  const limit = (opts && opts.limit) || keys.length;
-  const shown = keys.slice(-limit).slice().reverse();
-  const omitted = keys.length - shown.length;
-  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">' +
+  const achieved = goalPeriodKeys(g).filter(k => goalPeriodValue(g, k) >= target).reverse();
+  if (!achieved.length) return '<div class="hint" style="margin:8px 0 0">아직 달성한 기간이 없어요</div>';
+  const limit = (opts && opts.limit) || achieved.length;
+  const shown = achieved.slice(0, limit);
+  const omitted = achieved.length - shown.length;
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">' +
     shown.map(k => {
       const v = goalPeriodValue(g, k);
-      const done = target > 0 && v >= target;
-      const label = esc(periodLabel(g.freq, k)) + " " + v + (target > 0 ? "/" + target : "") + unit;
+      const label = esc(periodLabel(g.freq, k)) + " " + v + "/" + target + unit;
       return editable
-        ? '<button type="button" class="btn xs ' + (done ? "ok" : "") + '" data-goalperiodedit="' + g.id + '" data-period="' + k + '" style="padding:4px 9px">' + (done ? "✅ " : v > 0 ? "🔸 " : "⬜ ") + label + "</button>"
-        : '<span class="bdg ' + (done ? "g" : v > 0 ? "n" : "n") + '">' + (done ? "✅ " : v > 0 ? "🔸 " : "⬜ ") + label + "</span>";
+        ? '<button type="button" class="btn xs ok" data-goalperiodedit="' + g.id + '" data-period="' + k + '" style="padding:4px 9px">🏆 ' + label + "</button>"
+        : '<span class="bdg g">🏆 ' + label + "</span>";
     }).join("") +
     (omitted > 0 ? '<span class="hint" style="margin:0">…외 ' + omitted + "개</span>" : "") +
+    "</div>";
+}
+/** goalPeriodListHTML을 접기/펴기 버튼과 함께 감싼다 - 목표가 오래될수록 증표가
+ *  많아지니 기본은 접어두고, 필요할 때만 펼쳐서 보게 한다. */
+function goalPeriodSection(g, opts) {
+  const open = goalPeriodOpen.has(g.id);
+  const target = Number(g.target || 0);
+  const cnt = target > 0 ? goalPeriodKeys(g).filter(k => goalPeriodValue(g, k) >= target).length : 0;
+  return '<div style="margin-top:8px">' +
+    '<button type="button" class="btn xs" data-goalperiodtoggle="' + g.id + '">' +
+    (open ? "🏆 달성 기록 접기 ▲" : "🏆 달성 기록 보기 (" + cnt + "개) ▾") + "</button>" +
+    (open ? goalPeriodListHTML(g, opts) : "") +
     "</div>";
 }
 /** 목표 수정 제안(pendingEdit) 요약 한 줄. */
@@ -1274,7 +1290,13 @@ function modal(o) {
       (o.onOk ? '<button class="btn pri" id="mO">' + esc(o.okText || "저장") + "</button>" : "") +
       "</div>") + "</div>";
   document.body.appendChild(el);
-  if (!o.noClose) el.onclick = e => { if (e.target === el) closeModal(); };
+  // 바깥(반투명 배경)을 눌러도 창이 닫히지 않는다 - X 버튼이나 ESC 키를 눌러야만
+  // 닫힌다(입력 중에 실수로 바깥을 눌러 창이 사라지는 걸 막기 위함).
+  if (!o.noClose) {
+    const escHandler = e => { if (e.key === "Escape") closeModal(); };
+    el._escHandler = escHandler;
+    document.addEventListener("keydown", escHandler);
+  }
   const x = $("#mX"); if (x) x.onclick = closeModal;
   const c = $("#mC"); if (c) c.onclick = closeModal;
   const ok = $("#mO");
@@ -1286,7 +1308,10 @@ function modal(o) {
   if (o.after) o.after();
   return el;
 }
-function closeModal() { const e = $("#ovl"); if (e) e.remove(); }
+function closeModal() {
+  const e = $("#ovl");
+  if (e) { if (e._escHandler) document.removeEventListener("keydown", e._escHandler); e.remove(); }
+}
 function confirmM(msg, onYes) {
   modal({ title: "확인", body: '<div style="font-size:14px;line-height:1.6">' + msg + "</div>",
     okText: "확인", cancelText: "취소", onOk: async () => { await onYes(); } });
@@ -2363,8 +2388,7 @@ function goalRowRecurring(g) {
       : '<span class="hint" style="margin:0">목표 기간이 아니어서 기록할 수 없습니다</span>') +
     "</div>" +
     '<div style="color:var(--tx3);font-size:12.5px;margin-top:6px">' + goalProgressText(g) + "</div>" +
-    goalPeriodListHTML(g, { editable: true, limit: 14 }) +
-    '<div class="hint" style="margin-top:8px">위 목록에서 지난 기간을 눌러 그때 기록도 고칠 수 있어요.</div>' +
+    goalPeriodSection(g, { editable: true, limit: 14 }) +
     (g.pendingEdit ? '<div class="hint" style="margin-top:8px">⏳ 수정 제안: ' + pendingEditSummary(g.pendingEdit) + " (관리자 승인 대기 중 · 승인 전까지는 기존 값 그대로 순위에 반영됩니다)</div>" : "") +
     "</div>";
 }
@@ -2463,11 +2487,16 @@ function openGoalDetailModal(uid) {
           '<div style="height:6px;background:#eef1f6;border-radius:4px;margin-top:8px;overflow:hidden">' +
           '<div style="height:100%;width:' + Math.min(100, pct) + '%;background:linear-gradient(90deg,#8fd3c8,var(--ok))"></div></div>' +
           '<div class="ds" style="margin-top:6px">' + esc(goalProgressText(g)) + "</div>" +
-          (recurring ? goalPeriodListHTML(g, { editable: false, limit: 30 }) : "") + "</div>";
+          (recurring ? goalPeriodSection(g, { editable: false, limit: 30 }) : "") + "</div>";
       }).join("") : '<div class="empty">' + (admin ? "만든 목표가 없습니다" : "공개된(승인된) 목표가 없습니다") + "</div>"),
     after: () => {
       $$("[data-goaladminedit]", $("#ovl")).forEach(b => b.onclick = () => {
         closeModal(); openGoalModal(b.dataset.goaladminedit, true);
+      });
+      $$("[data-goalperiodtoggle]", $("#ovl")).forEach(b => b.onclick = () => {
+        const id = b.dataset.goalperiodtoggle;
+        if (goalPeriodOpen.has(id)) goalPeriodOpen.delete(id); else goalPeriodOpen.add(id);
+        openGoalDetailModal(uid); // 펼침 상태를 반영해 모달을 그 자리에서 다시 그린다
       });
     }
   });
@@ -2549,6 +2578,11 @@ function bindGoal() {
     await setGoalPeriodValue(id, key, v);
   });
   $$("[data-goalperiodedit]").forEach(b => b.onclick = () => openGoalPeriodEditModal(b.dataset.goalperiodedit, b.dataset.period));
+  $$("[data-goalperiodtoggle]").forEach(b => b.onclick = () => {
+    const id = b.dataset.goalperiodtoggle;
+    if (goalPeriodOpen.has(id)) goalPeriodOpen.delete(id); else goalPeriodOpen.add(id);
+    render();
+  });
 
   $$("[data-goalview]").forEach(b => b.onclick = () => openGoalDetailModal(b.dataset.goalview));
 
@@ -2645,6 +2679,12 @@ function bindGoalPopup() {
     if (mb) { mb.innerHTML = goalsCard(); bindGoalPopup(); }
   });
   Array.from(ovl.querySelectorAll("[data-goalperiodedit]")).forEach(b => b.onclick = () => openGoalPeriodEditModal(b.dataset.goalperiodedit, b.dataset.period));
+  Array.from(ovl.querySelectorAll("[data-goalperiodtoggle]")).forEach(b => b.onclick = () => {
+    const id = b.dataset.goalperiodtoggle;
+    if (goalPeriodOpen.has(id)) goalPeriodOpen.delete(id); else goalPeriodOpen.add(id);
+    const mb = ovl.querySelector(".mod-b");
+    if (mb) { mb.innerHTML = goalsCard(); bindGoalPopup(); }
+  });
 }
 
 /* ============================================================================
