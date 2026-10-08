@@ -1670,7 +1670,8 @@ function viewCheckin() {
         "</div>";
     }).join("") : '<div class="empty">승인된 팀원이 없습니다</div>') + "</div>";
 
-  if (admin) h += '<div class="hint" style="margin-top:8px">관리자는 시각 칸을 직접 고쳐 저장할 수 있습니다. 비우면 미등록 처리됩니다.</div>';
+  if (admin) h += '<div class="hint" style="margin-top:8px">관리자는 시각 칸을 직접 고쳐 저장할 수 있습니다. 비우면 미등록 처리됩니다.' +
+    '<br>이름을 누르면 프로필에서 <b>이 날을 개직으로 변경</b>(개직 1개 차감)할 수 있어요 - 공휴일이라 개직이 다음 근무일로 밀려 들어간 경우에도 쓸 수 있습니다.</div>';
   return h;
 }
 
@@ -3184,6 +3185,16 @@ function canOpenProfile(uid) {
   if (Auth.isTL()) return (Auth.profile.tlMembers || []).indexOf(uid) >= 0;
   return false;
 }
+/** 팀원 프로필 안에서, 관리자에게만 보이는 "이 날 개직으로 변경" 줄. 이미 개직으로
+ *  반영(차감)된 날이면 버튼 대신 안내만 보여준다. */
+function adminGaejikRowHtml(uid, date) {
+  if (!Auth.isAdmin()) return "";
+  const d = DB.get("daily", dayId(uid, date)) || {};
+  if (d.type === "개직" && d.gaejikUsed)
+    return '<div class="banner s" style="margin:0 0 14px">🌴 이 날은 개직으로 반영(차감 완료)되어 있습니다' +
+      (d.gaejikAdminBy ? " · 관리자 " + esc(d.gaejikAdminBy) + " 반영" : "") + ".</div>";
+  return '<div style="margin:0 0 14px"><button class="btn sm full" id="mpGj">🌴 이 날 개직으로 변경 (개직 1개 차감)</button></div>';
+}
 function openMemberProfile(uid, date) {
   if (!canOpenProfile(uid)) return;
   const u = DB.get("users", uid); if (!u) return;
@@ -3208,10 +3219,12 @@ function openMemberProfile(uid, date) {
       '<div style="flex:1;text-align:center;font-weight:700">' + fmtDL(date) + (date === tdy ? ' <span class="bdg b">오늘</span>' : "") + "</div>" +
       '<button class="btn sm" id="mpNext"' + (date >= tdy ? " disabled" : "") + '>›</button>' +
       '<button class="btn sm" id="mpToday">오늘</button></div>' +
+      adminGaejikRowHtml(uid, date) +
       dayDetailBody(uid, date),
     after: () => {
       $$("[data-img]", $("#ovl")).forEach(b => b.onclick = () => openImage(b.dataset.img, b.dataset.imgt));
       $$("[data-open-fine]", $("#ovl")).forEach(b => b.onclick = () => openFineModal(b.dataset.openFine));
+      const gj = $("#mpGj"); if (gj) gj.onclick = () => openAdminGaejikModal(uid, date);
       $("#mpPrev").onclick = () => openMemberProfile(uid, addDays(date, -1));
       const nx = $("#mpNext"); if (nx) nx.onclick = () => openMemberProfile(uid, addDays(date, 1));
       $("#mpToday").onclick = () => openMemberProfile(uid, tdy);
@@ -3491,6 +3504,97 @@ function openGaejikModal(uid) {
       $("#gjP").onclick = () => set(Math.min(30, Number(v.textContent) + 1));
       $("#gjM").onclick = () => set(Math.max(-30, Number(v.textContent) - 1));
       $$("[data-gr]").forEach(b => b.onclick = () => $("#gjR").value = b.dataset.gr);
+    }
+  });
+}
+
+/** 관리자가 팀원의 특정 날짜를 "개직"으로 직접 반영하고 개직 1개를 차감한다.
+ *  쓰임: 공휴일인데 실제로는 출근하는 날을 근무일로 바꿔두지 못해서, 팀원이 개직을 써도
+ *  "다음 근무일"로 밀려 들어간 경우(예: 10/9 공휴일 → 10/12 월요일)를 바로잡는다.
+ *  그렇게 밀려 들어간 개직이 있으면 같이 취소(환급)하고 이 날로 옮길 수 있어서, 같은
+ *  개직이 두 번 차감되지 않는다(관리자 전용 - 출근 탭 › 이름 › 프로필에서 연다). */
+function openAdminGaejikModal(uid, date) {
+  if (!Auth.isAdmin()) return;
+  const u = DB.get("users", uid); if (!u) return;
+  const S = SET(), H = HOLIDAYS();
+  const cur = DB.get("daily", dayId(uid, date)) || {};
+  if (cur.type === "개직" && cur.gaejikUsed) { toast("이미 개직으로 반영(차감 완료)된 날입니다", "err"); return; }
+
+  // 휴무일이라 본인이 낸 개직이 다음 근무일로 밀려 들어갔는지 확인한다.
+  let shifted = null;
+  if (!isWorkday(date, H)) {
+    let nd = addDays(date, 1);
+    for (let i = 0; i < 40 && !isWorkday(nd, H); i++) nd = addDays(nd, 1);
+    const rec = DB.get("daily", dayId(uid, nd));
+    if (rec && rec.type === "개직" && rec.gaejikUsed && !rec.gaejikTrip) shifted = { date: nd, rec };
+  }
+  const have = Number(u.gaejik || 0);
+  const dl = reportDeadlineTs(date, "개직", S);
+
+  modal({
+    title: esc(u.name) + " · " + fmtDL(date) + " 개직 반영",
+    body:
+      '<div class="stat acc-p" style="margin-bottom:14px"><div class="lb">현재 개직 잔여</div><div class="vl">' + have + "개</div></div>" +
+      '<div class="banner i">' + esc(fmtDL(date)) + "을 " + esc(u.name) + "님의 <b>개직</b>으로 반영하고 개직 <b>1개를 차감</b>합니다." +
+      (cur.type && cur.type !== "개직" ? "<br>기존 근무 유형 <b>" + esc(cur.type) + "</b>은(는) 개직으로 바뀝니다." : "") +
+      (cur.type === "개직" ? "<br>이미 개직으로 표시돼 있지만 아직 차감되지 않은 상태라 차감만 반영합니다." : "") + "</div>" +
+      (shifted
+        ? '<div class="fld"><label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">' +
+          '<input type="checkbox" id="agMove" checked style="margin-top:3px"><span>' + esc(fmtDL(shifted.date)) +
+          " (다음 근무일)에 대신 들어간 개직은 취소하고 이 날로 옮기기" +
+          ' <span style="color:var(--tx3);font-weight:600">· 옮기는 것이라 개직이 두 번 차감되지 않아요</span></span></label></div>'
+        : "") +
+      '<div class="fld"><label>메모 <span style="color:var(--tx3);font-weight:600">(선택)</span></label>' +
+      '<input class="inp" id="agMemo" placeholder="예: 한글날 출근"></div>' +
+      '<div class="hint" id="agSum" style="margin:0"></div>',
+    okText: "개직으로 변경",
+    onOk: async () => {
+      const move = !!(shifted && $("#agMove") && $("#agMove").checked);
+      if (!move && have < 1) { toast("개직 잔여가 없어 차감할 수 없습니다", "err"); return false; }
+      const memo = ($("#agMemo").value || "").trim();
+      const now = Date.now(), label = fmtD(date), id = dayId(uid, date);
+      const patch = {
+        uid, date, type: "개직", reason: "", hospital: "", gaejikUsed: true,
+        gaejikAdminBy: (Auth.profile && Auth.profile.name) || "관리자",
+        // 관리자가 인정한 개직이라, 나중에 제출한 것으로 보아 "마감 후 제출" 벌금이 붙는 일이 없게
+        // 제출 시각을 개직 마감 이내로 맞춘다.
+        reportAt: Math.min(now, dl), updatedAt: now
+      };
+      const glog = (delta, after, reason) => DB.add("glog", {
+        uid, name: u.name, delta, after, reason, auto: false,
+        by: (Auth.profile && Auth.profile.name) || "관리자", at: Date.now(), date: today()
+      });
+      const why = "관리자 개직 반영 · " + label + (memo ? " (" + memo + ")" : "");
+
+      if (move) {
+        const sid = dayId(uid, shifted.date), srec = shifted.rec;
+        if (srec.gaejikPhoto) patch.gaejikPhoto = srec.gaejikPhoto; // SM보고 캡쳐도 같이 옮긴다
+        await DB.set("daily", sid, { type: null, reason: "", hospital: "", gaejikUsed: false, gaejikPhoto: null, reportAt: null, updatedAt: now });
+        try { await DB.set("daily", id, patch); }
+        catch (e) {
+          await DB.set("daily", sid, { type: srec.type, reason: srec.reason || "", hospital: srec.hospital || "", gaejikUsed: true, gaejikPhoto: srec.gaejikPhoto || null, reportAt: srec.reportAt || null, updatedAt: Date.now() });
+          throw e;
+        }
+        // 잔여는 그대로(취소 +1, 반영 -1)이고, 개직 로그에만 두 줄을 남긴다.
+        await glog(+1, have + 1, "개직 취소(날짜 이동) · " + fmtD(shifted.date) + " → " + label);
+        await glog(-1, have, why);
+        toast(fmtD(shifted.date) + " 개직을 " + label + "로 옮겼습니다 (잔여 " + have + "개 그대로)", "ok");
+      } else {
+        await changeGaejik(uid, -1, why);
+        try { await DB.set("daily", id, patch); }
+        catch (e) { await changeGaejik(uid, +1, "개직 반영 실패로 환급 · " + label); throw e; }
+        toast(label + " 개직으로 반영 · 개직 1개 차감 (잔여 " + (have - 1) + "개)", "ok");
+      }
+    },
+    after: () => {
+      const sum = () => {
+        const move = !!(shifted && $("#agMove") && $("#agMove").checked);
+        $("#agSum").innerHTML = !move && have < 1
+          ? '<span style="color:var(--red)">개직 잔여가 없어 변경할 수 없어요 (현재 ' + have + "개)</span>"
+          : "개직 잔여 <b>" + have + "개 → " + (move ? have : have - 1) + "개</b>" + (move ? " (변화 없음)" : "");
+      };
+      const mv = $("#agMove"); if (mv) mv.onchange = sum;
+      sum();
     }
   });
 }
