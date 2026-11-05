@@ -147,6 +147,7 @@ button.secondary:hover{background:#e2eee2;}
       <button class="tabbtn" data-panel="p-a">간편 고지사항</button>
       <button class="tabbtn" data-panel="p-b">표준체 고지사항</button>
       <button class="tabbtn" data-panel="p-c">5년내 중대질환</button>
+      <button class="tabbtn" data-panel="p-d">치아보험</button>
     </div>
     <div class="panel active" id="p-table">
       <div class="legend">
@@ -167,6 +168,10 @@ button.secondary:hover{background:#e2eee2;}
     <div class="panel" id="p-c">
       <div class="copy-row"><button class="secondary copybtn" id="copyBtnC" type="button">📋 5년내 중대질환 복사</button><span class="copied-msg" id="copyMsgC"></span></div>
       <div class="textbox" id="textC"></div>
+    </div>
+    <div class="panel" id="p-d">
+      <div class="copy-row"><button class="secondary copybtn" id="copyBtnD" type="button">📋 치아보험 고지 복사</button><span class="copied-msg" id="copyMsgD"></span></div>
+      <div class="textbox" id="textD"></div>
     </div>
     <div class="dl-row">
       <button class="primary" id="dlBtn">엑셀 파일 다운로드 (.xlsx)</button>
@@ -214,6 +219,20 @@ const EXCLUDE_LIST = ["수술팩","구강내소염수술","발치,치근, 치조
 "치관확장술[1치당](치은 절제술)","치주소파술","악관절탈구비관혈적정복","후두소작술","치석제거","치주소파술 후","치은신부착술",
 "교합조정술","치은절제술","세포질내","첩모발거술","자궁경부(질)약물소작술","비인강소작","발치술[1치당]-","치근활택술",
 "수술후처치[1일당]-단순 처치","화술 실시","간단한검사또는 관절액이동술포함"];
+// ===== 치아보험 고지 설정 (직접 고치는 곳) =====
+// 1) codes에 적은 진단코드로 시작하는 진단을 years년 이내에 받은 적이 있으면 '치아보험' 탭에 표시 (쉼표로 여러 개)
+const DENTAL_INSURANCE_CATEGORIES = [
+  { name: "충치(치아우식)", years: 2, codes: "K02" },
+  { name: "치주질환",       years: 5, codes: "K05, K06" }
+];
+// 2) '치료내용'에 적을 치료 단어 (영문 표기도 인식)
+const DENTAL_TREAT_KEYWORDS = ["레진","크라운","임플란트","인레이","온레이","치관확장술","resin","crown","implant","inlay","onlay"];
+// 3) 간편/표준체 고지사항에는 치과 진료를 싣지 않고, 수술내역에 아래 단어가 있는 경우만 싣는다
+const DENTAL_MAJOR_KEYWORDS = ["임플란트","implant","치조골이식","치조골 이식"];
+function keywordRegex(list){ return new RegExp(list.map(s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|"), "i"); }
+const DENTAL_TREAT_RE = keywordRegex(DENTAL_TREAT_KEYWORDS);
+const DENTAL_MAJOR_RE = keywordRegex(DENTAL_MAJOR_KEYWORDS);
+
 const HEADERS_FIXED = ["순번","진료시작일","병·의원&약국","진단과","입원/외래","주상병코드","주상병명","내원일수","내가 낸 의료비(진료비)","내복약일수","수술내역"];
 let file1=null, file2=null;
 let lastResult=null;
@@ -599,6 +618,35 @@ function matchCriticalIllnessCategory(rawCode){
   return null;
 }
 
+// ===== 치아보험 고지 판정 =====
+const DENTAL_INSURANCE_RULES = DENTAL_INSURANCE_CATEGORIES.map(c=>({ name:c.name, years:c.years, rules: parseCriticalIllnessRules(c.codes) }));
+// 진단코드가 위 설정(충치/치주질환)에 해당하는지. 5년내 중대질환과 같은 방식으로, 원본 그대로와
+// 첫 글자를 뗀 버전을 둘 다 시도하고 실제로 매칭된 쪽의 표기를 화면용 코드로 돌려준다.
+function matchDentalCategory(rawCode){
+  const raw = String(rawCode||"").trim();
+  const stripped = removeLeadingAlpha(raw).trim();
+  const candidates = [raw];
+  if(stripped && stripped !== raw) candidates.push(stripped);
+  for(const cat of DENTAL_INSURANCE_RULES){
+    for(const cand of candidates){
+      const norm = normalizeIcdDigits(cand);
+      if(!norm) continue;
+      for(const rule of cat.rules){
+        if(matchesCriticalIllnessRule(norm, rule)) return { cat, displayCode: cand };
+      }
+    }
+  }
+  return null;
+}
+// 치과 진료인지: 진단과가 치과 계열이거나, 진단코드가 치아·치주 관련(K00~K08)인 경우.
+const DENTAL_DEPT_RE = /치과|치의학|구강|치주과/;
+function isDentalRow(row){
+  if(DENTAL_DEPT_RE.test(String(row[3]||""))) return true;
+  const raw = String(row[5]||"").trim();
+  const stripped = removeLeadingAlpha(raw).trim();
+  return [raw, stripped].some(c=> /^K0[0-8]/.test(normalizeIcdDigits(c)));
+}
+
 function cellValue(cell){
   let v = cell.value;
   if(v && typeof v === "object"){
@@ -640,11 +688,20 @@ function processData(baseMatrix, detailMatrix){
   });
   const medDict = new Map();
   const surgDict = new Map();
+  const dentalTreatByVisit = new Map(); // "날짜|병원" -> Map(치료명)
+  const dentalTreatByDate = new Map();  // "날짜" -> Map(치료명)
+  const addTreat = (m,k,name)=>{ if(!m.has(k)) m.set(k,new Map()); m.get(k).set(name,true); };
   for(let i=1;i<detailMatrix.length;i++){
     const row = detailMatrix[i];
     const key = normalizeDateKey(row[1]);
     if(!key) continue;
     const eVal = row[4]!=null ? String(row[4]) : "";
+    if(DENTAL_TREAT_RE.test(eVal) && !eVal.includes("내복약")){
+      const instKey = String(row[2]||"").replace(/\s+/g,"");
+      const nm = eVal.trim();
+      addTreat(dentalTreatByVisit, key+"|"+instKey, nm);
+      addTreat(dentalTreatByDate, key, nm);
+    }
     if(eVal.includes("내복약")){
       const x = maxPrescriptionDays(eVal);
       if(x>0) medDict.set(key, (medDict.get(key)||0)+x);
@@ -691,6 +748,7 @@ function processData(baseMatrix, detailMatrix){
     const hasHosp = String(row[4]||"").includes("입원");
     const hasSurg = String(row[10]||"").trim().length>0;
     if(!hasHosp && !hasSurg) continue;
+    if(isDentalRow(row) && !DENTAL_MAJOR_RE.test(String(row[10]||""))) continue; // 치과는 임플란트/치조골이식만
     const dateText = normalizeDateKey(row[1]);
     const diagName = stripMedPrefix(String(row[6]||""));
     const codeText = removeLeadingAlpha(String(row[5]||""));
@@ -711,11 +769,13 @@ function processData(baseMatrix, detailMatrix){
     const row = result[r];
     const code = removeLeadingAlpha(String(row[5]||""));
     if(!code) continue;
-    if(!agg.has(code)){
-      agg.set(code, {visitCnt:0, sumMedDays:0, hasHosp:false, hospDays:0, hasSurg:false, surgSet:new Map(),
+    const dental = isDentalRow(row);
+    const aggKey = code + (dental ? "|D" : "");
+    if(!agg.has(aggKey)){
+      agg.set(aggKey, {code, dental, major:false, visitCnt:0, sumMedDays:0, hasHosp:false, hospDays:0, hasSurg:false, surgSet:new Map(),
         startDate: toDateObj(row[1]), endDate: toDateObj(row[1]), diag: stripMedPrefix(String(row[6]||""))});
     }
-    const a = agg.get(code);
+    const a = agg.get(aggKey);
     a.visitCnt++;
     const d = toDateObj(row[1]);
     if(d){ if(!a.startDate || d<a.startDate) a.startDate=d; if(!a.endDate || d>a.endDate) a.endDate=d; }
@@ -727,10 +787,12 @@ function processData(baseMatrix, detailMatrix){
       if(typeof hv==="number") a.hospDays+=hv; else if(typeof hv==="string" && /^[0-9]+$/.test(hv.trim())) a.hospDays+=parseInt(hv,10);
     }
     const ktxt = String(row[10]||"").trim();
-    if(ktxt){ a.hasSurg=true; if(!a.surgSet.has(ktxt)) a.surgSet.set(ktxt,true); }
+    if(ktxt){ a.hasSurg=true; if(!a.surgSet.has(ktxt)) a.surgSet.set(ktxt,true); if(DENTAL_MAJOR_RE.test(ktxt)) a.major=true; }
   }
   let textB = "";
-  for(const [code,a] of agg){
+  for(const [, a] of agg){
+    const code = a.code;
+    if(a.dental && !a.major) continue; // 치과는 임플란트/치조골이식 있을 때만
     if(a.visitCnt>=7 || a.sumMedDays>=30 || a.hasHosp || a.hasSurg){
       const startS = fmtDate(a.startDate), endS = fmtDate(a.endDate);
       let treatS="";
@@ -776,7 +838,54 @@ function processData(baseMatrix, detailMatrix){
     textC += `-병력사항-\n분류 : 5년내 중대질환 (${c.category})\n날짜 : ${startS}\n정확한 진단명 : ${c.diag}\n진단코드 : ${c.code}\n부위 : \n치료기간 : ${startS}~${endS}\n치료내용 : 통원 ${c.visitCnt}일 (입원/수술 여부와 무관하게 5년 이내 진단만으로 고지대상)\n수술명 : X\nㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n`;
   }
 
-  return { matrix: result, textA, textB, textC };
+  // ===== 치아보험 고지 (충치 2년 / 치주질환 5년) =====
+  const aggD = new Map();
+  for(let r=1;r<result.length;r++){
+    const row = result[r];
+    const m = matchDentalCategory(row[5]);
+    if(!m) continue;
+    const d = toDateObj(row[1]);
+    if(!d) continue;
+    const cutoff = new Date(Date.UTC(todayForCritical.getUTCFullYear()-m.cat.years, todayForCritical.getUTCMonth(), todayForCritical.getUTCDate()));
+    if(d.getTime() < cutoff.getTime() || d.getTime() > todayForCritical.getTime()) continue;
+    const key = m.cat.name + "|" + m.displayCode;
+    if(!aggD.has(key)){
+      aggD.set(key, { cat:m.cat.name, code:m.displayCode, diag:"", startDate:d, endDate:d, hospDays:0, hasHosp:false, outCnt:0, treats:new Map() });
+    }
+    const g = aggD.get(key);
+    const dg = stripMedPrefix(String(row[6]||""));
+    if(!g.diag && dg) g.diag = dg;
+    if(d<g.startDate) g.startDate=d;
+    if(d>g.endDate) g.endDate=d;
+    if(String(row[4]||"").includes("입원")){
+      g.hasHosp = true;
+      const hv=row[7];
+      if(typeof hv==="number") g.hospDays+=hv; else if(typeof hv==="string" && /^[0-9]+$/.test(hv.trim())) g.hospDays+=parseInt(hv,10);
+    } else {
+      g.outCnt++;
+    }
+    const dk = normalizeDateKey(row[1]);
+    const inst = String(row[2]||"").replace(/\s+/g,"");
+    const tm = dentalTreatByVisit.get(dk+"|"+inst) || dentalTreatByDate.get(dk);
+    if(tm) for(const nm of tm.keys()) g.treats.set(nm,true);
+  }
+  let textD = "";
+  for(const cat of DENTAL_INSURANCE_CATEGORIES){
+    const groups = Array.from(aggD.values()).filter(g=>g.cat===cat.name);
+    textD += `■ 최근 ${cat.years}년 이내 ${cat.name} 치료 이력\n`;
+    if(!groups.length){ textD += "해당 없음\n\n"; continue; }
+    for(const g of groups){
+      const parts = [];
+      if(g.hasHosp) parts.push(`입원 ${g.hospDays}일`);
+      if(g.outCnt>0) parts.push(`통원 ${g.outCnt}일`);
+      const treat = Array.from(g.treats.keys()).join(", ") || "X";
+      textD += `-병력사항-\n정확한 진단명 : ${g.diag}\n진단코드 : ${g.code}\n치료기간 : ${fmtDate(g.startDate)}~${fmtDate(g.endDate)}\n입/통원 : ${parts.join(", ")}\n치료내용 : ${treat}\nㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n`;
+    }
+    textD += "\n";
+  }
+  if(!aggD.size) textD = "";
+
+  return { matrix: result, textA, textB, textC, textD };
 }
 function displayCell(v){
   if(v===null || v===undefined) return "";
@@ -830,7 +939,7 @@ function writeRawSheet(wb, sheetName, rawMatrix){
   ws.views = [{ state:"frozen", ySplit:1 }];
   return ws;
 }
-async function buildWorkbook(matrix, textA, textB, textC, rawBase, rawDetail){
+async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDetail){
   const wb = new ExcelJS.Workbook();
   writeRawSheet(wb, "기본진료정보", rawBase);
   writeRawSheet(wb, "세부진료정보", rawDetail);
@@ -877,6 +986,13 @@ async function buildWorkbook(matrix, textA, textB, textC, rawBase, rawDetail){
   wsTxt.getColumn(1).width = 80;
   wsTxt.getColumn(2).width = 80;
   wsTxt.getColumn(3).width = 80;
+  const wsD = wb.addWorksheet("치아보험");
+  const d1 = wsD.getCell("A1"); d1.value = "치아보험 고지사항\n▼▼▼▼";
+  d1.font={bold:true,size:14}; d1.alignment={horizontal:"center",vertical:"middle",wrapText:true};
+  wsD.getRow(1).height = 40;
+  const d2 = wsD.getCell("A2"); d2.value = safeCellText(textD); d2.alignment={wrapText:true, vertical:"top"};
+  wsD.getRow(2).height = 300;
+  wsD.getColumn(1).width = 80;
   return wb;
 }
 function setupDrop(dropId, inputId, fnameId, onSet){
@@ -955,6 +1071,7 @@ function wireCopyButton(btnId, msgId, getText){
 wireCopyButton("copyBtnA", "copyMsgA", ()=> document.getElementById("textA").textContent);
 wireCopyButton("copyBtnB", "copyMsgB", ()=> document.getElementById("textB").textContent);
 wireCopyButton("copyBtnC", "copyMsgC", ()=> document.getElementById("textC").textContent);
+wireCopyButton("copyBtnD", "copyMsgD", ()=> document.getElementById("textD").textContent);
 document.getElementById("runBtn").addEventListener("click", async ()=>{
         const status = document.getElementById("status");
         const runBtn = document.getElementById("runBtn");
@@ -964,7 +1081,7 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
         try{
                   const baseMatrix = await loadMatrixAuto(file1);
                   const detailMatrix = await loadMatrixAuto(file2);
-                  const { matrix, textA, textB, textC } = processData(baseMatrix, detailMatrix);
+                  const { matrix, textA, textB, textC, textD } = processData(baseMatrix, detailMatrix);
 
                   if(!freeUnlimited){
                               const ok = await spendPoints('history');
@@ -975,11 +1092,12 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
                               }
                   }
 
-                  lastResult = { matrix, textA, textB, textC, rawBase: baseMatrix, rawDetail: detailMatrix, baseName: file1.name.replace(/\.(xlsx|xlsm|xls)$/i,"") };
+                  lastResult = { matrix, textA, textB, textC, textD, rawBase: baseMatrix, rawDetail: detailMatrix, baseName: file1.name.replace(/\.(xlsx|xlsm|xls)$/i,"") };
                   renderTable(matrix);
                   document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
                   document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
                   document.getElementById("textC").textContent = textC || "(5년 이내 중대질환 진단 코드에 해당하는 건이 없습니다)";
+                  document.getElementById("textD").textContent = textD || "(최근 2년 내 충치 · 5년 내 치주질환 진단 이력이 없습니다)";
                   document.getElementById("results").classList.add("show");
                   status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (freeUnlimited ? "" : ` (${historyCost.toLocaleString()}P 차감)`);
         }catch(err){
@@ -994,7 +1112,7 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
   if(!lastResult){ return; }
   dlStatus.textContent="파일 생성 중...";
   try{
-    const wb = await buildWorkbook(lastResult.matrix, lastResult.textA, lastResult.textB, lastResult.textC, lastResult.rawBase, lastResult.rawDetail);
+    const wb = await buildWorkbook(lastResult.matrix, lastResult.textA, lastResult.textB, lastResult.textC, lastResult.textD, lastResult.rawBase, lastResult.rawDetail);
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     const url = URL.createObjectURL(blob);
