@@ -678,6 +678,9 @@ async function loadMatrix(file){
   });
   return matrix;
 }
+// 병원명 비교용: 공백·괄호 등 기호를 모두 없앤 뒤, 같거나 한쪽이 다른 쪽을 포함하면 같은 병원으로 본다.
+function normInst(s){ return String(s||"").replace(/[^0-9A-Za-z가-힣]/g,""); }
+function instMatch(a,b){ return a.length>=2 && b.length>=2 && (a===b || a.includes(b) || b.includes(a)); }
 function processData(baseMatrix, detailMatrix){
   if(baseMatrix.length < 1) throw new Error("기본진료정보 파일에 데이터가 없습니다.");
   let lastColBase = 0;
@@ -693,8 +696,8 @@ function processData(baseMatrix, detailMatrix){
     while(r.length<lastColBase) r.push(null);
     return r;
   });
-  const medDict = new Map();
-  const surgDict = new Map();
+  const medList = [];   // {key:날짜, inst:병원명, days}
+  const surgList = [];  // {key:날짜, inst:병원명, name}
   const dentalTreatByVisit = new Map(); // "날짜|병원" -> Map(치료명)
   const dentalTreatByDate = new Map();  // "날짜" -> Map(치료명)
   const addTreat = (m,k,name,groups)=>{
@@ -719,7 +722,7 @@ function processData(baseMatrix, detailMatrix){
     }
     if(eVal.includes("내복약")){
       const x = maxPrescriptionDays(eVal);
-      if(x>0) medDict.set(key, (medDict.get(key)||0)+x);
+      if(x>0) medList.push({ key, inst: normInst(row[2]), days: x });
     }
     const dVal = row[3]!=null ? String(row[3]) : "";
     const eUpper = eVal.toUpperCase();
@@ -727,17 +730,29 @@ function processData(baseMatrix, detailMatrix){
       const eTrim = eVal.trim();
       if(eTrim.length>0 && (eTrim.includes("술") || eTrim.toUpperCase().includes("생검용 FORCEPS")) &&
          !EXCLUDE_LIST.some(x=>eTrim.includes(x))){
-        surgDict.set(key, surgDict.has(key) ? surgDict.get(key)+", "+eTrim : eTrim);
+        surgList.push({ key, inst: normInst(row[2]), name: eTrim });
       }
     }
   }
   const medCol = lastColBase, surgCol = lastColBase+1;
   result[0][medCol]="내복약일수"; result[0][surgCol]="수술내역";
+  // 같은 날짜에 여러 병원을 다녀온 경우를 구분하기 위해 '날짜 + 병원명' 으로 연결한다.
+  // 병원명이 맞는 기본진료 행이 있으면 그 행에만, 하나도 못 찾으면(표기 차이 등) 기존처럼 같은 날짜 전체에 붙인다.
+  const baseByDate = new Map();
   for(let r=1;r<result.length;r++){
     const key = normalizeDateKey(result[r][1]);
-    result[r][medCol] = (key && medDict.has(key)) ? medDict.get(key) : null;
-    result[r][surgCol] = (key && surgDict.has(key)) ? surgDict.get(key) : null;
+    if(!key) continue;
+    if(!baseByDate.has(key)) baseByDate.set(key, []);
+    baseByDate.get(key).push(r);
   }
+  const targetRows = e=>{
+    const idxs = baseByDate.get(e.key) || [];
+    const matched = idxs.filter(r=>instMatch(normInst(result[r][2]), e.inst));
+    return matched.length ? matched : idxs;
+  };
+  for(let r=1;r<result.length;r++){ result[r][medCol] = null; result[r][surgCol] = null; }
+  for(const e of medList) for(const r of targetRows(e)) result[r][medCol] = (result[r][medCol]||0) + e.days;
+  for(const e of surgList) for(const r of targetRows(e)) result[r][surgCol] = result[r][surgCol] ? result[r][surgCol]+", "+e.name : e.name;
   result = result.map(row=>{ const r=row.slice(); if(r.length>8) r.splice(8, Math.min(2, Math.max(0,r.length-8))); return r; });
   result = result.map(row=>{ const r=row.slice(0,11); while(r.length<11) r.push(null); return r; });
   result[0] = HEADERS_FIXED.slice();
