@@ -34,6 +34,7 @@ h1{font-size:26px; margin:0 0 6px; letter-spacing:-0.01em; font-weight:800;}
 .sub{color:var(--ink-soft); font-size:14px; margin:0;}
 .privacy{display:inline-flex; align-items:center; gap:6px;margin-top:14px; padding:7px 12px;background:#eef4ee; border:1px solid #cfe3cf; border-radius:20px;font-size:12.5px; color:#2f5c3f;}
 .privacy::before{content:"●"; color:#4c9a63; font-size:8px;}
+table.result td.auto-hit{background:#ffe0b2 !important; font-weight:600;}
 .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:28px 0 20px;}
 @media (max-width:640px){ .grid2{grid-template-columns:1fr;} }
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;}
@@ -107,7 +108,7 @@ button.secondary:hover{background:#e2eee2;}
     <div class="tab t3">병력정리</div>
   </div>
   <h1>병력정리 자동 매칭</h1>
-  <p class="sub">기본진료정보 + 세부진료정보 엑셀 업로드 → 매칭·정렬·하이라이트 → 병력정리 / 병력정리텍스트 자동 생성</p>
+  <p class="sub">기본진료정보 + 세부진료정보 (+ 자동차사고 건) 업로드 → 매칭·정렬·하이라이트 → 병력정리 / 병력정리텍스트 자동 생성</p>
   <div class="privacy">업로드한 파일은 서버로 전송되지 않고 이 브라우저 안에서만 처리됩니다</div>
   <div class="pdf-card" style="margin-bottom:22px;">
     <p class="desc" style="margin:0;">📑 <strong>기본진료정보 / 세부진료정보</strong> 칸에 엑셀(.xlsx/.xlsm) 또는 PDF를 그대로 올리세요. PDF는 자동으로 표를 인식해 변환한 뒤 바로 매칭에 사용합니다. 여러 페이지짜리 PDF도 한 파일로 이어 붙여 처리합니다.</p>
@@ -136,6 +137,31 @@ button.secondary:hover{background:#e2eee2;}
       <div class="filename" id="fname2"></div>
     </div>
   </div>
+  <p class="desc" style="margin:4px 0 -14px;">🚗 <strong>자동차사고 건이 있으면</strong> 아래 3·4번 칸에 올리세요. 1·2번 병력과 합쳐서 간편/표준체 고지사항에 함께 반영되며, 자동차사고 파일만 올려도 됩니다. (1·2번과 3·4번은 각각 기본+세부를 함께 올려야 합니다)</p>
+  <div class="grid2">
+    <div class="card">
+      <h3><span class="n">3</span> 자동차사고 기본진료정보 <span style="font-weight:400;color:var(--muted,#888);font-size:12px;">(선택)</span></h3>
+      <p class="desc">자동차보험 관련 기본진료정보 (열이 10개인 서식, PDF/엑셀)</p>
+      <label class="drop" id="drop3">
+        <input type="file" id="file3" accept=".xlsx,.xls,.xlsm,.pdf">
+        <div class="icon">🚗</div>
+        <div>클릭 또는 파일을 끌어다 놓으세요</div>
+        <div class="hint">.xlsx / .xlsm / .pdf</div>
+      </label>
+      <div class="filename" id="fname3"></div>
+    </div>
+    <div class="card">
+      <h3><span class="n">4</span> 자동차사고 세부진료정보 <span style="font-weight:400;color:var(--muted,#888);font-size:12px;">(선택)</span></h3>
+      <p class="desc">자동차보험 관련 세부진료정보</p>
+      <label class="drop" id="drop4">
+        <input type="file" id="file4" accept=".xlsx,.xls,.xlsm,.pdf">
+        <div class="icon">🚗</div>
+        <div>클릭 또는 파일을 끌어다 놓으세요</div>
+        <div class="hint">.xlsx / .xlsm / .pdf</div>
+      </label>
+      <div class="filename" id="fname4"></div>
+    </div>
+  </div>
   <div class="run-row">
     <button class="primary" id="runBtn" disabled>매칭 실행</button>
     <button class="ghost" id="resetBtn">초기화</button>
@@ -153,6 +179,7 @@ button.secondary:hover{background:#e2eee2;}
       <div class="legend">
         <span><i class="swatch" style="background:var(--green)"></i> 입원 행</span>
         <span><i class="swatch" style="background:var(--pink)"></i> 수술내역 있음</span>
+        <span><i class="swatch" style="background:#ffe0b2"></i> 자동차사고 건 (순번 '자동차-n')</span>
       </div>
       <div class="tablewrap"><table class="result" id="resultTable"></table></div>
       <div class="meta" id="rowMeta"></div>
@@ -241,7 +268,7 @@ function treatGroupsOf(name){ const s=String(name||""); return DENTAL_TREAT_GROU
 const DENTAL_MAJOR_RE = /임플란트|implant|고정체|지대주|치조골\s*이식|골이식/i;
 
 const HEADERS_FIXED = ["순번","진료시작일","병·의원&약국","진단과","입원/외래","주상병코드","주상병명","내원일수","내가 낸 의료비(진료비)","내복약일수","수술내역"];
-let file1=null, file2=null;
+let file1=null, file2=null, file3=null, file4=null;
 let lastResult=null;
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js";
 const REF_WIDTH = 595.28;
@@ -254,6 +281,9 @@ const LINE_TOL = 1.5;
 const PDF_TEMPLATES = {
   base:   { marker: "주상병명", anchors: [36.6, 55.6, 119.1, 181.4, 217.7, 242.9, 283.8, 337.0, 374.2, 449.6, 516.2],
             borders: [28.4, 51.0, 116.2, 178.6, 212.6, 241.8, 282.3, 326.0, 354.3, 433.7, 498.9, 566.9] },
+  // 자동차사고 기본진료정보: 열 10개(진료일수가 주상병코드 앞, 맨 끝이 '자동차보험 총진료비')
+  autoBase: { marker: "자동차보험", anchors: [41.4, 84.5, 153.8, 221.2, 264.8, 297.9, 342.9, 397.2, 460.0, 531.2],
+            borders: [28.4, 54.4, 114.5, 193.0, 249.4, 280.1, 315.8, 369.9, 424.4, 495.5, 566.9] },
   detail: { marker: "코드명",   anchors: [36.6, 64.5, 145.5, 249.9, 356.0, 456.3, 499.6, 542.4],
             borders: [28.4, 56.7, 127.6, 226.8, 333.1, 439.4, 481.9, 524.4, 566.9] }
 };
@@ -334,10 +364,10 @@ function detectColumnsDynamic(perPageWords){
 }
 /* 열별로 "이 열엔 숫자만 들어와야 한다"는 규칙. 조건에 안 맞는 조각(글자)이 배정되면
    앞 열(왼쪽, 보통 텍스트 열)로 되돌려 붙여서 진단명 등이 옆 칸으로 새는 걸 막는다. */
-const NUMERIC_ONLY_COLS = { base: [7], detail: [5] }; // base: 7번(H)=내원일수 / detail: 5번(F)=1회 투약량
+const NUMERIC_ONLY_COLS = { base: [7], autoBase: [5], detail: [5] }; // base: 7번(H)=내원일수 / detail: 5번(F)=1회 투약량
 /* 반대로 "이 열엔 코드(영문+숫자)만 들어와야 한다"는 규칙. 한글이 섞여 배정되면
    오른쪽(보통 진단명 등 텍스트 열)으로 돌려보내서 코드 뒤에 글자가 붙는 걸 막는다. */
-const CODE_ONLY_COLS = { base: [5], detail: [] }; // base: 5번(F)=주상병코드
+const CODE_ONLY_COLS = { base: [5], autoBase: [6], detail: [] }; // base: 5번(F)=주상병코드
 /* 위 두 보정은 "데이터 행"에만 적용해야 한다 — 헤더 라벨("내원일수" 등)은 원래 텍스트라
    그대로 적용하면 헤더 자체가 옆 칸으로 밀려버리는 부작용이 생긴다. */
 function correctBodyCol(col, text, numericOnlyCols, codeOnlyCols, NCOLS){
@@ -410,6 +440,18 @@ function correctRowValues(rowVals, templateKey){
     v[2] = String(v[2]||"").replace(/\s+/g,"");
     return v;
   }
+  if(templateKey === "autoBase"){
+    v[2] = String(v[2]||"").replace(/\s+/g,"");
+    v[3] = String(v[3]||"").replace(/\s+/g,"");
+    let ad = ""; const adm = String(v[4]||"").match(/(입원|외래)/); if(adm) ad = adm[1];
+    v[4] = ad;
+    let comb = [v[6], v[7]].map(x=>String(x||"")).join("");
+    let code2 = "";
+    comb = comb.replace(/(\$|[A-Za-z]{1,3}[0-9]{2,6})/, (m)=>{ code2 = m; return ""; });
+    v[6] = code2;
+    v[7] = comb.replace(/\s+/g," ").trim();
+    return v;
+  }
   if(templateKey !== "base") return v;
   // col2(병·의원&약국) · col3(진단과)도 위와 같은 이유(줄바꿈)로 낀 공백을 제거한다 —
   // 병원명과 마찬가지로 진료과목명(정형외과, 응급의학과 등)도 원래 띄어쓰기가 없는 한 단어다.
@@ -442,7 +484,9 @@ function processPdfPages(pages){
   const page1Text = roughPerPageWords[0].map(w=>w.text).join(" ");
   const page1TextNoSpace = page1Text.replace(/\s+/g,"");
   let anchors, borders, templateKey = "auto";
-  if(page1Text.includes(PDF_TEMPLATES.base.marker) || page1TextNoSpace.includes(PDF_TEMPLATES.base.marker)){
+  if(page1TextNoSpace.includes(PDF_TEMPLATES.autoBase.marker) && page1TextNoSpace.includes("주상병명")){
+    anchors = PDF_TEMPLATES.autoBase.anchors.map(a=>a*scale); borders = PDF_TEMPLATES.autoBase.borders; templateKey = "autoBase";
+  } else if(page1Text.includes(PDF_TEMPLATES.base.marker) || page1TextNoSpace.includes(PDF_TEMPLATES.base.marker)){
     anchors = PDF_TEMPLATES.base.anchors.map(a=>a*scale); borders = PDF_TEMPLATES.base.borders; templateKey = "base";
   } else if(page1Text.includes(PDF_TEMPLATES.detail.marker) || page1TextNoSpace.includes(PDF_TEMPLATES.detail.marker)){
     anchors = PDF_TEMPLATES.detail.anchors.map(a=>a*scale); borders = PDF_TEMPLATES.detail.borders; templateKey = "detail";
@@ -457,7 +501,9 @@ function processPdfPages(pages){
   // 간격 기준 병합 결과를 그대로 쓴다.
   const perPageWords = borders
     ? pages.map(p=>{
-        const filtered = p.items.filter(it=> it.top>90*scale && it.top<p.height-70*scale);
+        // 자동차사고 기본 서식은 표 아래 첫 번째 각주 줄이 더 위쪽에 있어서 하단 제외 폭을 넓힌다.
+        const bottomCut = templateKey==="autoBase" ? 90 : 70;
+        const filtered = p.items.filter(it=> it.top>90*scale && it.top<p.height-bottomCut*scale);
         return mergeWordsPdf(filtered, scale, borders);
       })
     : roughPerPageWords;
@@ -677,6 +723,57 @@ async function loadMatrix(file){
     matrix.push(arr);
   });
   return matrix;
+}
+// ===== 자동차사고 기본진료정보 -> 일반 기본진료정보(11열) 형태로 변환 =====
+// 자동차사고 서식: 순번, 진료시작일(20230731), 병원, 진단과, 입원/외래, 진료일수, 주상병코드, 주상병명, 청구진료비 총금액, 자동차보험 총진료비
+// 일반 서식    : 순번, 진료시작일, 병원, 진단과, 입원/외래, 주상병코드, 주상병명, 내원일수, (I)(J 두 열은 처리 중 제외), 내가 낸 의료비
+function isAutoBaseMatrix(m){
+  return !!(m && m[0] && m[0].some(h=> String(h||"").replace(/\s+/g,"").includes("자동차보험")));
+}
+function toDateFromCompact(v){
+  if(v instanceof Date) return v;
+  const s = String(v==null?"":v).trim();
+  if(/^\d{8}$/.test(s)) return new Date(Date.UTC(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8)));
+  const d = toDateObj(v);
+  return d || v;
+}
+function normalizeAutoBase(m){
+  const hdr = (m[0]||[]).map(x=>String(x||"").replace(/\s+/g,""));
+  const find = (re, dflt)=>{ const i = hdr.findIndex(x=>re.test(x)); return i>=0 ? i : dflt; };
+  const iDate=find(/진료시작일/,1), iInst=find(/병.*의원|병원/,2), iDept=find(/진단과/,3), iIO=find(/입원/,4),
+        iDays=find(/진료일수|내원일수/,5), iCode=find(/주상병코드/,6), iName=find(/주상병명/,7), iTot=find(/청구진료비/,8);
+  const header = ["순번","진료시작일","병·의원&약국","진단과","입원/외래","주상병코드","주상병명","내원일수","청구진료비 총금액","자동차보험 총진료비","청구진료비 총금액"];
+  const out = [header];
+  let n = 0;
+  for(let i=1;i<m.length;i++){
+    const r = m[i];
+    if(!r || r.every(v=>v===null||v===undefined||String(v).trim()==="")) continue;
+    if(r.some(v=>v!=null && String(v).includes("순번"))) continue;
+    n++;
+    const nm = (r[iName]==null) ? r[iName] : String(r[iName]).replace(/부\s+위/g,"부위"); // 칸 줄바꿈으로 끼어든 공백 정리
+    out.push(["자동차-"+n, toDateFromCompact(r[iDate]), r[iInst], r[iDept], r[iIO], r[iCode], nm, r[iDays], null, null, r[iTot]]);
+  }
+  return out;
+}
+async function loadBaseMatrix(file, forceAuto){
+  const m = await loadMatrixAuto(file);
+  if(forceAuto || isAutoBaseMatrix(m)) return { matrix: normalizeAutoBase(m), auto: true };
+  return { matrix: m, auto: false };
+}
+// 일반 병력(있으면)과 자동차사고 병력(있으면)을 한 표로 합친다.
+function mergeBase(regular, auto){
+  if(regular && !auto) return regular;
+  if(!regular && auto) return auto;
+  const hdr = regular[0]||[];
+  let last = 0;
+  for(let c=hdr.length-1;c>=0;c--){ const v=hdr[c]; if(v!==undefined && v!==null && String(v).trim()!==""){ last=c+1; break; } }
+  if(last !== 11) throw new Error("1번 기본진료정보의 열 구성이 달라 자동차사고 파일과 합칠 수 없습니다. 원본 서식을 확인해주세요.");
+  return [regular[0], ...regular.slice(1), ...auto.slice(1)];
+}
+function mergeDetail(regular, auto){
+  if(regular && !auto) return regular;
+  if(!regular && auto) return auto;
+  return [regular[0], ...regular.slice(1), ...auto.slice(1)];
 }
 // 병원명 비교용: 공백·괄호 등 기호를 모두 없앤 뒤, 같거나 한쪽이 다른 쪽을 포함하면 같은 병원으로 본다.
 function normInst(s){ return String(s||"").replace(/[^0-9A-Za-z가-힣]/g,""); }
@@ -963,9 +1060,10 @@ function renderTable(matrix){
   for(const row of rows){
     const hasHosp = String(row[4]||"").includes("입원");
     const hasSurg = String(row[10]||"").trim().length>0;
+    const isAuto = String(row[0]||"").startsWith("자동차");
     html += `<tr class="${hasHosp?"hosp":""}">`;
     row.forEach((v,ci)=>{
-      const cls = (ci===10 && hasSurg) ? "surg-hit" : "";
+      const cls = ((ci===10 && hasSurg) ? "surg-hit" : "") + ((ci===0 && isAuto) ? " auto-hit" : "");
       html += `<td class="${cls}">${displayCell(v)}</td>`;
     });
     html += "</tr>";
@@ -1002,12 +1100,14 @@ function writeRawSheet(wb, sheetName, rawMatrix){
   ws.views = [{ state:"frozen", ySplit:1 }];
   return ws;
 }
-async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDetail){
+async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDetail, rawAutoBase, rawAutoDetail){
   const wb = new ExcelJS.Workbook();
-  writeRawSheet(wb, "기본진료정보", rawBase);
-  writeRawSheet(wb, "세부진료정보", rawDetail);
+  if(rawBase) writeRawSheet(wb, "기본진료정보", rawBase);
+  if(rawDetail) writeRawSheet(wb, "세부진료정보", rawDetail);
+  if(rawAutoBase) writeRawSheet(wb, "자동차사고 기본진료정보", rawAutoBase);
+  if(rawAutoDetail) writeRawSheet(wb, "자동차사고 세부진료정보", rawAutoDetail);
   const ws = wb.addWorksheet("병력정리");
-  const widths = [6, 12, 16, 10, 10, 11, 20, 9, 13, 6, 30];
+  const widths = [9, 12, 16, 10, 10, 11, 20, 9, 13, 6, 30];
   matrix.forEach((row, ri)=>{
     const excelRow = ws.getRow(ri+1);
     row.forEach((v, ci)=>{
@@ -1028,6 +1128,7 @@ async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDet
     const hasHosp = String(row[4]||"").includes("입원");
     const hasSurg = String(row[10]||"").trim().length>0;
     const excelRow = ws.getRow(r+1);
+    if(String(row[0]||"").startsWith("자동차")) excelRow.getCell(1).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFFFE0B2"}};
     if(hasHosp){
       for(let c=1;c<=10;c++) excelRow.getCell(c).fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFC6EFCE"}};
     }
@@ -1075,13 +1176,15 @@ function setupDrop(dropId, inputId, fnameId, onSet){
 }
 setupDrop("drop1","file1","fname1", f=>{ file1=f; updateRunBtn(); });
 setupDrop("drop2","file2","fname2", f=>{ file2=f; updateRunBtn(); });
-function updateRunBtn(){ document.getElementById("runBtn").disabled = !(file1 && file2); }
+setupDrop("drop3","file3","fname3", f=>{ file3=f; updateRunBtn(); });
+setupDrop("drop4","file4","fname4", f=>{ file4=f; updateRunBtn(); });
+function updateRunBtn(){ document.getElementById("runBtn").disabled = !((file1 && file2) || (file3 && file4)); }
 document.getElementById("resetBtn").addEventListener("click", ()=>{
-  file1=null; file2=null;
-  document.getElementById("file1").value="";
-  document.getElementById("file2").value="";
-  document.getElementById("fname1").classList.remove("show");
-  document.getElementById("fname2").classList.remove("show");
+  file1=null; file2=null; file3=null; file4=null;
+  ["1","2","3","4"].forEach(n=>{
+    document.getElementById("file"+n).value="";
+    document.getElementById("fname"+n).classList.remove("show");
+  });
   document.getElementById("results").classList.remove("show");
   document.getElementById("status").textContent="";
   document.getElementById("status").className="status";
@@ -1142,8 +1245,25 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
         document.getElementById("results").classList.remove("show");
         runBtn.disabled = true;
         try{
-                  const baseMatrix = await loadMatrixAuto(file1);
-                  const detailMatrix = await loadMatrixAuto(file2);
+                  if(!!file1 !== !!file2) throw new Error("1번(기본진료정보)과 2번(세부진료정보)은 함께 올려주세요.");
+                  if(!!file3 !== !!file4) throw new Error("3번(자동차사고 기본)과 4번(자동차사고 세부)은 함께 올려주세요.");
+                  if(!file1 && !file3) throw new Error("파일을 올려주세요.");
+                  let regBase=null, regDetail=null, autoBase=null, autoDetail=null;
+                  if(file1){
+                    const lb = await loadBaseMatrix(file1, false);
+                    if(lb.auto) autoBase = lb.matrix; else regBase = lb.matrix;
+                    regDetail = await loadMatrixAuto(file2);
+                    if(lb.auto){ autoDetail = regDetail; regDetail = null; }
+                  }
+                  if(file3){
+                    const lb = await loadBaseMatrix(file3, true);
+                    if(autoBase) throw new Error("자동차사고 기본진료정보가 두 번 올라왔습니다. 1번과 3번 중 하나만 사용해주세요.");
+                    autoBase = lb.matrix;
+                    autoDetail = await loadMatrixAuto(file4);
+                  }
+                  const baseMatrix = mergeBase(regBase, autoBase);
+                  const detailMatrix = mergeDetail(regDetail, autoDetail);
+                  const autoCount = autoBase ? autoBase.length-1 : 0;
                   const { matrix, textA, textB, textC, textD, dentalUnknown } = processData(baseMatrix, detailMatrix);
 
                   if(!freeUnlimited){
@@ -1155,7 +1275,7 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
                               }
                   }
 
-                  lastResult = { matrix, textA, textB, textC, textD, rawBase: baseMatrix, rawDetail: detailMatrix, baseName: file1.name.replace(/\.(xlsx|xlsm|xls)$/i,"") };
+                  lastResult = { matrix, textA, textB, textC, textD, rawBase: regBase, rawDetail: regDetail, rawAutoBase: autoBase, rawAutoDetail: autoDetail, baseName: (file1||file3).name.replace(/\.(xlsx|xlsm|xls|pdf)$/i,"") };
                   renderTable(matrix);
                   document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
                   document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
@@ -1163,7 +1283,7 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
                   document.getElementById("dentalUnknown").textContent = (dentalUnknown && dentalUnknown.length) ? "참고) 치과 진료일의 세부항목 중 레진·크라운·인레이·온레이·임플란트·치관확장술로 인식하지 못한 항목: " + dentalUnknown.join(" / ") : "";
                   document.getElementById("textD").textContent = textD || "(최근 2년 내 충치 · 5년 내 치주질환 진단 이력이 없습니다)";
                   document.getElementById("results").classList.add("show");
-                  status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (freeUnlimited ? "" : ` (${historyCost.toLocaleString()}P 차감)`);
+                  status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (autoCount ? ` (자동차사고 ${autoCount}건 포함)` : "") + (freeUnlimited ? "" : ` (${historyCost.toLocaleString()}P 차감)`);
         }catch(err){
                   console.error(err);
                   status.className="status err"; status.textContent="오류: "+err.message+" (포인트는 차감되지 않았습니다)";
@@ -1176,7 +1296,7 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
   if(!lastResult){ return; }
   dlStatus.textContent="파일 생성 중...";
   try{
-    const wb = await buildWorkbook(lastResult.matrix, lastResult.textA, lastResult.textB, lastResult.textC, lastResult.textD, lastResult.rawBase, lastResult.rawDetail);
+    const wb = await buildWorkbook(lastResult.matrix, lastResult.textA, lastResult.textB, lastResult.textC, lastResult.textD, lastResult.rawBase, lastResult.rawDetail, lastResult.rawAutoBase, lastResult.rawAutoDetail);
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     const url = URL.createObjectURL(blob);
