@@ -172,6 +172,7 @@ button.secondary:hover{background:#e2eee2;}
     <div class="panel" id="p-d">
       <div class="copy-row"><button class="secondary copybtn" id="copyBtnD" type="button">📋 치아보험 고지 복사</button><span class="copied-msg" id="copyMsgD"></span></div>
       <div class="textbox" id="textD"></div>
+      <div class="meta" id="dentalUnknown" style="margin-top:10px"></div>
     </div>
     <div class="dl-row">
       <button class="primary" id="dlBtn">엑셀 파일 다운로드 (.xlsx)</button>
@@ -225,13 +226,19 @@ const DENTAL_INSURANCE_CATEGORIES = [
   { name: "충치(치아우식)", years: 2, codes: "K02" },
   { name: "치주질환",       years: 5, codes: "K05, K06" }
 ];
-// 2) '치료내용'에 적을 치료 단어 (영문 표기도 인식)
-const DENTAL_TREAT_KEYWORDS = ["레진","크라운","임플란트","인레이","온레이","치관확장술","resin","crown","implant","inlay","onlay"];
+// 2) 세부진료정보 '항목명'에서 아래 패턴(re)에 걸리면 해당 치료로 보고, 그 진료일의 진단코드로
+//    cat 항목(충치/치주질환)에 고지 건을 만든다. not 에 걸리면 제외. 항목명이 달라 놓치면 re에 단어를 추가.
+const DENTAL_TREAT_GROUPS = [
+  { label:"레진",       cat:"충치(치아우식)", re:/레진|resin|광중합|컴포짓|composite|아이오노머|와동|충전|\bCR\b/i, not:/근관|근충|가봉|임시|인레이|온레이/ },
+  { label:"크라운",     cat:"충치(치아우식)", re:/크라운|crown|금관|전부관|전부주조관|전장관|도재관|지르코니아|금속관|기성관|스테인|\bPFM\b|\bSSC\b|씌우/i, not:/치관\s*확장|lengthening/i },
+  { label:"인레이",     cat:"충치(치아우식)", re:/인레이|inlay|주조수복|수복물/i },
+  { label:"온레이",     cat:"충치(치아우식)", re:/온레이|onlay/i },
+  { label:"임플란트",   cat:"치주질환",       re:/임플란트|implant|고정체|지대주|abutment|fixture|치조골\s*이식|골이식|골유도재생|\bGBR\b/i },
+  { label:"치관확장술", cat:"치주질환",       re:/치관\s*확장|crown\s*lengthening/i }
+];
+function treatGroupsOf(name){ const s=String(name||""); return DENTAL_TREAT_GROUPS.filter(g=>g.re.test(s) && !(g.not && g.not.test(s))); }
 // 3) 간편/표준체 고지사항에는 치과 진료를 싣지 않고, 수술내역에 아래 단어가 있는 경우만 싣는다
-const DENTAL_MAJOR_KEYWORDS = ["임플란트","implant","치조골이식","치조골 이식"];
-function keywordRegex(list){ return new RegExp(list.map(s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|"), "i"); }
-const DENTAL_TREAT_RE = keywordRegex(DENTAL_TREAT_KEYWORDS);
-const DENTAL_MAJOR_RE = keywordRegex(DENTAL_MAJOR_KEYWORDS);
+const DENTAL_MAJOR_RE = /임플란트|implant|고정체|지대주|치조골\s*이식|골이식/i;
 
 const HEADERS_FIXED = ["순번","진료시작일","병·의원&약국","진단과","입원/외래","주상병코드","주상병명","내원일수","내가 낸 의료비(진료비)","내복약일수","수술내역"];
 let file1=null, file2=null;
@@ -690,17 +697,25 @@ function processData(baseMatrix, detailMatrix){
   const surgDict = new Map();
   const dentalTreatByVisit = new Map(); // "날짜|병원" -> Map(치료명)
   const dentalTreatByDate = new Map();  // "날짜" -> Map(치료명)
-  const addTreat = (m,k,name)=>{ if(!m.has(k)) m.set(k,new Map()); m.get(k).set(name,true); };
+  const addTreat = (m,k,name,groups)=>{
+    if(!m.has(k)) m.set(k,new Map());
+    const t = m.get(k);
+    if(!t.has(name)) t.set(name,{cats:new Set(), labels:new Set()});
+    groups.forEach(g=>{ t.get(name).cats.add(g.cat); t.get(name).labels.add(g.label); });
+  };
   for(let i=1;i<detailMatrix.length;i++){
     const row = detailMatrix[i];
     const key = normalizeDateKey(row[1]);
     if(!key) continue;
     const eVal = row[4]!=null ? String(row[4]) : "";
-    if(DENTAL_TREAT_RE.test(eVal) && !eVal.includes("내복약")){
-      const instKey = String(row[2]||"").replace(/\s+/g,"");
-      const nm = eVal.trim();
-      addTreat(dentalTreatByVisit, key+"|"+instKey, nm);
-      addTreat(dentalTreatByDate, key, nm);
+    if(!eVal.includes("내복약")){
+      const gs = treatGroupsOf(eVal);
+      if(gs.length){
+        const instKey = String(row[2]||"").replace(/\s+/g,"");
+        const nm = eVal.trim();
+        addTreat(dentalTreatByVisit, key+"|"+instKey, nm, gs);
+        addTreat(dentalTreatByDate, key, nm, gs);
+      }
     }
     if(eVal.includes("내복약")){
       const x = maxPrescriptionDays(eVal);
@@ -839,35 +854,54 @@ function processData(baseMatrix, detailMatrix){
   }
 
   // ===== 치아보험 고지 (충치 2년 / 치주질환 5년) =====
+  // 1) 진단코드가 충치/치주질환 설정에 해당하는 진료
+  // 2) 코드와 무관하게, 그 진료일(같은 병원 우선)의 세부항목에 레진/크라운/인레이/온레이/임플란트/치관확장술이
+  //    있으면 그 날의 진단코드로 해당 고지 항목에 추가
   const aggD = new Map();
+  const dentalVisitKeys = new Set();
   for(let r=1;r<result.length;r++){
     const row = result[r];
-    const m = matchDentalCategory(row[5]);
-    if(!m) continue;
-    const d = toDateObj(row[1]);
-    if(!d) continue;
-    const cutoff = new Date(Date.UTC(todayForCritical.getUTCFullYear()-m.cat.years, todayForCritical.getUTCMonth(), todayForCritical.getUTCDate()));
-    if(d.getTime() < cutoff.getTime() || d.getTime() > todayForCritical.getTime()) continue;
-    const key = m.cat.name + "|" + m.displayCode;
-    if(!aggD.has(key)){
-      aggD.set(key, { cat:m.cat.name, code:m.displayCode, diag:"", startDate:d, endDate:d, hospDays:0, hasHosp:false, outCnt:0, treats:new Map() });
-    }
-    const g = aggD.get(key);
-    const dg = stripMedPrefix(String(row[6]||""));
-    if(!g.diag && dg) g.diag = dg;
-    if(d<g.startDate) g.startDate=d;
-    if(d>g.endDate) g.endDate=d;
-    if(String(row[4]||"").includes("입원")){
-      g.hasHosp = true;
-      const hv=row[7];
-      if(typeof hv==="number") g.hospDays+=hv; else if(typeof hv==="string" && /^[0-9]+$/.test(hv.trim())) g.hospDays+=parseInt(hv,10);
-    } else {
-      g.outCnt++;
-    }
     const dk = normalizeDateKey(row[1]);
     const inst = String(row[2]||"").replace(/\s+/g,"");
-    const tm = dentalTreatByVisit.get(dk+"|"+inst) || dentalTreatByDate.get(dk);
-    if(tm) for(const nm of tm.keys()) g.treats.set(nm,true);
+    const dental = isDentalRow(row);
+    if(dental) dentalVisitKeys.add(dk+"|"+inst);
+    const m = matchDentalCategory(row[5]);
+    const d = toDateObj(row[1]);
+    if(!d) continue;
+    const tm = (m || dental) ? (dentalTreatByVisit.get(dk+"|"+inst) || dentalTreatByDate.get(dk)) : null;
+    const targets = new Map(); // 고지항목명 -> 표시할 진단코드
+    if(m) targets.set(m.cat.name, m.displayCode);
+    if(tm) for(const info of tm.values()) for(const c of info.cats) if(!targets.has(c)) targets.set(c, String(row[5]||"").trim());
+    for(const [catName, code] of targets){
+      const catDef = DENTAL_INSURANCE_CATEGORIES.find(c=>c.name===catName);
+      if(!catDef) continue;
+      const cutoff = new Date(Date.UTC(todayForCritical.getUTCFullYear()-catDef.years, todayForCritical.getUTCMonth(), todayForCritical.getUTCDate()));
+      if(d.getTime() < cutoff.getTime() || d.getTime() > todayForCritical.getTime()) continue;
+      const key = catName + "|" + code;
+      if(!aggD.has(key)){
+        aggD.set(key, { cat:catName, code, diag:"", startDate:d, endDate:d, hospDays:0, hasHosp:false, outCnt:0, treats:new Map() });
+      }
+      const g = aggD.get(key);
+      const dg = stripMedPrefix(String(row[6]||""));
+      if(!g.diag && dg) g.diag = dg;
+      if(d<g.startDate) g.startDate=d;
+      if(d>g.endDate) g.endDate=d;
+      if(String(row[4]||"").includes("입원")){
+        g.hasHosp = true;
+        const hv=row[7];
+        if(typeof hv==="number") g.hospDays+=hv; else if(typeof hv==="string" && /^[0-9]+$/.test(hv.trim())) g.hospDays+=parseInt(hv,10);
+      } else {
+        g.outCnt++;
+      }
+      if(tm) for(const [nm,info] of tm){
+        if((m && m.cat.name===catName) || info.cats.has(catName)){
+          for(const lb of info.labels){
+            if(!g.treats.has(lb)) g.treats.set(lb, new Set());
+            g.treats.get(lb).add(nm);
+          }
+        }
+      }
+    }
   }
   let textD = "";
   for(const cat of DENTAL_INSURANCE_CATEGORIES){
@@ -878,14 +912,28 @@ function processData(baseMatrix, detailMatrix){
       const parts = [];
       if(g.hasHosp) parts.push(`입원 ${g.hospDays}일`);
       if(g.outCnt>0) parts.push(`통원 ${g.outCnt}일`);
-      const treat = Array.from(g.treats.keys()).join(", ") || "X";
+      const treat = Array.from(g.treats.entries()).map(([lb,names])=>`${lb}(${Array.from(names).join(", ")})`).join(", ") || "X";
       textD += `-병력사항-\n정확한 진단명 : ${g.diag}\n진단코드 : ${g.code}\n치료기간 : ${fmtDate(g.startDate)}~${fmtDate(g.endDate)}\n입/통원 : ${parts.join(", ")}\n치료내용 : ${treat}\nㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ\n`;
     }
     textD += "\n";
   }
   if(!aggD.size) textD = "";
 
-  return { matrix: result, textA, textB, textC, textD };
+  // 참고용: 치과 진료일의 세부항목 중 어떤 치료로도 인식하지 못한 항목 (패턴 보완용)
+  const unknownSet = new Set();
+  for(let i=1;i<detailMatrix.length;i++){
+    const row = detailMatrix[i];
+    const key = normalizeDateKey(row[1]);
+    const nm = row[4]!=null ? String(row[4]).trim() : "";
+    if(!key || !nm || nm.includes("내복약")) continue;
+    if(!dentalVisitKeys.has(key+"|"+String(row[2]||"").replace(/\s+/g,""))) continue;
+    if(treatGroupsOf(nm).length) continue;
+    if(/진찰|초진|재진|조제|투약|처방|관리료|가산|수납|환자/.test(nm)) continue;
+    unknownSet.add(nm);
+  }
+  const dentalUnknown = Array.from(unknownSet).slice(0,60);
+
+  return { matrix: result, textA, textB, textC, textD, dentalUnknown };
 }
 function displayCell(v){
   if(v===null || v===undefined) return "";
@@ -1081,7 +1129,7 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
         try{
                   const baseMatrix = await loadMatrixAuto(file1);
                   const detailMatrix = await loadMatrixAuto(file2);
-                  const { matrix, textA, textB, textC, textD } = processData(baseMatrix, detailMatrix);
+                  const { matrix, textA, textB, textC, textD, dentalUnknown } = processData(baseMatrix, detailMatrix);
 
                   if(!freeUnlimited){
                               const ok = await spendPoints('history');
@@ -1097,6 +1145,7 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
                   document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
                   document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
                   document.getElementById("textC").textContent = textC || "(5년 이내 중대질환 진단 코드에 해당하는 건이 없습니다)";
+                  document.getElementById("dentalUnknown").textContent = (dentalUnknown && dentalUnknown.length) ? "참고) 치과 진료일의 세부항목 중 레진·크라운·인레이·온레이·임플란트·치관확장술로 인식하지 못한 항목: " + dentalUnknown.join(" / ") : "";
                   document.getElementById("textD").textContent = textD || "(최근 2년 내 충치 · 5년 내 치주질환 진단 이력이 없습니다)";
                   document.getElementById("results").classList.add("show");
                   status.className="status ok"; status.textContent = `완료 · 총 ${matrix.length-1}행 매칭됨` + (freeUnlimited ? "" : ` (${historyCost.toLocaleString()}P 차감)`);
