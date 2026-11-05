@@ -1106,7 +1106,7 @@ async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDet
   if(rawDetail) writeRawSheet(wb, "세부진료정보", rawDetail);
   if(rawAutoBase) writeRawSheet(wb, "자동차사고 기본진료정보", rawAutoBase);
   if(rawAutoDetail) writeRawSheet(wb, "자동차사고 세부진료정보", rawAutoDetail);
-  const ws = wb.addWorksheet("병력정리");
+  const ws = wb.addWorksheet("병력정리", { properties:{ tabColor:{ argb:"FF4472C4" } } }); // 파랑
   const widths = [9, 12, 16, 10, 10, 11, 20, 9, 13, 6, 30];
   matrix.forEach((row, ri)=>{
     const excelRow = ws.getRow(ri+1);
@@ -1137,7 +1137,7 @@ async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDet
     }
   }
   ws.views = [{ state:"frozen", ySplit:1 }];
-  const wsTxt = wb.addWorksheet("병력정리텍스트");
+  const wsTxt = wb.addWorksheet("병력정리텍스트", { properties:{ tabColor:{ argb:"FF70AD47" } } }); // 초록
   const a1 = wsTxt.getCell("A1"); a1.value = "간편 고지사항\n▼▼▼▼";
   const b1 = wsTxt.getCell("B1"); b1.value = "표준체 고지사항\n▼▼▼▼";
   const c1 = wsTxt.getCell("C1"); c1.value = "5년내 중대질환\n▼▼▼▼";
@@ -1150,7 +1150,7 @@ async function buildWorkbook(matrix, textA, textB, textC, textD, rawBase, rawDet
   wsTxt.getColumn(1).width = 80;
   wsTxt.getColumn(2).width = 80;
   wsTxt.getColumn(3).width = 80;
-  const wsD = wb.addWorksheet("치아보험");
+  const wsD = wb.addWorksheet("치아보험", { properties:{ tabColor:{ argb:"FFED7D31" } } }); // 주황
   const d1 = wsD.getCell("A1"); d1.value = "치아보험 고지사항\n▼▼▼▼";
   d1.font={bold:true,size:14}; d1.alignment={horizontal:"center",vertical:"middle",wrapText:true};
   wsD.getRow(1).height = 40;
