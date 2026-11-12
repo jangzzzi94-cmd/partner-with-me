@@ -688,10 +688,12 @@ function durationWholeYears(duration){
   const expected = new Date(Date.UTC(a.getUTCFullYear()+n, a.getUTCMonth(), a.getUTCDate()));
   return Math.abs(b - expected) <= 2*86400000 ? n : null;
 }
-// "N년납"인데 보험기간도 딱 N년이면 "ㅁㅁ세만기" 대신 "N년납 N년만기"로 적는다.
+// 납입기간이 N년("N년납" 또는 "N년/…")인데 보험기간도 딱 N년이면 "ㅁㅁ세만기" 대신 "N년납 N년만기"로 적는다.
 // 이때 상품명에 "갱신"이 들어 있으면 "N년 갱신"으로 적는다.
 function adjustTermByDuration(term, duration, productName){
-  const pay = String(term||"").match(/(\d+)\s*년\s*납/);
+  // 납입기간 표기는 "20년납 80세만기" 형태도 있고, 증권 PDF에서 읽히는 "20년/80세만기"(슬래시) 형태도 있다.
+  const t = String(term||"");
+  const pay = t.match(/(\d+)\s*년\s*납/) || t.match(/^\s*(\d+)\s*년\s*\//);
   if(!pay) return term;
   const n = Number(pay[1]);
   if(!n || durationWholeYears(duration) !== n) return term;
