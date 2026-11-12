@@ -670,6 +670,33 @@ function matchCoverageLines(lines){
   }
   return { amounts, textTags: Array.from(textTagsSet) };
 }
+// 보험기간 "2024.01.01~2044.01.01"의 시작~끝 날짜가 정확히 N년 차이면 N을 돌려준다(아니면 null).
+// 끝나는 날이 하루쯤 다르게 표기되는 경우(예: 2043.12.31)도 N년으로 본다.
+function durationWholeYears(duration){
+  const s = String(duration||"");
+  const re = /(\d{2,4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g;
+  const ds = [];
+  let m;
+  while((m = re.exec(s)) && ds.length < 2){
+    let y = Number(m[1]); if(y < 100) y += (y < 70 ? 2000 : 1900);
+    ds.push(new Date(Date.UTC(y, Number(m[2])-1, Number(m[3]))));
+  }
+  if(ds.length < 2 || ds.some(d=>isNaN(d.getTime()))) return null;
+  const [a, b] = ds;
+  const n = Math.round((b - a) / (365.25*86400000));
+  if(n <= 0) return null;
+  const expected = new Date(Date.UTC(a.getUTCFullYear()+n, a.getUTCMonth(), a.getUTCDate()));
+  return Math.abs(b - expected) <= 2*86400000 ? n : null;
+}
+// "N년납"인데 보험기간도 딱 N년이면 "ㅁㅁ세만기" 대신 "N년납 N년만기"로 적는다.
+// 이때 상품명에 "갱신"이 들어 있으면 "N년 갱신"으로 적는다.
+function adjustTermByDuration(term, duration, productName){
+  const pay = String(term||"").match(/(\d+)\s*년\s*납/);
+  if(!pay) return term;
+  const n = Number(pay[1]);
+  if(!n || durationWholeYears(duration) !== n) return term;
+  return /갱신/.test(String(productName||"")) ? `${n}년 갱신` : `${n}년납 ${n}년만기`;
+}
 function parseHeaderBlock(companyLine, productLine, holderTermLine, periodPremiumLine){
   let insurer = normalizeSpace(companyLine);
   if(insurer.includes("|")) insurer = normalizeSpace(insurer.split("|")[0]);
@@ -688,6 +715,7 @@ function parseHeaderBlock(companyLine, productLine, holderTermLine, periodPremiu
   const duration = tokens1.length ? tokens1[0] : "";
   let premium = tokens1.length ? tokens1[tokens1.length-1] : line1;
   premium = premium.replace(/월납/g,"");
+  term = adjustTermByDuration(term, duration, productName);
   return { insurer, productName, holder, term, duration, premium };
 }
 
