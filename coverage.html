@@ -665,10 +665,52 @@ function buildSilsonText(bucket){
   const j = bucket.inj != null ? formatManwonShort(bucket.inj) : "X";
   return `질병${d}/상해${j}`;
 }
+// ===== 종수술비(1~5종) 표기 =====
+// 증권에 1종~5종이 구간별로 적혀 있으면(예: "질병1-5종수술비ⅢQ(1종)"…"(5종)") 질병 기준으로 1종~5종 칸에
+// 각 구간의 금액을 적는다. 질병은 숫자만, 상해종수술비만 가입돼 있으면 "상해 50"처럼 앞에 "상해"를 붙인다
+// (질병과 상해가 모두 있으면 질병 기준). 구간 없이 "종수술비" 한 줄만 있으면 5종 칸에 그 금액을 적고
+// 1~4종 칸에는 "증권확인"을 적는다.
+// 담보 한 줄이 종수술비인지 판단한다: 신정원 담보명이 질병종수술/상해종수술이거나, 기타수술인데 원담보명에
+// 질병/상해와 "(N종)" 표기가 있는 경우. 구간 번호는 원담보명의 "(N종)"에서 읽는다("1-5종"은 번호가 아님).
+function classifyJongSurgeryLine(nameE, nameD){
+  let scope = null;
+  if(nameE === "질병종수술") scope = "dis";
+  else if(nameE === "상해종수술") scope = "inj";
+  const lvMatch = String(nameD||"").match(/\(\s*([1-5])\s*종\s*\)/);
+  const level = lvMatch ? Number(lvMatch[1]) : null;
+  if(!scope && nameE === "기타수술" && level){
+    const dis = /질병/.test(nameD), inj = /상해/.test(nameD);
+    if(dis !== inj) scope = dis ? "dis" : "inj";
+  }
+  return scope ? { scope, level } : null;
+}
+function buildJongRows(data, prefix){
+  const lv = { ...data.levels };
+  const un = data.unlabeled.slice();
+  const label = n => prefix ? `${prefix} ${n}` : n;
+  const rows = {};
+  if(Object.keys(lv).length){
+    // 구간 표기가 없는 줄이 섞여 있으면 비어 있는 가장 높은 종(5종부터)에 넣는다.
+    un.forEach(a=>{ for(let l=5;l>=1;l--){ if(lv[l] == null){ lv[l] = a; break; } } });
+    for(let l=1;l<=5;l++) if(lv[l] != null) rows[22+l] = label(lv[l]);
+    return rows;
+  }
+  if(un.length === 1){
+    rows[27] = label(un[0]);
+    for(let r=23;r<=26;r++) rows[r] = "증권확인";
+    return rows;
+  }
+  if(un.length >= 2){
+    un.slice(0,5).forEach((a,i)=>{ rows[23+i] = label(a); }); // 구간 구분 없이 여러 줄이면 적힌 순서대로 1종부터
+    return rows;
+  }
+  return null;
+}
 function matchCoverageLines(lines){
   const amounts = {}; const textTagsSet = new Set();
+  const jong = { dis:{ levels:{}, unlabeled:[] }, inj:{ levels:{}, unlabeled:[] } };
   const silson = { in:{}, out:{} };
-  let count27 = 0; let row13Used = false;
+  let row13Used = false;
   for(const line of lines){
     const nameE = normalizeSpace(line.normName);
     const nameD = normalizeSpace(line.rawName);
@@ -687,12 +729,19 @@ function matchCoverageLines(lines){
       }
       continue;
     }
+    const jongCls = isExcluded ? null : classifyJongSurgeryLine(nameE, nameD);
+    if(jongCls){
+      const jAmt = parseAmountToManwon(amountRaw);
+      if(jAmt > 0){
+        const d = jong[jongCls.scope];
+        if(jongCls.level) d.levels[jongCls.level] = (d.levels[jongCls.level] || 0) + jAmt;
+        else d.unlabeled.push(jAmt);
+      }
+      continue;
+    }
     let targetRow = 0;
     if(!isExcluded){
-      if(nameE === "질병종수술"){
-        count27 += 1;
-        if(count27 <= 5) targetRow = 22 + count27;
-      } else if(CLAUSE_ROW_MAP[nameE] !== undefined){
+      if(CLAUSE_ROW_MAP[nameE] !== undefined){
         targetRow = CLAUSE_ROW_MAP[nameE];
       } else if(nameE.includes("교통사고처리지원금")){
         targetRow = CLAUSE_ROW_MAP["교통사고처리지원금"];
@@ -716,6 +765,9 @@ function matchCoverageLines(lines){
       }
     }
   }
+  // 종수술비: 질병 기준(숫자만). 질병이 없고 상해종수술비만 있으면 "상해 N".
+  const jongRows = buildJongRows(jong.dis, "") || buildJongRows(jong.inj, "상해");
+  if(jongRows) Object.keys(jongRows).forEach(r=>{ amounts[r] = jongRows[r]; });
   const silIn = buildSilsonText(silson.in), silOut = buildSilsonText(silson.out);
   if(silIn) amounts[9] = silIn;
   if(silOut) amounts[10] = silOut;
