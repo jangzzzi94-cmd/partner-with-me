@@ -750,6 +750,41 @@ function adjustTermByDuration(term, duration, productName){
   if(!n || durationWholeYears(duration) !== n) return term;
   return /갱신/.test(String(productName||"")) ? `${n}년 갱신` : `${n}년납 ${n}년만기`;
 }
+// ===== 여러 페이지에 걸친 같은 상품 합치기 =====
+// 특약이 많은 상품은 증권 PDF에서 페이지가 나뉘어 상품명 끝에 "(1/2)", "(2/2)"처럼 붙는다.
+// 보험사·보험기간·상품명(번호 제외)이 같은 이런 조각들은 한 상품으로 보고 담보 줄을 이어 붙여서
+// 하나의 상품으로 분석한다(상품명 끝의 "(1/2)" 표기는 떼어낸다). 보험료는 각 페이지에 같은 값이
+// 반복해서 적혀 있으므로 합산하지 않고 첫 페이지 값을 그대로 쓴다.
+const PRODUCT_PART_RE = /\s*\(\s*(\d+)\s*\/\s*(\d+)\s*\)\s*$/;
+function mergeContinuedProducts(tables, logFn){
+  const groups = new Map(); // key -> { first:index, parts:[{part,total,table}] }
+  const order = [];
+  tables.forEach((t, idx)=>{
+    const name = String((t.header && t.header.productName) || "");
+    const m = name.match(PRODUCT_PART_RE);
+    if(!m){ order.push({ single: t }); return; }
+    const base = name.replace(PRODUCT_PART_RE, "").trim();
+    const key = [t.header.insurer, base, t.header.duration, t.header.term].join("|");
+    if(!groups.has(key)){ groups.set(key, { base, parts: [] }); order.push({ key }); }
+    groups.get(key).parts.push({ part: Number(m[1]), total: Number(m[2]), table: t, idx });
+  });
+  const out = [];
+  order.forEach(o=>{
+    if(o.single){ out.push(o.single); return; }
+    const g = groups.get(o.key);
+    g.parts.sort((a,b)=> a.part - b.part || a.idx - b.idx);
+    if(g.parts.length === 1 && g.parts[0].total > 1){ out.push(g.parts[0].table); return; } // 짝이 없으면 원래대로 둔다
+    const first = g.parts[0].table;
+    const merged = {
+      ...first,
+      header: { ...first.header, productName: g.base },
+      dataLines: g.parts.reduce((acc, p)=> acc.concat(p.table.dataLines), []),
+    };
+    if(g.parts.length > 1 && logFn) logFn(`  - "${g.base}" ${g.parts.length}개 페이지를 한 상품으로 통합 (${merged.dataLines.length}개 담보 라인)`);
+    out.push(merged);
+  });
+  return out;
+}
 function parseHeaderBlock(companyLine, productLine, holderTermLine, periodPremiumLine){
   let insurer = normalizeSpace(companyLine);
   if(insurer.includes("|")) insurer = normalizeSpace(insurer.split("|")[0]);
@@ -990,6 +1025,7 @@ runBtn.addEventListener("click", async ()=>{
       tables = await readTableSheetsFromWorkbook(wb);
       tables.forEach((t,i)=> log(`  - Table ${i+1} -> ${t.header.insurer} / ${t.header.productName} (${t.dataLines.length}개 담보 라인)`));
     }
+    tables = mergeContinuedProducts(tables, log); // "(1/2)", "(2/2)"로 나뉜 같은 상품은 하나로 통합
     if(!tables.length) throw new Error("상품 데이터를 하나도 찾지 못했습니다. 파일 형식을 확인해주세요.");
 
     log(`동작1+2 통합 매칭 로직 실행 중... (${tables.length}개 상품)`);
