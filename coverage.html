@@ -630,8 +630,44 @@ function parseAmountToManwon(raw){
   t = t.replace(/만/g,"").trim();
   return /^-?\d+(\.\d+)?$/.test(t) ? Math.round(parseFloat(t)) : 0;
 }
+// ===== 실손의료비(실비) 상세 표기 =====
+// 담보명에서 "상해/질병" 범위와 "입원/통원" 종류를 읽어서, 실손의료비 입원(9행)/통원(10행) 칸에
+//   입원: "질병5000만/상해1000만"   통원: "질병30만/상해1000만"
+// 처럼 질병과 상해를 따로 적는다. 상해·질병 한도가 합산(포괄)으로 적힌 담보는 "질병/상해 5000만",
+// 질병·상해 금액이 같으면 "질병/상해 5000만", 한쪽만 있으면 없는 쪽은 X로 적는다("질병5000만/상해X"). "의료비(입원+통원)"처럼 입원·통원이 한 줄에
+// 같이 적힌 담보는 같은 한도를 입원 칸과 통원 칸에 모두 넣는다.
+// 범위(상해/질병) 또는 종류(입원/통원)를 담보명에서 알 수 없으면 기존 방식(아래 CLAUSE_ROW_MAP)에 맡긴다.
+function classifySilsonLine(name){
+  const s = String(name||"");
+  if(!/의료비/.test(s) || /특정/.test(s)) return null;
+  const inj = /상해/.test(s), dis = /질병/.test(s);
+  if(!inj && !dis) return null;
+  const scope = (inj && dis) ? "both" : (inj ? "inj" : "dis");
+  const hasIn = /입원/.test(s), hasOut = /통원|외래/.test(s);
+  if(!hasIn && !hasOut) return null;
+  return { scope, kinds: [hasIn ? "in" : null, hasOut ? "out" : null].filter(Boolean) };
+}
+function formatManwonShort(n){
+  if(n >= 10000){
+    const eok = Math.floor(n/10000), rest = n % 10000;
+    return rest ? `${eok}억${rest}만` : `${eok}억`;
+  }
+  return `${n}만`;
+}
+function buildSilsonText(bucket){
+  // bucket: { dis, inj, both } (만원, 없으면 undefined)
+  const hasSep = bucket.dis != null || bucket.inj != null;
+  // 질병·상해가 합산(포괄)으로 적혀 있거나, 둘 다 있고 금액이 같으면 "질병/상해 5000만"으로 합쳐서 적는다.
+  if(!hasSep && bucket.both != null) return `질병/상해 ${formatManwonShort(bucket.both)}`;
+  if(!hasSep) return null;
+  if(bucket.dis != null && bucket.inj != null && bucket.dis === bucket.inj) return `질병/상해 ${formatManwonShort(bucket.dis)}`;
+  const d = bucket.dis != null ? formatManwonShort(bucket.dis) : "X";
+  const j = bucket.inj != null ? formatManwonShort(bucket.inj) : "X";
+  return `질병${d}/상해${j}`;
+}
 function matchCoverageLines(lines){
   const amounts = {}; const textTagsSet = new Set();
+  const silson = { in:{}, out:{} };
   let count27 = 0; let row13Used = false;
   for(const line of lines){
     const nameE = normalizeSpace(line.normName);
@@ -639,6 +675,18 @@ function matchCoverageLines(lines){
     const amountRaw = line.amount;
     if(!nameE && !nameD) continue;
     const isExcluded = /특정/.test(nameE) || /특정/.test(nameD);
+    // 실손의료비는 질병/상해를 나눠서 따로 모은다(마지막에 9/10행에 문구로 기입).
+    const silCls = isExcluded ? null : classifySilsonLine(nameE || nameD);
+    if(silCls){
+      const silAmt = parseAmountToManwon(amountRaw);
+      if(silAmt > 0){
+        silCls.kinds.forEach(k=>{
+          const b = silson[k];
+          b[silCls.scope === "both" ? "both" : silCls.scope] = Math.max(b[silCls.scope === "both" ? "both" : silCls.scope] || 0, silAmt);
+        });
+      }
+      continue;
+    }
     let targetRow = 0;
     if(!isExcluded){
       if(nameE === "질병종수술"){
@@ -668,6 +716,9 @@ function matchCoverageLines(lines){
       }
     }
   }
+  const silIn = buildSilsonText(silson.in), silOut = buildSilsonText(silson.out);
+  if(silIn) amounts[9] = silIn;
+  if(silOut) amounts[10] = silOut;
   return { amounts, textTags: Array.from(textTagsSet) };
 }
 // 보험기간 "2024.01.01~2044.01.01"의 시작~끝 날짜가 정확히 N년 차이면 N을 돌려준다(아니면 null).
@@ -1370,7 +1421,13 @@ function fillSheetColumns(ws, columns, getField){
       // "미가입"처럼 텍스트가 섞인 값은 텍스트 그대로 써서(엑셀 SUM은 텍스트 셀을 0으로
       // 취급해 자동으로 무시한다) 웹 화면의 "텍스트는 0으로 취급" 규칙과 결과가 일치하게 한다.
       const n = Number(v);
-      ws.getCell(row, col).value = Number.isFinite(n) ? n : v;
+      const cellRef = ws.getCell(row, col);
+      cellRef.value = Number.isFinite(n) ? n : v;
+      // 실손의료비 입원/통원 칸의 "질병5000만/상해1000만" 같은 긴 문구는 칸에 들어가도록 8포인트로 쓴다.
+      // (셀마다 style을 새 객체로 교체해야 같은 서식을 공유하는 다른 열까지 바뀌지 않는다.)
+      if((row === 9 || row === 10) && !Number.isFinite(n)){
+        cellRef.style = Object.assign({}, cellRef.style, { font: Object.assign({}, cellRef.style && cellRef.style.font, { size: 8 }) });
+      }
     });
     const textVal = getField(c, "text45");
     ws.getCell(45, col).value = textVal ? textVal : null;
