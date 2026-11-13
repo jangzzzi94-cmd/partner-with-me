@@ -93,6 +93,10 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 .undo-delete-btn{white-space:nowrap;}
 #resumeDropZone{transition:border-color .15s,background .15s;}
 #resumeDropZone.drop-hover{border-color:var(--ink);background:#eef2f8;}
+/* 관리자 마스터 연동 -- 관리자 플랜 열은 연한 파란색, 팀원이 고친 칸은 색이 풀린다 */
+#masterTable td.admin-cell, #masterTable td.admin-cell input, #masterTable td.admin-cell textarea{ background:#eaf3ff; }
+#masterTable th.admin-head{ background:#dbeafe; }
+.admin-tag{ display:inline-block; font-size:10px; font-weight:700; color:#1d4ed8; background:#fff; border:1px solid #93c5fd; border-radius:8px; padding:0 6px; line-height:16px; }
 </style>
 </head>
 <body>
@@ -193,7 +197,7 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
     <div class="row" style="justify-content:space-between;">
       <h2>마스터 — 내 플랜 라이브러리</h2>
       <div style="display:flex;align-items:center;gap:10px;">
-        <button id="importAdminMasterBtn" class="secondary" type="button" style="font-size:12px;padding:7px 12px;">📥 관리자 마스터 불러오기</button>
+        <button id="importAdminMasterBtn" class="secondary" type="button" style="font-size:12px;padding:7px 12px;">🔗 관리자 마스터 연동하기</button>
         <div class="status" id="masterStatus" style="margin:0;"></div>
       </div>
     </div>
@@ -2041,6 +2045,108 @@ const planSaveTimers = {};
 let freeUnlimited = false; // 관리자/골드 회원은 엑셀 다운로드 포인트 차감 없이 무제한 이용
 let coverageCost = 3000; // 엑셀 다운로드 1회당 차감 포인트. 관리자가 admin.html에서 수정 가능(로그인 시 최신값으로 갱신됨)
 
+/* ---- 관리자 마스터 연동 ----
+   연동하면 관리자 플랜은 내 DB에 복사하지 않고 매번 RPC로 최신본을 읽어 화면에 합쳐 보여준다.
+   내 계정에는 "연동 상태 행"(plan_name = LINK_ROW_NAME) 하나만 저장한다:
+   items.__link = { on:true/false, hidden:[제외한 관리자 플랜 키], ov:{ 관리자플랜키: { m:{필드:값}, i:{행번호:값} } } }
+   ov = 팀원이 직접 고친 칸(칸 단위 덮어쓰기). 칸을 비우면 ov에서 지워져 다시 관리자 값을 따라간다. */
+const LINK_ROW_NAME = "__admin_link__";
+let adminLink = { rowId:null, on:false, hidden:[], ov:{} };
+let adminRaw = []; // RPC로 읽어온 관리자 플랜 원본
+let linkSaveChain = Promise.resolve();
+const ADMIN_META_FIELDS = ["plan_name","insurer","duration","term","premium","holder"];
+
+function adminKeyOf(p){ return String(p.id != null ? p.id : (p.plan_name||"")); }
+function getAdminOv(key, create){
+  if(!adminLink.ov[key]){
+    if(!create) return { m:{}, i:{} };
+    adminLink.ov[key] = { m:{}, i:{} };
+  }
+  return adminLink.ov[key];
+}
+function isBlankVal(v){ return v==null || String(v).trim()===""; }
+function isAdminCellOverridden(plan, field, row){
+  const ov = getAdminOv(plan.adminKey, false);
+  return row!=null ? !isBlankVal(ov.i[row]) : !isBlankVal(ov.m[field]);
+}
+// 관리자 원본 + 내가 고친 칸 = 화면/후 시트 자동완성에서 쓰는 합쳐진 플랜
+function applyAdminMerge(p){
+  const raw = p._raw || {};
+  const ov = getAdminOv(p.adminKey, false);
+  ADMIN_META_FIELDS.forEach(f=>{ p[f] = !isBlankVal(ov.m[f]) ? ov.m[f] : (raw[f]==null ? "" : String(raw[f])); });
+  const items = {};
+  for(const [row, amt] of Object.entries(raw.items||{})){
+    const t = String(amt==null?"":amt).trim();
+    if(t) items[row] = t;
+  }
+  for(const [row, v] of Object.entries(ov.i)){ if(!isBlankVal(v)) items[row] = v; }
+  p.items = items;
+  return p;
+}
+function buildAdminPlans(){
+  if(!adminLink.on) return [];
+  const out = [];
+  for(const raw of (adminRaw||[])){
+    if(!raw || isBlankVal(raw.plan_name)) continue;
+    const key = adminKeyOf(raw);
+    if(adminLink.hidden.includes(key)) continue;
+    out.push(applyAdminMerge({ id:"admin:"+key, admin:true, adminKey:key, _raw:raw }));
+  }
+  return out;
+}
+function parseLinkRow(row){
+  adminLink.rowId = row ? row.id : null;
+  const d = row && row.items && row.items.__link ? row.items.__link : {};
+  adminLink.on = !!d.on;
+  adminLink.hidden = Array.isArray(d.hidden) ? d.hidden.map(String) : [];
+  adminLink.ov = (d.ov && typeof d.ov==="object") ? d.ov : {};
+  for(const k of Object.keys(adminLink.ov)){
+    const o = adminLink.ov[k] || {};
+    adminLink.ov[k] = { m: o.m||{}, i: o.i||{} };
+  }
+}
+function pruneLinkOv(){
+  const ov = {};
+  for(const [k,o] of Object.entries(adminLink.ov)){
+    const m = {}, i = {};
+    for(const [f,v] of Object.entries(o.m||{})) if(!isBlankVal(v)) m[f]=v;
+    for(const [f,v] of Object.entries(o.i||{})) if(!isBlankVal(v)) i[f]=v;
+    if(Object.keys(m).length || Object.keys(i).length) ov[k] = { m, i };
+  }
+  return ov;
+}
+function saveAdminLinkNow(){
+  // 동시에 두 번 저장돼 행이 2개 생기지 않도록 순서대로 실행
+  linkSaveChain = linkSaveChain.then(async ()=>{
+    const result = await store.savePlan(currentUserId, {
+      id: adminLink.rowId, plan_name: LINK_ROW_NAME, insurer: "",
+      items: { __link: { on: adminLink.on, hidden: adminLink.hidden, ov: pruneLinkOv() } },
+    });
+    if(result && result.id) adminLink.rowId = result.id;
+  });
+  return linkSaveChain;
+}
+let linkSaveTimer = null;
+function scheduleAdminLinkSave(){
+  clearTimeout(linkSaveTimer);
+  linkSaveTimer = setTimeout(async ()=>{
+    const statusEl = document.getElementById("masterStatus");
+    try{
+      await saveAdminLinkNow();
+      statusEl.className = "status ok";
+      statusEl.textContent = "자동 저장됨 (" + new Date().toLocaleTimeString() + ")";
+    }catch(err){
+      statusEl.className = "status err";
+      statusEl.textContent = "저장 오류: " + err.message;
+    }
+  }, 700);
+}
+function updateLinkButton(){
+  const btn = document.getElementById("importAdminMasterBtn");
+  if(!btn) return;
+  if(currentProfile && currentProfile.role === "admin"){ btn.style.display = "none"; return; } // 관리자 본인은 연동 불필요
+  btn.textContent = adminLink.on ? "🔗 관리자 마스터 연동 중 (해제)" : "🔗 관리자 마스터 연동하기";
+}
 function blankPlan(){
   return { id:null, plan_name:"", insurer:"", duration:"", term:"", premium:"", holder:"", items:{} };
 }
@@ -2061,25 +2167,34 @@ function ensureTrailingBlankColumn(){
   }
 }
 
+function adminCellCls(p, field, row){
+  return (p.admin && !isAdminCellOverridden(p, field, row)) ? ' class="admin-cell"' : "";
+}
+
 function renderMasterTable(){
   ensureTrailingBlankColumn();
   const table = document.getElementById("masterTable");
   let html = buildColgroupHtml([60,170], 160, plans.length);
   html += `<thead><tr><th class="stick-l0"></th><th class="stick-l60">구분</th>`;
   plans.forEach((p,i)=>{
+    if(p.admin){
+      html += `<th class="admin-head"><span class="admin-tag">관리자 플랜</span>`+
+              `<button class="secondary" data-hidecol="${i}" title="이 관리자 플랜을 내 마스터에서 제외" style="padding:2px 6px;font-size:11px;margin-left:4px;">제외</button></th>`;
+      return;
+    }
     html += `<th>${p.id ? "" : `<span style="color:var(--ink-soft);font-weight:400;">(새 플랜)</span>`}`+
             `${p.id ? `<button class="danger" data-delcol="${i}" style="padding:2px 6px;font-size:11px;margin-left:4px;">삭제</button>` : ""}</th>`;
   });
   html += "</tr></thead><tbody>";
 
   html += `<tr><td class="grouplabel stick-l0" colspan="2">상품명 / 별칭<br><span style="font-weight:400;font-size:11px;">(보장분석표(후)에서 이 안의 글자를 검색해 찾습니다)</span></td>`;
-  plans.forEach((p,i)=> html += `<td><textarea rows="3" style="resize:vertical;" data-col="${i}" data-field="plan_name" class="master-input" data-gridrow="0" data-gridcol="${i}" placeholder="예: 흥국3105&#10;(무)흥국생명다사랑...">${(p.plan_name||"").replace(/</g,"&lt;")}</textarea></td>`);
+  plans.forEach((p,i)=> html += `<td${adminCellCls(p,"plan_name",null)}><textarea rows="3" style="resize:vertical;" data-col="${i}" data-field="plan_name" class="master-input" data-gridrow="0" data-gridcol="${i}" placeholder="예: 흥국3105&#10;(무)흥국생명다사랑...">${(p.plan_name||"").replace(/</g,"&lt;")}</textarea></td>`);
   html += `</tr>`;
 
   // 보장분석표(전)/(후)와 동일한 계약정보 필드 (보험회사/보험기간/납기·만기/보험료/계약자).
   MASTER_META_FIELDS.forEach(([label, field], mi)=>{
     html += `<tr><td class="grouplabel stick-l0" colspan="2">${label}</td>`;
-    plans.forEach((p,i)=> html += `<td><input type="text" data-col="${i}" data-field="${field}" class="master-input" data-gridrow="${1+mi}" data-gridcol="${i}" value="${String(p[field]||"").replace(/"/g,"&quot;")}"></td>`);
+    plans.forEach((p,i)=> html += `<td${adminCellCls(p,field,null)}><input type="text" data-col="${i}" data-field="${field}" class="master-input" data-gridrow="${1+mi}" data-gridcol="${i}" value="${String(p[field]||"").replace(/"/g,"&quot;")}"></td>`);
     html += `</tr>`;
   });
 
@@ -2092,9 +2207,9 @@ function renderMasterTable(){
       // 있으면 0으로 취급한다(numOrZero 참고). 값 자체는 입력한 그대로 저장/보존된다.
       // "기타" 행(TEXT_ROWS)은 여러 줄(줄바꿈) 입력이 가능하도록 textarea로 그린다.
       if(TEXT_ROWS.has(row)){
-        html += `<td><textarea rows="4" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
+        html += `<td${adminCellCls(p,null,row)}><textarea rows="4" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}">${String(raw).replace(/</g,"&lt;")}</textarea></td>`;
       } else {
-        html += `<td><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
+        html += `<td${adminCellCls(p,null,row)}><input type="text" data-col="${i}" data-row="${row}" class="master-item-input" data-gridrow="${6+ri}" data-gridcol="${i}" value="${String(raw).replace(/"/g,"&quot;")}"></td>`;
       }
     });
     html += `</tr>`;
@@ -2110,6 +2225,19 @@ function renderMasterTable(){
       const col = Number(el.dataset.col);
       const plan = plans[col];
       if(!plan) return;
+      if(plan.admin){
+        // 관리자 플랜: 내가 고친 칸만 덮어쓰기로 저장. 비우면 관리자 값으로 복귀(포커스를 벗어날 때 표시 갱신)
+        const ov = getAdminOv(plan.adminKey, true);
+        const f = el.dataset.field, r = el.dataset.row;
+        const tgt = f ? ov.m : ov.i, k = f || r;
+        if(el.value.trim()) tgt[k] = el.value; else delete tgt[k];
+        applyAdminMerge(plan);
+        const td = el.closest("td");
+        if(td) td.classList.toggle("admin-cell", !el.value.trim());
+        renderAfterSheet();
+        scheduleAdminLinkSave();
+        return;
+      }
       if(el.dataset.field){
         plan[el.dataset.field] = el.value;
       } else if(el.dataset.row){
@@ -2123,11 +2251,36 @@ function renderMasterTable(){
     });
   });
 
+  // 관리자 플랜 칸을 비우고 나가면, 화면에도 관리자 값이 다시 나타난다
+  table.querySelectorAll(".master-input, .master-item-input").forEach(el=>{
+    el.addEventListener("blur", ()=>{
+      const plan = plans[Number(el.dataset.col)];
+      if(!plan || !plan.admin || el.value.trim()) return;
+      const f = el.dataset.field, r = el.dataset.row;
+      const v = f ? plan[f] : (plan.items[r]==null ? "" : plan.items[r]);
+      el.value = v;
+      const td = el.closest("td");
+      if(td) td.classList.add("admin-cell");
+    });
+  });
+
+  table.querySelectorAll("[data-hidecol]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const plan = plans[Number(btn.dataset.hidecol)];
+      if(!plan || !plan.admin) return;
+      if(!confirm("이 관리자 플랜을 내 마스터에서 제외할까요?\n(관리자 마스터 연동을 다시 켜면 다시 나타납니다)")) return;
+      if(!adminLink.hidden.includes(plan.adminKey)) adminLink.hidden.push(plan.adminKey);
+      plans = plans.filter(p=>p!==plan);
+      renderMasterTable(); renderAfterSheet();
+      scheduleAdminLinkSave();
+    });
+  });
+
   table.querySelectorAll("[data-delcol]").forEach(btn=>{
     btn.addEventListener("click", async ()=>{
       const i = Number(btn.dataset.delcol);
       const plan = plans[i];
-      if(!plan || !plan.id) return;
+      if(!plan || !plan.id || plan.admin) return;
       if(!confirm("이 플랜을 삭제할까요?")) return;
       await store.deletePlan(currentUserId, plan.id);
       plans.splice(i,1);
@@ -2145,7 +2298,7 @@ function schedulePlanSave(col){
 async function savePlanColumn(col){
   const plan = plans[col];
   const statusEl = document.getElementById("masterStatus");
-  if(!plan || !plan.plan_name || !plan.plan_name.trim()) return; // 상품명 없는 빈 열은 저장하지 않음
+  if(!plan || plan.admin || !plan.plan_name || !plan.plan_name.trim()) return; // 상품명 없는 빈 열은 저장하지 않음
   try{
     const result = await store.savePlan(currentUserId, {
       id: plan.id, plan_name: plan.plan_name, insurer: plan.insurer,
@@ -2164,54 +2317,73 @@ async function savePlanColumn(col){
   }
 }
 
+async function loadAdminRaw(){
+  try{ adminRaw = await getAdminMasterPlans(); }catch(e){ console.error(e); adminRaw = []; }
+}
 async function refreshPlans(){
-  plans = await store.listPlans(currentUserId);
+  const rows = await store.listPlans(currentUserId);
+  parseLinkRow(rows.find(r=>r.plan_name===LINK_ROW_NAME) || null);
+  const own = rows.filter(r=>r.plan_name!==LINK_ROW_NAME);
+  const isAdminUser = !!currentProfile && currentProfile.role === "admin";
+  if(adminLink.on && !isAdminUser) await loadAdminRaw();
+  plans = [...buildAdminPlans(), ...own];
+  updateLinkButton();
   renderMasterTable();
   renderAfterSheet(); // 마스터가 바뀌면 (후) 시트 자동완성도 다시 계산
 }
 
-// 관리자(wkdwlstn3@naver.com)가 등록해둔 마스터 플랜을 불러와 내 마스터 라이브러리에
-// 새 플랜으로 추가한다. 기존 내 플랜은 건드리지 않고 뒤에 이어 붙인다.
-async function importAdminMasterPlans(){
-  if(!confirm("관리자가 등록해둔 마스터 플랜을 불러와 내 마스터에 추가할까요?\n(기존 내 플랜은 그대로 유지되고, 관리자 플랜이 새 열로 추가됩니다)")) return;
+// 화면을 다시 보게 됐을 때 관리자가 그 사이 바꾼 내용을 가져와 반영한다 (입력 중이면 건너뜀)
+let lastAdminSync = 0;
+async function syncAdminPlansIfIdle(){
+  if(!adminLink.on || !currentUserId) return;
+  if(Date.now() - lastAdminSync < 30000) return;
+  const ae = document.activeElement;
+  if(ae && ae.closest && ae.closest("#masterTable")) return;
+  lastAdminSync = Date.now();
+  await loadAdminRaw();
+  const own = plans.filter(p=>!p.admin);
+  plans = [...buildAdminPlans(), ...own];
+  renderMasterTable();
+  renderAfterSheet();
+}
+
+// "관리자 마스터 연동하기" -- 한 번 복사하는 것이 아니라 연동한다. 연동 중에는 관리자가 나중에
+// 바꾼 내용이 팀원 화면에도 그대로 반영된다. 내 플랜은 그대로 유지, 내가 고친 칸만 내 값을 유지한다.
+async function toggleAdminMasterLink(){
   const btn = document.getElementById("importAdminMasterBtn");
   const statusEl = document.getElementById("masterStatus");
+  const turningOn = !adminLink.on;
+  const msg = turningOn
+    ? "관리자 마스터를 연동할까요?\n- 관리자가 나중에 바꾸면 내 화면에도 자동으로 바뀝니다.\n- 내 플랜은 그대로 유지됩니다.\n- 관리자 플랜을 고친 칸은 내가 쓴 값이 유지되고, 비우면 다시 관리자 값을 따라갑니다."
+    : "관리자 마스터 연동을 해제할까요?\n(관리자 플랜 열이 사라집니다. 내 플랜은 그대로 유지됩니다)";
+  if(!confirm(msg)) return;
   if(btn) btn.disabled = true;
   try{
-    const adminPlans = await getAdminMasterPlans();
-    if(!adminPlans.length){
-      alert("불러올 수 있는 관리자 마스터 데이터가 없습니다.");
-      return;
+    if(turningOn){
+      await loadAdminRaw();
+      if(!adminRaw.length){
+        alert("연동할 수 있는 관리자 마스터 데이터가 없습니다.");
+        return;
+      }
+      adminLink.on = true;
+      adminLink.hidden = [];
+    } else {
+      adminLink.on = false;
     }
-    if(plans.length && !plans[plans.length-1].id){
-      plans.pop(); // 맨 뒤 빈 신규 작성용 열은 잠시 떼어두고, 불러온 플랜들을 채운 뒤 다시 자동으로 붙는다
-    }
-    let importedCount = 0;
-    for(const p of adminPlans){
-      const newPlan = {
-        id: null,
-        plan_name: p.plan_name || "",
-        insurer: p.insurer || "",
-        duration: p.duration || "",
-        term: p.term || "",
-        premium: p.premium || "",
-        holder: p.holder || "",
-        items: p.items ? JSON.parse(JSON.stringify(p.items)) : {},
-      };
-      if(!newPlan.plan_name.trim()) continue; // 상품명 없는 플랜은 저장 규칙상 건너뜀
-      const result = await store.savePlan(currentUserId, newPlan);
-      newPlan.id = result.id;
-      plans.push(newPlan);
-      importedCount++;
-    }
+    await saveAdminLinkNow();
+    const own = plans.filter(p=>!p.admin);
+    plans = [...buildAdminPlans(), ...own];
+    updateLinkButton();
     renderMasterTable();
     renderAfterSheet();
     statusEl.className = "status ok";
-    statusEl.textContent = "관리자 마스터 " + importedCount + "건을 불러왔습니다 (" + new Date().toLocaleTimeString() + ")";
+    statusEl.textContent = turningOn ? ("관리자 마스터 " + buildAdminPlans().length + "건을 연동했습니다 (" + new Date().toLocaleTimeString() + ")")
+                                     : "관리자 마스터 연동을 해제했습니다";
   }catch(err){
+    adminLink.on = !turningOn;
     statusEl.className = "status err";
-    statusEl.textContent = "불러오기 오류: " + err.message;
-    alert("불러오기 실패: " + err.message);
+    statusEl.textContent = "연동 오류: " + err.message;
+    alert("연동 실패: " + err.message);
   }finally{
     if(btn) btn.disabled = false;
   }
@@ -2600,7 +2772,7 @@ function buildAfterSheetSkeleton(){
       col.alias = inp.value;
       // 값만 다시 계산해서 채워 넣는다 -- 별칭 <input> 자체는 다시 만들지 않으므로
       // 한글 조합(IME) 도중에 재생성돼서 끊기는 일이 없다.
-      const savedPlans = plans.filter(p=>p.id);
+      const savedPlans = [...plans.filter(p=>p.id && !p.admin), ...plans.filter(p=>p.admin)]; // 내 플랜 우선
       const match = findPlanByAlias(col.alias, savedPlans);
       if(match && match.id !== col.lastMatchedPlanId){
         const resolved = autofillColumnFromPlan(match);
@@ -2755,7 +2927,8 @@ document.getElementById("logoutLink").addEventListener("click", async (e)=>{
   await logout();
 });
 
-document.getElementById("importAdminMasterBtn").addEventListener("click", importAdminMasterPlans);
+document.getElementById("importAdminMasterBtn").addEventListener("click", toggleAdminMasterLink);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdminPlansIfIdle(); });
 </script>
 </body>
 </html>
