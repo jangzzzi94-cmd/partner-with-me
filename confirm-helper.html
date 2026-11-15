@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3종확인서 입력 도우미 | With Partners</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .ch-wrap{max-width:640px;margin:0 auto;padding:22px 16px 140px;}
+  .ch-wrap h1{font-size:22px;color:var(--navy-950);margin:0 0 4px;}
+  .ch-wrap p.lead{margin:0 0 18px;color:var(--muted);font-size:13px;}
+  .ch-block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;margin-bottom:14px;}
+  .ch-block h2{font-size:15px;margin:0 0 4px;color:var(--navy-950);}
+  .ch-block .hint{margin:0 0 10px;font-size:12px;color:var(--muted);}
+  .ch-block textarea{width:100%;min-height:120px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;line-height:1.5;resize:vertical;background:#fff;color:var(--ink);}
+  .ch-block textarea:focus{outline:none;border-color:var(--navy-600);box-shadow:0 0 0 3px rgba(43,81,144,.12);}
+  .ch-box{margin-bottom:12px;}
+  .ch-box-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:13px;font-weight:700;color:var(--navy-900);}
+  .ch-btn{background:#fff;border:1px solid var(--line);color:var(--navy-800);padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;}
+  .ch-btn:hover{border-color:var(--navy-600);}
+  .ch-btn.danger{color:var(--danger);}
+  .ch-btn.primary{background:var(--navy-900);border-color:var(--navy-900);color:#fff;font-weight:700;}
+  .ch-btn.primary:disabled{background:#a9b6c6;border-color:#a9b6c6;cursor:not-allowed;}
+  .ch-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .ch-save{margin:10px 2px 16px;font-size:12px;color:var(--muted);min-height:18px;}
+  .ch-save.warn{color:#b45309;}
+  .ch-sec-title{font-size:14px;font-weight:800;color:var(--navy-950);margin:20px 2px 8px;}
+  .ch-card{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden;}
+  .ch-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--navy-100);}
+  .ch-card-title{font-size:14px;font-weight:800;color:var(--navy-950);word-break:keep-all;}
+  .ch-card-sub{font-size:11.5px;color:var(--muted);font-weight:500;margin-top:2px;}
+  .ch-card-right{font-size:12.5px;color:var(--navy-700);font-weight:700;white-space:nowrap;}
+  .ch-row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line);border-left:4px solid transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .ch-row.missing{cursor:default;}
+  .ch-row.copied{background:#e8f6ee;}
+  .ch-row.next{border-left-color:var(--navy-700);}
+  .ch-label{flex:none;width:68px;font-size:12px;color:var(--muted);font-weight:700;}
+  .ch-value{flex:1;min-width:0;font-size:15px;color:var(--ink);word-break:break-all;font-weight:600;}
+  .ch-value.miss{color:#d9822b;font-size:13px;font-weight:600;}
+  .ch-copy{flex:none;}
+  .ch-notice{padding:12px 14px;font-size:13px;color:#d9822b;background:#fff;border:1px dashed #f0c79a;border-radius:12px;margin-bottom:12px;}
+  .ch-bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(15,37,69,.08);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;z-index:50;}
+  .ch-bar-inner{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px;}
+  .ch-bar-text{flex:1;min-width:0;font-size:13px;color:var(--navy-900);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ch-bar-text.done{white-space:normal;color:var(--success);}
+  .ch-bar .ch-btn.primary{padding:11px 18px;font-size:14.5px;flex:none;}
+  .ch-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(10,26,48,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;display:none;z-index:60;max-width:90%;text-align:center;}
+  .ch-err{position:fixed;left:0;right:0;bottom:0;background:#fdecea;color:#c0392b;font-size:12px;padding:8px 12px;display:none;z-index:70;word-break:break-all;}
+  @media (max-width:640px){.navbar{padding:14px 16px;}}
+</style>
+</head>
+<body>
+<div class="navbar">
+<a href="dashboard.html" class="brand">With <span>Partners</span></a>
+<nav><a href="dashboard.html">대시보드</a><a href="profile.html">프로필</a><a href="#" id="logoutLink">로그아웃</a></nav>
+</div>
+
+<div class="ch-wrap">
+  <h1>3종확인서 입력 도우미</h1>
+  <p class="lead">인적사항과 청약 문자를 붙여넣으면 AFG 앱 「확인서 생성」에 넣을 값을 항목별로 뽑아드립니다. 입력한 내용은 이 휴대폰 브라우저에만 24시간 저장되고, 서버로는 전송되지 않습니다.</p>
+
+  <div class="ch-block">
+    <h2>① 인적사항</h2>
+    <p class="hint">여러 명을 이어서 붙여넣어도 됩니다. (이름·연락처·생년월일만 뽑습니다)</p>
+    <textarea id="t1" placeholder="인적사항을 붙여넣으세요" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+  </div>
+
+  <div class="ch-block">
+    <h2>② 청약 문자</h2>
+    <p class="hint">상품당 한 칸씩 붙여넣으세요. 한 칸에 여러 문자가 있어도 보험사 머리말([○○생명])로 나눠 읽습니다.</p>
+    <div id="boxes"></div>
+    <div class="ch-actions">
+      <button type="button" class="ch-btn" id="addBoxBtn">+ 상품 칸 추가</button>
+      <button type="button" class="ch-btn danger" id="clearAllBtn">모두 지우기</button>
+    </div>
+  </div>
+
+  <div class="ch-save" id="saveStatus"></div>
+
+  <div id="peopleSec" style="display:none;">
+    <div class="ch-sec-title">인적사항 결과</div>
+    <div id="peopleOut"></div>
+  </div>
+  <div id="prodSec" style="display:none;">
+    <div class="ch-sec-title">보험 정보 결과</div>
+    <div id="prodOut"></div>
+  </div>
+</div>
+
+<div class="ch-bar" id="bar">
+  <div class="ch-bar-inner">
+    <div class="ch-bar-text" id="barText"></div>
+    <button type="button" class="ch-btn primary" id="nextBtn">다음 복사</button>
+  </div>
+</div>
+<div class="ch-toast" id="toast">복사되었습니다</div>
+<div class="ch-err" id="errBox"></div>
+
+<script src="assets/supabase-client.js"></script>
+<script>
+/* 로그인 확인 -- 사이트 공용 로그인(다른 메뉴와 동일). 이 블록이 실패해도 아래 도우미 스크립트는 따로 동작한다. */
+(function(){
+  try{
+    requireLogin();
+    document.getElementById('logoutLink').addEventListener('click', function(e){ e.preventDefault(); logout(); });
+  }catch(e){}
+})();
+</script>
+
+<script>
+/* =========================================================================
+   3종확인서 입력 도우미
+   - 붙여넣기 -> 항목별 복사 -> 앱에 붙여넣기. 앱 칸을 자동으로 채우지는 않는다.
+   - 고객정보는 이 기기(localStorage)에만 24시간 저장하고 서버로 보내지 않는다.
+   - 구형 휴대폰 브라우저 호환: 정규식 lookbehind(뒤돌아보기) 문법 사용 금지, ES2017 이내.
+   ========================================================================= */
+var CH = (function(){
+  'use strict';
+
+  var TODAY_YY = new Date().getFullYear() % 100;
+
+  /* ------------------------------ 공통 -------------------------------- */
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+  function validDate(y, m, d){
+    if(y < 1900 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+    var dt = new Date(y, m - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+  }
+  function ymd(y, m, d){ return String(y) + pad2(m) + pad2(d); }
+  // 앞 2자리 -> 4자리: 00 ~ 올해 뒤 2자리면 20, 그보다 크면 19. (주민번호 뒷자리 첫 숫자는 쓰지 않는다)
+  function expandYear(yy){ yy = Number(yy); return (yy <= TODAY_YY ? 2000 : 1900) + yy; }
+  function norm(s){ return String(s == null ? '' : s).replace(/\r\n?/g, '\n').replace(/[​ ﻿]/g, ' '); }
+  function inList(list, v){ for(var i = 0; i < list.length; i++){ if(list[i] === v) return true; } return false; }
+
+  /* ----------------------------- 인적사항 ----------------------------- */
+  // 이름으로 오인하면 안 되는 단어(항목명·값 단어·직업명)
+  var EXCLUDE = ['인적사항','고객정보','통신사','운전','운전여부','남자','여자','음력','양력','고객','계약','주소','연락처','직업','생년월일','주민번호','주민등록번호','주민등록','주민','등록번호','휴대폰','휴대폰번호','핸드폰','핸드폰번호','휴대전화','휴대전화번호','전화번호','전화','성별','국적','이메일','집주소','직장','직장주소','회사','계약자','피보험자','이름','성명','성함','고객명','고객이름','생일','번호','보험','가입','정보','이상','없음','있음','해당없음','회사원','주부','자영업','자영업자','학생','대학생','무직','공무원','전문직','사무직','직장인','프리랜서','농업','어업','영업직','사업자','군인','교사','간호사','의사','기타','서명일시','서명','본인','동의','확인','님','고객님'];
+  var CUT_WORDS = ['연락처','휴대폰','핸드폰','휴대전화','전화번호','생년월일','주민','직업','성별','통신사','주소','운전','이메일'];
+  var HEADER_RE = /인적사항|고객정보/;
+
+  function isExcluded(w){ return inList(EXCLUDE, w); }
+
+  // 한글 덩어리 하나를 이름 후보로 정리: 끝의 '님/고객님' 제거 후 2~5자이고 제외 단어가 아니면 이름
+  function cleanKoreanName(run){
+    var w = run.replace(/고객님$/, '').replace(/님$/, '');
+    if(w.length > 5){
+      for(var i = 0; i < CUT_WORDS.length; i++){
+        var ix = w.indexOf(CUT_WORDS[i]);
+        if(ix >= 2){ w = w.slice(0, ix); break; }
+      }
+    }
+    if(w.length < 2 || w.length > 5) return null;
+    if(isExcluded(w)) return null;
+    return w;
+  }
+
+  var NAME_LABEL_G = /(?:이름|성명|고객\s*이름|고객명|성함)[ \t]*[:：=]?[ \t]*([가-힣]+|[A-Za-z][A-Za-z.' ]*)/g;
+  function labeledName(text){
+    var re = new RegExp(NAME_LABEL_G.source, 'g');
+    var m;
+    while((m = re.exec(text)) !== null){
+      var v = m[1];
+      if(/^[A-Za-z]/.test(v)){
+        v = v.replace(/\s+$/, '');
+        if(v.length >= 2 && v.length <= 30) return v;
+      } else {
+        var c = cleanKoreanName(v);
+        if(c) return c;
+      }
+    }
+    return null;
+  }
+  // 라벨이 없을 때: 줄마다 첫 한글 2~5자 단어. "항목명 :" 형태의 줄은 이름 후보에서 뺀다.
+  function looseName(text){
+    var lines = text.split('\n');
+    for(var i = 0; i < lines.length; i++){
+      var line = lines[i];
+      var km = /^\s*[^\s:：]{1,12}\s*[:：]/.exec(line);
+      if(km){
+        var key = km[0].replace(/[\s:：]/g, '');
+        if(!/^(이름|성명|성함|고객명|고객이름)$/.test(key)) continue;
+      }
+      var runs = line.match(/[가-힣]+/g) || [];
+      for(var j = 0; j < runs.length; j++){
+        var c = cleanKoreanName(runs[j]);
+        if(c) return c;
+      }
+    }
+    return null;
+  }
+  function findName(text){ return labeledName(text) || looseName(text); }
+
+  var RRN_SRC = '(^|[^\\d])(\\d{6})[ \\t]*[-–]?[ \\t]*[1-8*][\\d*]{6}(?!\\d)';
+  var PHONE_SRC = '(^|[^\\d])(01[016789])(?:(\\d{7,8})|[-. ](\\d{3,4})[-. ](\\d{4}))(?!\\d)';
+
+  function dateFromSix(s){
+    var yy = Number(s.slice(0, 2)), m = Number(s.slice(2, 4)), d = Number(s.slice(4, 6));
+    var y = expandYear(yy);
+    return validDate(y, m, d) ? ymd(y, m, d) : null;
+  }
+
+  // 한 덩어리 텍스트에서 이름/연락처/생년월일을 뽑는다.
+  function extractPerson(chunk){
+    var text = norm(chunk);
+    var out = { name: null, phone: null, birth: null };
+    out.name = findName(text);
+
+    var t = text;
+    // 1) 주민번호 -> 앞 6자리에서 생년월일. 뽑은 뒤 지워서 연락처 인식과 섞이지 않게 한다.
+    var rrn = new RegExp(RRN_SRC, 'g'), m;
+    var rrnBirth = null;
+    while((m = rrn.exec(t)) !== null){
+      if(!rrnBirth){ var b = dateFromSix(m[2]); if(b) rrnBirth = b; }
+    }
+    t = t.replace(new RegExp(RRN_SRC, 'g'), function(all, pre){ return pre + ' '; });
+
+    // 2) 연락처 (구분자 -, ., 공백 무시 -> 숫자만 11자리/10자리)
+    var pm = new RegExp(PHONE_SRC).exec(t);
+    if(pm){
+      out.phone = pm[2] + (pm[3] ? pm[3] : (pm[4] + pm[5]));
+      t = t.replace(new RegExp(PHONE_SRC), function(all, pre){ return pre + ' '; });
+    }
+
+    // 3) 생년월일 (주민번호가 있으면 그 앞 6자리, 없으면 6자리/8자리/점·하이픈 형식에서 가장 앞선 것)
+    if(rrnBirth){
+      out.birth = rrnBirth;
+    } else {
+      var cands = [];
+      var re, mm, y, mo, d;
+      re = /(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/g;
+      while((mm = re.exec(t)) !== null){
+        y = Number(mm[1]); mo = Number(mm[2]); d = Number(mm[3]);
+        if(validDate(y, mo, d)) cands.push({ at: mm.index, v: ymd(y, mo, d) });
+      }
+      re = /(^|[^\d])(\d{4}|\d{2})[ \t]*[.\-\/][ \t]*(\d{1,2})[ \t]*[.\-\/][ \t]*(\d{1,2})(?!\d)/g;
+      while((mm = re.exec(t)) !== null){
+        y = mm[2].length === 4 ? Number(mm[2]) : expandYear(mm[2]);
+        mo = Number(mm[3]); d = Number(mm[4]);
+        if(validDate(y, mo, d)) cands.push({ at: mm.index + mm[1].length, v: ymd(y, mo, d) });
+      }
+      re = /(^|[^\d])((?:19|20)\d{2})(\d{2})(\d{2})(?!\d)/g;
+      while((mm = re.exec(t)) !== null){
+        y = Number(mm[2]); mo = Number(mm[3]); d = Number(mm[4]);
+        if(validDate(y, mo, d)) cands.push({ at: mm.index + mm[1].length, v: ymd(y, mo, d) });
+      }
+      re = /(^|[^\d])(\d{6})(?!\d)/g;
+      while((mm = re.exec(t)) !== null){
+        var v6 = dateFromSix(mm[2]);
+        if(v6) cands.push({ at: mm.index + mm[1].length, v: v6 });
+      }
+      if(cands.length){
+        cands.sort(function(a, b){ return a.at - b.at; });
+        out.birth = cands[0].v;
+      }
+    }
+    return out;
+  }
+
+  function hasField(f){ return !!(f.name || f.phone || f.birth); }
+  function conflict(a, b){
+    return !!((a.name && b.name) || (a.phone && b.phone) || (a.birth && b.birth));
+  }
+  function mergeInto(dst, src){
+    if(!dst.name && src.name) dst.name = src.name;
+    if(!dst.phone && src.phone) dst.phone = src.phone;
+    if(!dst.birth && src.birth) dst.birth = src.birth;
+  }
+
+  // 한 줄에 주민번호가 2개 이상이면 쉼표/세미콜론 기준으로 나눠 각각 한 사람으로 본다.
+  function splitMultiRrn(line){
+    var cnt = 0, re = new RegExp(RRN_SRC, 'g'), m;
+    while((m = re.exec(line)) !== null){ cnt++; }
+    if(cnt >= 2 && /[,;]/.test(line)) return line.split(/[,;]/);
+    return [line];
+  }
+
+  // 라벨이 없을 때: 줄 단위로 읽고, 이름이 있는 줄이 나오면 새 사람 시작. 이름 없는 줄은 앞 사람에 붙인다.
+  function splitByLines(text){
+    var people = [], cur = null;
+    var lines = text.split('\n');
+    for(var i = 0; i < lines.length; i++){
+      if(!lines[i].replace(/\s/g, '')) continue;
+      var pieces = splitMultiRrn(lines[i]);
+      for(var k = 0; k < pieces.length; k++){
+        var f = extractPerson(pieces[k]);
+        if(!hasField(f)) continue;
+        if(!cur || conflict(cur, f)){
+          cur = { label: null, name: null, phone: null, birth: null };
+          people.push(cur);
+        }
+        mergeInto(cur, f);
+      }
+    }
+    return people;
+  }
+
+  var ROLE_RE_SRC = '(^|[\\s\\[\\(\\-\\/·•*:|,\\u2705\\u2611])(피보험자명?|계약자명?|계\\/피|계피|계|피)(?=[ \\t]*[:：]|[ \\t\\n)\\]]|$)';
+  function roleCanon(w){
+    if(/^피보험자/.test(w) || w === '피') return '피보험자';
+    if(/^계약자/.test(w) || w === '계') return '계약자';
+    return '계피';
+  }
+
+  // 라벨(계약자/피보험자/계/피/계피)이 있을 때: 라벨 기준으로 나누고, 같은 라벨이 여러 줄에 걸쳐 있으면 한 사람으로 합친다.
+  function splitByLabels(text){
+    var re = new RegExp(ROLE_RE_SRC, 'g'), m, marks = [];
+    while((m = re.exec(text)) !== null){
+      marks.push({ start: m.index + m[1].length, end: m.index + m[1].length + m[2].length, label: roleCanon(m[2]) });
+    }
+    if(!marks.length) return null;
+    var people = [];
+    var pre = text.slice(0, marks[0].start);
+    if(pre.replace(/\s/g, '')){
+      var preP = splitByLines(pre);
+      for(var a = 0; a < preP.length; a++) people.push(preP[a]);
+    }
+    for(var i = 0; i < marks.length; i++){
+      var segEnd = (i + 1 < marks.length) ? marks[i + 1].start : text.length;
+      var seg = text.slice(marks[i].end, segEnd);
+      var f = extractPerson(seg);
+      if(!hasField(f)) continue;
+      var target = null;
+      for(var j = people.length - 1; j >= 0; j--){
+        if(people[j].label === marks[i].label){ target = people[j]; break; }
+      }
+      if(!target || conflict(target, f)){
+        target = { label: marks[i].label, name: null, phone: null, birth: null };
+        people.push(target);
+      }
+      mergeInto(target, f);
+    }
+    return people;
+  }
+
+  function isHeaderLine(line){
+    var s = line.replace(/^\s+|\s+$/g, '');
+    return s.length > 0 && s.length <= 20 && HEADER_RE.test(s);
+  }
+
+  function parsePeople(raw){
+    var text = norm(raw);
+    if(!text.replace(/\s/g, '')) return [];
+    // 머리말 줄(✅인적사항✅ 등)은 새 사람의 시작으로 보고 그 줄 자체는 버린다.
+    var blocks = [[]];
+    var lines = text.split('\n');
+    for(var i = 0; i < lines.length; i++){
+      if(isHeaderLine(lines[i])){
+        // "계약자 인적사항"처럼 역할 라벨이 같이 적힌 머리말이면 라벨만 남긴다.
+        var rm = new RegExp(ROLE_RE_SRC).exec(' ' + lines[i]);
+        blocks.push(rm ? [rm[2]] : []);
+      } else {
+        blocks[blocks.length - 1].push(lines[i]);
+      }
+    }
+    var people = [];
+    for(var b = 0; b < blocks.length; b++){
+      var bt = blocks[b].join('\n');
+      if(!bt.replace(/\s/g, '')) continue;
+      var got = splitByLabels(bt);
+      if(!got) got = splitByLines(bt);
+      for(var k = 0; k < got.length; k++){
+        if(hasField(got[k])) people.push({ name: got[k].name, phone: got[k].phone, birth: got[k].birth });
+      }
+    }
+    return people;
+  }
+
+  /* ----------------------------- 보험 상품 ----------------------------- */
+  var INSURER_KW = ['생명','화재','손해','손보','해상','라이프','life','보험','흥국','한화','삼성','교보','신한','동양','미래에셋','롯데','하나','현대','메리츠','db','kb','nh','농협','aia','aig','abl','mg','라이나','처브','메트','푸본','카디프','ibk','kdb','dgb','우체국'];
+  function isInsurerHeader(inner){
+    var n = inner.replace(/^\s+|\s+$/g, '');
+    if(n.length < 2 || n.length > 20) return false;
+    if(/보험료|번호|납입|기간/.test(n)) return false; // "[보험료]" 같은 항목 표시는 머리말이 아니다
+    var low = n.toLowerCase();
+    for(var i = 0; i < INSURER_KW.length; i++){ if(low.indexOf(INSURER_KW[i]) >= 0) return true; }
+    return false;
+  }
+
+  // 한 칸의 텍스트를 [보험사] 머리말 기준으로 문자 단위로 나눈다. (머리말은 줄 처음이 아니어도 찾는다)
+  function splitMessages(raw){
+    var text = norm(raw);
+    var re = /\[([^\[\]\n]{2,20})\]/g, m, heads = [];
+    while((m = re.exec(text)) !== null){
+      if(isInsurerHeader(m[1])) heads.push({ idx: m.index, len: m[0].length, name: m[1].replace(/^\s+|\s+$/g, '') });
+    }
+    if(!heads.length) return [{ insurer: '', text: text }];
+    var out = [];
+    if(text.slice(0, heads[0].idx).replace(/\s/g, '')) out.push({ insurer: '', text: text.slice(0, heads[0].idx) });
+    for(var i = 0; i < heads.length; i++){
+      var end = (i + 1 < heads.length) ? heads[i + 1].idx : text.length;
+      out.push({ insurer: heads[i].name, text: text.slice(heads[i].idx + heads[i].len, end) });
+    }
+    return out;
+  }
+
+  var BULLETS = '■□▷▶◆◇●○※✅•▪';
+  var STOP_RES = [
+    /(?:합계|초회|월|총)?[ \t]*보험료/y,
+    /청약[ \t]*서?[ \t]*번호/y,
+    /가계약[ \t]*번호/y,
+    /영수증[ \t]*번호/y,
+    /증권[ \t]*번호/y,
+    /계약[ \t]*번호/y,
+    /계약자/y,
+    /피보험자/y,
+    /서명[ \t]*일시/y,
+    /담당[ \t]*FC/y,
+    /유효[ \t]*기간/y,
+    /납입[ \t]*기간/y,
+    /보험[ \t]*기간/y
+  ];
+  function atStop(s, i){
+    for(var k = 0; k < STOP_RES.length; k++){
+      STOP_RES[k].lastIndex = i;
+      if(STOP_RES[k].test(s)) return true;
+    }
+    return false;
+  }
+
+  // 상품명: '상품명' 바로 뒤부터 모으되, 괄호 밖에서 줄바꿈/쉼표/슬래시/글머리/다음 항목 단어를 만나면 멈춘다.
+  function extractProductName(msg){
+    var m = /상품[ \t]*명[ \t]*[:：]?/.exec(msg);
+    if(!m) return null;
+    var s = msg.slice(m.index + m[0].length).replace(/^\s+/, '');
+    var depth = 0, out = '';
+    for(var i = 0; i < s.length; i++){
+      var ch = s.charAt(i);
+      if(ch === '(' || ch === '（' || ch === '['){ depth++; }
+      else if(ch === ')' || ch === '）' || ch === ']'){ if(depth > 0) depth--; }
+      else if(depth === 0){
+        if(ch === '\n' || ch === '\r' || ch === ',' || ch === '/' || BULLETS.indexOf(ch) >= 0) break;
+        if(atStop(s, i)) break;
+      }
+      out += ch;
+    }
+    out = out.replace(/\s+/g, ' ').replace(/[\s,]+$/, '').replace(/^\s+/, '');
+    return out || null;
+  }
+
+  // 라벨 뒤 숫자(6자리 이상). 라벨 뒤 ':'는 있어도 없어도 된다. 출력은 공백·하이픈을 뺀 숫자만.
+  function numberAfter(msg, labelSrc){
+    var re = new RegExp(labelSrc + '[ \\t]*[:：]?[ \\t]*([0-9][0-9\\-]*[0-9])', 'g'), m;
+    while((m = re.exec(msg)) !== null){
+      var digits = m[m.length - 1].replace(/\D/g, '');
+      if(digits.length >= 6) return digits;
+    }
+    return null;
+  }
+  function findApplicationNo(msg){
+    var order = ['청약[ \\t]*서?[ \\t]*번호', '가계약[ \\t]*번호', '영수증[ \\t]*번호', '(?:^|[^가증])계약[ \\t]*번호'];
+    for(var i = 0; i < order.length; i++){
+      var v = numberAfter(msg, order[i]);
+      if(v) return v;
+    }
+    return null;
+  }
+  function findPremium(msg){
+    var m = /(?:합계|초회|월)?[ \t]*보험료[ \t]*[:：]?[ \t]*([\d,]{3,})[ \t]*원?/.exec(msg);
+    if(!m) return null;
+    var n = m[1].replace(/,/g, '');
+    if(!n) return null;
+    return Number(n).toLocaleString('en-US') + '원';
+  }
+
+  var ROLE_EXCL = ['서명일시','서명','정보','확인','본인','동의','번호','성명','이름','연락처','생년월일','주민번호','동일'];
+  function maskedName(w){
+    w = w.replace(/고객님$/, '').replace(/님$/, '');
+    if(w.length < 2 || w.length > 5) return null;
+    if(inList(ROLE_EXCL, w) || isExcluded(w)) return null;
+    return w;
+  }
+  function roleName(msg, label){
+    var re = new RegExp(label + '명?[ \\t]*[:：]?[ \\t]*([가-힣*○●]{2,6})', 'g'), m;
+    while((m = re.exec(msg)) !== null){
+      var c = maskedName(m[1]);
+      if(c) return c;
+    }
+    return null;
+  }
+  // 계/피: 문자에 적힌 것만. 계약자(명)/피보험자(명) 뒤 이름, 없으면 ㅇㅇㅇ고객님 형태 이름을 계·피 모두에 쓴다.
+  function findParties(msg){
+    var c = roleName(msg, '계약자');
+    var p = roleName(msg, '피보험자');
+    if(!c && !p){
+      var m = /([가-힣*○●]{2,4})[ \t]*고객님/.exec(msg);
+      if(m && !isExcluded(m[1])){ c = m[1]; p = m[1]; }
+    }
+    if(c && !p) p = c;
+    if(p && !c) c = p;
+    if(!c && !p) return '';
+    return c === p ? ('계/피 ' + c) : ('계 ' + c + ' · 피 ' + p);
+  }
+
+  function parseProductsFromBox(raw){
+    var msgs = splitMessages(raw), out = [];
+    for(var i = 0; i < msgs.length; i++){
+      var t = msgs[i].text;
+      var name = extractProductName(t);
+      var no = findApplicationNo(t);
+      if(!name && !no) continue; // 상품명도 청약번호도 없는 문자는 결과에서 뺀다
+      out.push({
+        insurer: msgs[i].insurer,
+        name: name,
+        appNo: no,
+        policyNo: numberAfter(t, '증권[ \\t]*번호'),
+        premium: findPremium(t),
+        parties: findParties(t)
+      });
+    }
+    return out;
+  }
+  function parseProducts(boxes){
+    var all = [];
+    for(var i = 0; i < boxes.length; i++){
+      var ps = parseProductsFromBox(boxes[i]);
+      for(var j = 0; j < ps.length; j++) all.push(ps[j]);
+    }
+    return all;
+  }
+
+  return { parsePeople: parsePeople, parseProducts: parseProducts, parseProductsFromBox: parseProductsFromBox, extractPerson: extractPerson };
+})();
+
+/* =========================================================================
+   화면 / 복사 / 저장
+   ========================================================================= */
+(function(){
+  'use strict';
+  var KEY = 'wp_confirm_helper_v1';
+  var TTL = 24 * 60 * 60 * 1000;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var t1 = $('t1'), boxesEl = $('boxes'), saveStatus = $('saveStatus');
+  var peopleSec = $('peopleSec'), peopleOut = $('peopleOut'), prodSec = $('prodSec'), prodOut = $('prodOut');
+  var bar = $('bar'), barText = $('barText'), nextBtn = $('nextBtn'), toast = $('toast'), errBox = $('errBox');
+
+  var state = { t1: '', boxes: [''], copied: {}, savedAt: 0 };
+  var storageOk = true;
+  var timer = null, toastTimer = null;
+  var rows = []; // 이번 렌더의 항목들 [{key,label,value,copyable,seq}]
+
+  /* ---- 오류 표시(원인 파악용) ---- */
+  window.addEventListener('error', function(e){
+    errBox.style.display = 'block';
+    errBox.textContent = '⚠ 오류가 났어요. 이 문구를 캡처해서 알려주세요 · ' + (e && e.message ? e.message : '') + (e && e.lineno ? ' (줄 ' + e.lineno + ')' : '');
+  });
+
+  /* ---- 저장 ---- */
+  function testStorage(){
+    try{ localStorage.setItem(KEY + '_t', '1'); localStorage.removeItem(KEY + '_t'); return true; }
+    catch(e){ return false; }
+  }
+  function isEmptyState(){
+    if(state.t1.replace(/\s/g, '')) return false;
+    for(var i = 0; i < state.boxes.length; i++){ if(state.boxes[i].replace(/\s/g, '')) return false; }
+    return true;
+  }
+  function load(){
+    storageOk = testStorage();
+    if(!storageOk) return;
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(!raw) return;
+      var d = JSON.parse(raw);
+      if(!d || !d.savedAt || (Date.now() - d.savedAt) > TTL){ localStorage.removeItem(KEY); return; } // 24시간이 지나면 열 때 자동 삭제
+      state.t1 = typeof d.t1 === 'string' ? d.t1 : '';
+      state.boxes = (d.boxes && d.boxes.length) ? d.boxes.map(function(x){ return String(x || ''); }) : [''];
+      state.copied = (d.copied && typeof d.copied === 'object') ? d.copied : {};
+      state.savedAt = d.savedAt;
+      if(isEmptyState()){ localStorage.removeItem(KEY); state.savedAt = 0; }
+    }catch(e){}
+  }
+  function clockText(ts){
+    var d = new Date(ts), h = d.getHours(), m = d.getMinutes();
+    var ap = h < 12 ? '오전' : '오후';
+    var hh = h % 12; if(hh === 0) hh = 12;
+    return ap + ' ' + hh + ':' + (m < 10 ? '0' : '') + m;
+  }
+  function save(){
+    if(isEmptyState()){
+      state.copied = {}; state.savedAt = 0;
+      if(storageOk){ try{ localStorage.removeItem(KEY); }catch(e){ storageOk = false; } }
+    } else {
+      state.savedAt = Date.now();
+      if(storageOk){
+        try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ storageOk = false; }
+      }
+    }
+    showSaveStatus();
+  }
+  function showSaveStatus(){
+    saveStatus.className = 'ch-save';
+    if(isEmptyState()){ saveStatus.textContent = ''; return; }
+    if(!storageOk){
+      saveStatus.className = 'ch-save warn';
+      saveStatus.textContent = '이 화면에서는 저장이 안 돼요. 창을 닫으면 사라집니다.';
+      return;
+    }
+    saveStatus.textContent = '✓ 이 휴대폰에 저장됨 · ' + clockText(state.savedAt) + ' · 내일 ' + clockText(state.savedAt) + '에 자동 삭제';
+  }
+
+  /* ---- 입력칸 ---- */
+  function renderBoxes(){
+    boxesEl.innerHTML = '';
+    state.boxes.forEach(function(val, i){
+      var wrap = document.createElement('div'); wrap.className = 'ch-box';
+      var head = document.createElement('div'); head.className = 'ch-box-head';
+      var title = document.createElement('span'); title.textContent = '상품 ' + (i + 1) + ' 청약 문자';
+      var del = document.createElement('button'); del.type = 'button'; del.className = 'ch-btn danger'; del.textContent = '삭제';
+      del.addEventListener('click', function(){
+        if(state.boxes.length > 1) state.boxes.splice(i, 1); else state.boxes[0] = '';
+        renderBoxes(); update(true);
+      });
+      head.appendChild(title); head.appendChild(del);
+      var ta = document.createElement('textarea');
+      ta.value = val; ta.placeholder = '보험사 청약 문자를 붙여넣으세요';
+      ta.setAttribute('autocomplete', 'off'); ta.setAttribute('autocorrect', 'off'); ta.spellcheck = false;
+      hook(ta, function(){ state.boxes[i] = ta.value; });
+      wrap.appendChild(head); wrap.appendChild(ta);
+      boxesEl.appendChild(wrap);
+    });
+  }
+  // 붙여넣기 직후에는 바로 해석, 직접 타이핑은 입력이 멈추고 0.35초 뒤 해석
+  function hook(el, assign){
+    el.addEventListener('paste', function(){
+      setTimeout(function(){ assign(); clearTimeout(timer); update(true); }, 0);
+    });
+    el.addEventListener('input', function(){
+      assign(); clearTimeout(timer);
+      timer = setTimeout(function(){ update(true); }, 350);
+    });
+  }
+
+  /* ---- 결과 ---- */
+  function makeRow(parent, r){
+    var row = document.createElement('div');
+    row.className = 'ch-row' + (r.value ? '' : ' missing');
+    var lab = document.createElement('div'); lab.className = 'ch-label'; lab.textContent = r.label;
+    var val = document.createElement('div'); val.className = 'ch-value';
+    if(r.value){ val.textContent = r.value; } else { val.className += ' miss'; val.textContent = r.missText; }
+    row.appendChild(lab); row.appendChild(val);
+    if(r.value){
+      var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ch-btn ch-copy'; btn.textContent = '복사';
+      row.appendChild(btn);
+      row.addEventListener('click', function(){ doCopy(r); });
+      r.el = row;
+    }
+    parent.appendChild(row);
+  }
+  function makeCard(parent, title, sub, right){
+    var card = document.createElement('div'); card.className = 'ch-card';
+    var head = document.createElement('div'); head.className = 'ch-card-head';
+    var left = document.createElement('div');
+    var tt = document.createElement('div'); tt.className = 'ch-card-title'; tt.textContent = title; left.appendChild(tt);
+    if(sub){ var ss = document.createElement('div'); ss.className = 'ch-card-sub'; ss.textContent = sub; left.appendChild(ss); }
+    head.appendChild(left);
+    if(right){ var rr = document.createElement('div'); rr.className = 'ch-card-right'; rr.textContent = right; head.appendChild(rr); }
+    card.appendChild(head); parent.appendChild(card);
+    return card;
+  }
+  function notice(parent, text){
+    var n = document.createElement('div'); n.className = 'ch-notice'; n.textContent = text; parent.appendChild(n);
+  }
+
+  function render(){
+    rows = [];
+    peopleOut.innerHTML = ''; prodOut.innerHTML = '';
+    var has1 = !!state.t1.replace(/\s/g, '');
+    var has2 = false;
+    for(var i = 0; i < state.boxes.length; i++){ if(state.boxes[i].replace(/\s/g, '')) has2 = true; }
+    peopleSec.style.display = has1 ? 'block' : 'none';
+    prodSec.style.display = has2 ? 'block' : 'none';
+
+    if(has1){
+      var people = CH.parsePeople(state.t1);
+      if(!people.length) notice(peopleOut, '인식된 인적사항이 없어요 · 직접 확인');
+      people.forEach(function(p, n){
+        var card = makeCard(peopleOut, '인적사항 ' + (n + 1) + (p.name ? ' · ' + p.name : ''));
+        [['name', '이름', p.name], ['phone', '연락처', p.phone], ['birth', '생년월일', p.birth]].forEach(function(x){
+          var r = { key: 'p' + n + ':' + x[0], label: x[1], value: x[2] || '', missText: '없음 · 직접 확인', seq: true, group: '인적사항 ' + (n + 1) };
+          rows.push(r); makeRow(card, r);
+        });
+      });
+    }
+    if(has2){
+      var prods = CH.parseProducts(state.boxes);
+      if(!prods.length) notice(prodOut, '인식된 상품이 없어요 · 직접 확인');
+      prods.forEach(function(p, n){
+        var parts = ['상품 ' + (n + 1)];
+        if(p.insurer) parts.push(p.insurer);
+        if(p.parties) parts.push(p.parties);
+        var sub = prods.length >= 2 ? '앱에서 「보험 상품 추가하기」' : '';
+        var card = makeCard(prodOut, parts.join(' · '), sub, p.premium || '');
+        var rs = [
+          { key: 's' + n + ':no', label: '청약번호', value: p.appNo || '', missText: '문자에 없음 · 직접 확인', seq: true },
+          { key: 's' + n + ':policy', label: '증권번호', value: p.policyNo || '', missText: '', seq: false, hideIfMissing: true },
+          { key: 's' + n + ':name', label: '상품명', value: p.name || '', missText: '없음 · 직접 확인', seq: true }
+        ];
+        rs.forEach(function(r){
+          r.group = '상품 ' + (n + 1);
+          if(r.hideIfMissing && !r.value) return;
+          rows.push(r); makeRow(card, r);
+        });
+      });
+    }
+    refreshMarks();
+  }
+
+  function isCopied(r){ return !!r.value && state.copied[r.key] === r.value; }
+  function seqRows(){ return rows.filter(function(r){ return r.seq && r.value; }); }
+  function nextRow(){
+    var s = seqRows();
+    for(var i = 0; i < s.length; i++){ if(!isCopied(s[i])) return s[i]; }
+    return null;
+  }
+  function refreshMarks(){
+    var nx = nextRow();
+    rows.forEach(function(r){
+      if(!r.el) return;
+      var cls = 'ch-row';
+      if(isCopied(r)) cls += ' copied';
+      if(nx && nx === r) cls += ' next';
+      r.el.className = cls;
+    });
+    var s = seqRows();
+    if(!rows.length){ bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    if(!s.length){
+      barText.className = 'ch-bar-text'; barText.textContent = '복사할 항목이 없어요';
+      nextBtn.textContent = '다음 복사'; nextBtn.disabled = true;
+    } else if(!nx){
+      barText.className = 'ch-bar-text done'; barText.textContent = '모두 복사했어요. 앱에서 확인 후 서명 요청하세요.';
+      nextBtn.textContent = '완료'; nextBtn.disabled = true;
+    } else {
+      barText.className = 'ch-bar-text'; barText.textContent = '다음: ' + nx.group + ' · ' + nx.label;
+      nextBtn.textContent = '다음 복사'; nextBtn.disabled = false;
+    }
+  }
+
+  /* ---- 복사 ---- */
+  function showToast(msg){
+    toast.textContent = msg; toast.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.style.display = 'none'; }, 1400);
+  }
+  function fallbackCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.readOnly = true;
+    ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try{ ta.setSelectionRange(0, text.length); }catch(e){}
+    var ok = false;
+    try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function doCopy(r){
+    if(!r || !r.value) return;
+    var text = r.value;
+    function done(){
+      state.copied[r.key] = text;
+      save(); refreshMarks();
+      showToast('복사되었습니다');
+    }
+    function fail(){
+      showToast('선택됐어요. 복사를 눌러주세요');
+    }
+    function viaFallback(){ if(fallbackCopy(text)) done(); else fail(); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, viaFallback);
+    } else {
+      viaFallback();
+    }
+  }
+
+  /* ---- 전체 갱신 ---- */
+  function update(doSave){
+    render();
+    if(doSave) save();
+  }
+
+  $('addBoxBtn').addEventListener('click', function(){ state.boxes.push(''); renderBoxes(); update(true); });
+  $('clearAllBtn').addEventListener('click', function(){
+    if(!confirm('입력한 내용(①②)과 저장본을 모두 지울까요?')) return;
+    state.t1 = ''; state.boxes = ['']; state.copied = {};
+    t1.value = ''; renderBoxes(); update(true);
+  });
+  nextBtn.addEventListener('click', function(){ var nx = nextRow(); if(nx) doCopy(nx); });
+  hook(t1, function(){ state.t1 = t1.value; });
+
+  load();
+  t1.value = state.t1;
+  renderBoxes();
+  render();
+  showSaveStatus();
+})();
+</script>
+</body>
+</html>
