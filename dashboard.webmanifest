@@ -1,0 +1,17 @@
+{
+  "id": "/dashboard.html",
+  "name": "With Partners 대시보드",
+  "short_name": "대시보드",
+  "description": "With Partners 팀 대시보드",
+  "start_url": "/dashboard.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f7fb",
+  "theme_color": "#0a1a30",
+  "icons": [
+    { "src": "/assets/dashboard-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/dashboard-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/dashboard-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

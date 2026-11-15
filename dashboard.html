@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>대시보드 | With Partners</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="manifest" href="dashboard.webmanifest">
+<meta name="theme-color" content="#0a1a30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="대시보드">
+<link rel="apple-touch-icon" href="assets/dashboard-icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   /* 대시보드 메뉴만 한 줄에 3개씩 배치(병력정리/보장분석표/가족보장분석 →
@@ -25,6 +31,10 @@
 <p class="sub">이용하실 기능을 선택해주세요</p>
 <p class="sub" id="pointsLine" style="display:none"></p>
 <button type="button" class="btn-ghost" id="showRulesBtn" style="margin-bottom:24px;">📌 이용 규칙 보기</button>
+<span id="wpInstallWrap" style="display:none;">
+<button type="button" class="btn-ghost" id="wpInstallBtn" style="margin:0 0 24px 8px;">📲 대시보드 앱으로 설치</button>
+<div id="wpInstallHint" style="display:none;margin:-12px 0 20px;font-size:12.5px;color:var(--muted);line-height:1.6;"></div>
+</span>
 <div class="card-grid">
 <a href="history.html" class="feature-card" id="historyCard">
 <div class="icon">📋</div>
@@ -321,6 +331,32 @@ document.getElementById('logoutLink').addEventListener('click', async (e)=>{
   e.preventDefault();
   await logout();
 });
+</script>
+<script>
+/* 앱으로 설치 버튼 -- 크롬의 설치 확인 창을 한 번에 띄운다. 이미 앱으로 열었으면 버튼을 숨긴다. */
+(function(){
+  var wrap = document.getElementById('wpInstallWrap'), btn = document.getElementById('wpInstallBtn'), hint = document.getElementById('wpInstallHint');
+  if(!wrap || !btn) return;
+  var deferred = null;
+  function standalone(){
+    try{ return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+    catch(e){ return false; }
+  }
+  if(!standalone()) wrap.style.display = 'inline';
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; if(!standalone()) wrap.style.display = 'inline'; });
+  window.addEventListener('appinstalled', function(){ deferred = null; wrap.style.display = 'none'; });
+  btn.addEventListener('click', function(){
+    if(deferred){
+      var ev = deferred; deferred = null; ev.prompt();
+      return;
+    }
+    if(hint){
+      hint.style.display = 'block';
+      hint.textContent = '이 브라우저에서는 설치 창이 바로 안 떠요. 크롬 메뉴(⋮)에서 「홈 화면에 추가」 또는 「앱 설치」를 눌러주세요. 이미 설치했다면 홈 화면의 아이콘으로 열면 됩니다.';
+    }
+  });
+})();
+try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(e){}
 </script>
 </body>
 </html>
