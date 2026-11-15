@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>3종확인서 입력 도우미 | With Partners</title>
 <link rel="stylesheet" href="assets/style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f2545">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="3종확인서">
+<link rel="icon" type="image/png" href="assets/confirm-icon-192.png">
+<link rel="apple-touch-icon" href="assets/confirm-icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   .ch-wrap{max-width:640px;margin:0 auto;padding:22px 16px 140px;}
@@ -23,8 +30,9 @@
   .ch-btn.primary{background:var(--navy-900);border-color:var(--navy-900);color:#fff;font-weight:700;}
   .ch-btn.primary:disabled{background:#a9b6c6;border-color:#a9b6c6;cursor:not-allowed;}
   .ch-actions{display:flex;gap:8px;flex-wrap:wrap;}
-  .ch-save{margin:10px 2px 16px;font-size:12px;color:var(--muted);min-height:18px;}
-  .ch-save.warn{color:#b45309;}
+  .ch-save-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 2px 16px;}
+  .ch-save{font-size:12px;color:var(--muted);min-height:18px;flex:1;min-width:0;word-break:keep-all;}
+  .ch-save.warn{color:#b45309;font-weight:600;}
   .ch-sec-title{font-size:14px;font-weight:800;color:var(--navy-950);margin:20px 2px 8px;}
   .ch-card{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden;}
   .ch-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--navy-100);}
@@ -58,7 +66,7 @@
 
 <div class="ch-wrap">
   <h1>3종확인서 입력 도우미</h1>
-  <p class="lead">인적사항과 청약 문자를 붙여넣으면 AFG 앱 「확인서 생성」에 넣을 값을 항목별로 뽑아드립니다. 입력한 내용은 이 휴대폰 브라우저에만 24시간 저장되고, 서버로는 전송되지 않습니다.</p>
+  <p class="lead">인적사항과 청약 문자를 붙여넣으면 AFG 앱 「확인서 생성」에 넣을 값을 항목별로 뽑아드립니다. 입력한 내용은 자동으로 저장되어, 폰·PC 어디서 열어도 최근 내역이 그대로 뜹니다. 내 계정에만 보이며 7일 뒤 자동 삭제됩니다.</p>
 
   <div class="ch-block">
     <h2>① 인적사항</h2>
@@ -76,7 +84,10 @@
     </div>
   </div>
 
-  <div class="ch-save" id="saveStatus"></div>
+  <div class="ch-save-row">
+    <div class="ch-save" id="saveStatus"></div>
+    <button type="button" class="ch-btn" id="saveBtn" style="flex:none;">💾 저장</button>
+  </div>
 
   <div id="peopleSec" style="display:none;">
     <div class="ch-sec-title">인적사항 결과</div>
@@ -528,7 +539,9 @@ var CH = (function(){
 (function(){
   'use strict';
   var KEY = 'wp_confirm_helper_v1';
-  var TTL = 24 * 60 * 60 * 1000;
+  var TABLE = 'confirm_helper_drafts';
+  var TTL_DAYS = 7;
+  var TTL = TTL_DAYS * 24 * 60 * 60 * 1000;
 
   var $ = function(id){ return document.getElementById(id); };
   var t1 = $('t1'), boxesEl = $('boxes'), saveStatus = $('saveStatus');
@@ -537,8 +550,10 @@ var CH = (function(){
 
   var state = { t1: '', boxes: [''], copied: {}, savedAt: 0 };
   var storageOk = true;
-  var timer = null, toastTimer = null;
+  var timer = null, toastTimer = null, serverTimer = null;
   var rows = []; // 이번 렌더의 항목들 [{key,label,value,copyable,seq}]
+  // 서버(Supabase) 저장 상태 -- ok: null(아직 모름) / true / false
+  var server = { ok: null, uid: null, saving: false, pending: false, dirty: false, lastAt: 0, msg: '', missing: false };
 
   /* ---- 오류 표시(원인 파악용) ---- */
   window.addEventListener('error', function(e){
@@ -546,7 +561,7 @@ var CH = (function(){
     errBox.textContent = '⚠ 오류가 났어요. 이 문구를 캡처해서 알려주세요 · ' + (e && e.message ? e.message : '') + (e && e.lineno ? ' (줄 ' + e.lineno + ')' : '');
   });
 
-  /* ---- 저장 ---- */
+  /* ---- 이 기기에 저장 (localStorage) ---- */
   function testStorage(){
     try{ localStorage.setItem(KEY + '_t', '1'); localStorage.removeItem(KEY + '_t'); return true; }
     catch(e){ return false; }
@@ -556,18 +571,27 @@ var CH = (function(){
     for(var i = 0; i < state.boxes.length; i++){ if(state.boxes[i].replace(/\s/g, '')) return false; }
     return true;
   }
-  function load(){
+  function adopt(d){
+    state.t1 = typeof d.t1 === 'string' ? d.t1 : '';
+    state.boxes = (d.boxes && d.boxes.length) ? d.boxes.map(function(x){ return String(x || ''); }) : [''];
+    state.copied = (d.copied && typeof d.copied === 'object') ? d.copied : {};
+    state.savedAt = d.savedAt || 0;
+  }
+  function localWrite(){
+    if(!storageOk) return;
+    try{
+      if(isEmptyState()) localStorage.removeItem(KEY); else localStorage.setItem(KEY, JSON.stringify(state));
+    }catch(e){ storageOk = false; }
+  }
+  function loadLocal(){
     storageOk = testStorage();
     if(!storageOk) return;
     try{
       var raw = localStorage.getItem(KEY);
       if(!raw) return;
       var d = JSON.parse(raw);
-      if(!d || !d.savedAt || (Date.now() - d.savedAt) > TTL){ localStorage.removeItem(KEY); return; } // 24시간이 지나면 열 때 자동 삭제
-      state.t1 = typeof d.t1 === 'string' ? d.t1 : '';
-      state.boxes = (d.boxes && d.boxes.length) ? d.boxes.map(function(x){ return String(x || ''); }) : [''];
-      state.copied = (d.copied && typeof d.copied === 'object') ? d.copied : {};
-      state.savedAt = d.savedAt;
+      if(!d || !d.savedAt || (Date.now() - d.savedAt) > TTL){ localStorage.removeItem(KEY); return; } // 기간이 지나면 열 때 자동 삭제
+      adopt(d);
       if(isEmptyState()){ localStorage.removeItem(KEY); state.savedAt = 0; }
     }catch(e){}
   }
@@ -577,27 +601,115 @@ var CH = (function(){
     var hh = h % 12; if(hh === 0) hh = 12;
     return ap + ' ' + hh + ':' + (m < 10 ? '0' : '') + m;
   }
+
+  /* ---- 서버에 저장 (Supabase, 내 계정 한 줄) -> 폰·PC 어디서든 같은 내용 ---- */
+  function getClient(){
+    try{ return (typeof supabaseClient !== 'undefined') ? supabaseClient : null; }catch(e){ return null; }
+  }
+  function ensureUid(){
+    if(server.uid) return Promise.resolve(server.uid);
+    var c = getClient();
+    if(!c || !c.auth) return Promise.reject(new Error('로그인 정보를 확인할 수 없어요'));
+    return c.auth.getSession().then(function(r){
+      var s = r && r.data && r.data.session;
+      if(!s || !s.user) throw new Error('로그인이 필요해요');
+      server.uid = s.user.id;
+      return server.uid;
+    });
+  }
+  function isMissingTable(err){
+    var m = ((err && err.code) || '') + ' ' + ((err && err.message) || '');
+    return /42P01|PGRST205|does not exist|schema cache/i.test(m);
+  }
+  function failServer(err){
+    server.saving = false; server.ok = false; server.dirty = true;
+    server.missing = isMissingTable(err);
+    server.msg = (err && err.message) ? String(err.message).slice(0, 80) : String(err);
+    showSaveStatus();
+    return false;
+  }
+  // 저장 한 번. 성공하면 true. (저장 중에 또 바뀌면 끝난 뒤 한 번 더 저장)
+  function pushServer(){
+    if(server.saving){ server.pending = true; return Promise.resolve(false); }
+    server.saving = true; server.pending = false;
+    showSaveStatus();
+    return ensureUid().then(function(uid){
+      var c = getClient();
+      if(isEmptyState()) return c.from(TABLE).delete().eq('user_id', uid);
+      return c.from(TABLE).upsert({ user_id: uid, data: { t1: state.t1, boxes: state.boxes, copied: state.copied, savedAt: state.savedAt }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    }).then(function(res){
+      if(res && res.error) throw res.error;
+      server.saving = false; server.ok = true; server.dirty = false; server.missing = false; server.msg = ''; server.lastAt = Date.now();
+      showSaveStatus();
+      if(server.pending) pushServer();
+      return true;
+    }).catch(failServer);
+  }
+  function scheduleServerSave(){
+    server.dirty = true;
+    clearTimeout(serverTimer);
+    serverTimer = setTimeout(function(){ pushServer(); }, 1200);
+    showSaveStatus();
+  }
+  function applyRemote(d){
+    adopt(d);
+    t1.value = state.t1;
+    renderBoxes(); render(); localWrite();
+  }
+  // 서버에 있는 최근 내역을 읽어, 이 기기보다 새로우면 그걸로 바꾼다. (이 기기가 더 새로우면 서버에 올린다)
+  function pullServer(){
+    return ensureUid().then(function(uid){
+      return getClient().from(TABLE).select('data,updated_at').eq('user_id', uid).maybeSingle();
+    }).then(function(res){
+      if(res.error) throw res.error;
+      var d = res.data && res.data.data;
+      server.ok = true; server.missing = false;
+      if(d && d.savedAt && (Date.now() - d.savedAt) > TTL){
+        return getClient().from(TABLE).delete().eq('user_id', server.uid).then(function(){ d = null; return d; });
+      }
+      return d;
+    }).then(function(d){
+      if(d && d.savedAt > state.savedAt){
+        applyRemote(d); server.dirty = false; server.lastAt = Date.now(); showSaveStatus();
+      } else if(!isEmptyState() && (!d || state.savedAt > d.savedAt)){
+        return pushServer();
+      } else {
+        server.dirty = false; server.lastAt = server.lastAt || Date.now(); showSaveStatus();
+      }
+    }).catch(failServer);
+  }
+
   function save(){
     if(isEmptyState()){
       state.copied = {}; state.savedAt = 0;
-      if(storageOk){ try{ localStorage.removeItem(KEY); }catch(e){ storageOk = false; } }
     } else {
       state.savedAt = Date.now();
-      if(storageOk){
-        try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){ storageOk = false; }
-      }
     }
+    localWrite();
+    scheduleServerSave();
     showSaveStatus();
   }
   function showSaveStatus(){
-    saveStatus.className = 'ch-save';
-    if(isEmptyState()){ saveStatus.textContent = ''; return; }
-    if(!storageOk){
-      saveStatus.className = 'ch-save warn';
-      saveStatus.textContent = '이 화면에서는 저장이 안 돼요. 창을 닫으면 사라집니다.';
-      return;
+    var cls = 'ch-save', txt = '';
+    if(isEmptyState() && !server.saving){
+      txt = server.ok === false ? '' : '';
+    } else if(server.saving){
+      txt = '저장 중…';
+    } else if(server.ok === false){
+      cls += ' warn';
+      if(server.missing){
+        txt = '⚠ 서버 저장 준비 전이에요 — 지금은 이 기기에만 저장돼요.';
+      } else {
+        txt = '⚠ 서버 저장에 실패했어요(' + server.msg + '). ' + (storageOk ? '이 기기에는 저장됐어요. ' : '이 화면에서는 이 기기 저장도 안 돼요. ') + '「저장」 버튼으로 다시 시도하세요.';
+      }
+    } else if(server.ok === true && !server.dirty){
+      txt = '✓ 저장됨 · ' + clockText(server.lastAt || state.savedAt) + ' · 폰·PC 어디서든 열면 이어집니다 · ' + TTL_DAYS + '일 뒤 자동 삭제';
+    } else {
+      txt = '저장 대기 중…';
+      if(!storageOk){ cls += ' warn'; txt += ' (이 화면에서는 이 기기 저장이 안 돼요)'; }
     }
-    saveStatus.textContent = '✓ 이 휴대폰에 저장됨 · ' + clockText(state.savedAt) + ' · 내일 ' + clockText(state.savedAt) + '에 자동 삭제';
+    saveStatus.className = cls;
+    saveStatus.textContent = txt;
   }
 
   /* ---- 입력칸 ---- */
@@ -790,11 +902,41 @@ var CH = (function(){
   nextBtn.addEventListener('click', function(){ var nx = nextRow(); if(nx) doCopy(nx); });
   hook(t1, function(){ state.t1 = t1.value; });
 
-  load();
+  // 「저장」 버튼 -- 자동저장이 실패했을 때 확실히 저장하고 결과를 바로 알려준다.
+  $('saveBtn').addEventListener('click', function(){
+    if(isEmptyState()){ showToast('저장할 내용이 없어요'); return; }
+    clearTimeout(serverTimer);
+    state.savedAt = Date.now();
+    localWrite();
+    var btn = $('saveBtn'); btn.disabled = true;
+    (server.saving ? Promise.resolve(false) : pushServer()).then(function(ok){
+      btn.disabled = false;
+      if(ok) showToast('저장되었습니다');
+      else if(server.saving){ showToast('저장 중이에요. 잠시 뒤 다시 눌러주세요'); }
+      else if(server.missing) showToast('서버 저장 준비 전이에요 (이 기기에만 저장됨)');
+      else showToast('서버 저장 실패 — 이 기기에는 저장됨');
+    });
+  });
+
+  // 폰·PC를 오갈 때: 다시 화면으로 돌아오면 서버의 최근 내역을 확인하고, 실패했던 저장은 다시 시도한다.
+  function refreshFromServer(){
+    var ae = document.activeElement;
+    if(ae && (ae.tagName === 'TEXTAREA')) return; // 입력 중에는 덮어쓰지 않는다
+    if(server.dirty && !server.saving){ pushServer(); return; }
+    if(!server.saving) pullServer();
+  }
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) refreshFromServer(); });
+  window.addEventListener('online', function(){ if(server.dirty) pushServer(); });
+
+  loadLocal();
   t1.value = state.t1;
   renderBoxes();
   render();
   showSaveStatus();
+  pullServer(); // 서버의 최근 내역 불러오기 (더 최근이면 그 내용으로 바뀐다)
+
+  // 홈 화면에 추가했을 때 앱처럼 열리도록 (캐시는 쓰지 않는 최소 서비스워커)
+  try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){}
 })();
 </script>
 </body>
