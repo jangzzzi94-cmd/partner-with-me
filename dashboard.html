@@ -36,42 +36,58 @@
 <div id="wpInstallHint" style="display:none;margin:-12px 0 20px;font-size:12.5px;color:var(--muted);line-height:1.6;"></div>
 </span>
 <div class="card-grid">
-<a href="history.html" class="feature-card" id="historyCard">
+<a href="history.html" class="feature-card" data-card-id="history" id="historyCard">
 <div class="icon">📋</div>
 <h3>병력정리</h3>
 <p>기본진료정보와 세부진료정보를 업로드해 자동으로 병력을 정리하고 고지사항 텍스트를 생성합니다.</p>
 <span class="badge-soon" id="historyBadge" style="display:none">승인 대기중</span>
 </a>
-<a href="coverage.html" class="feature-card">
+<a href="coverage.html" class="feature-card" data-card-id="coverage">
 <div class="icon">📊</div>
 <h3>보장분석표</h3>
 <p>가입된 보장 내역을 업로드해 보장분석표(전)/(후)를 자동으로 만들고, 종합비교·보장차이까지 한 번에 확인합니다.</p>
 <span class="badge-soon" id="coverageBadge" style="display:none">1회 3,000P</span>
 </a>
-<a href="family-coverage.html" class="feature-card">
+<a href="family-coverage.html" class="feature-card" data-card-id="family">
 <div class="icon">👨‍👩‍👧‍👦</div>
 <h3>가족보장분석</h3>
 <p>가족 구성원별 보장분석표를 모아 하나의 통합 리포트로 비교하고, PDF로 저장합니다.</p>
 <span class="badge-soon" id="familyCoverageBadge" style="display:none">1회 1,000P</span>
 </a>
-<a href="confirm-helper.html" class="feature-card">
+<a href="confirm-helper.html" class="feature-card" data-card-id="confirm">
 <div class="icon">✅</div>
 <h3>3종확인서</h3>
 <p>인적사항과 보험사 청약 문자를 붙여넣으면 앱 「확인서 생성」에 넣을 값을 항목별로 뽑아 순서대로 복사할 수 있습니다.</p>
 </a>
 <!-- Market J: 지금은 화면에서만 숨겼습니다(기능·jmarket.html은 그대로). 다시 보이게 하려면 아래 주석을 풀면 됩니다.
-<a href="jmarket.html" class="feature-card">
+<a href="jmarket.html" class="feature-card" data-card-id="market">
 <div class="icon">🛒</div>
 <h3>Market J</h3>
 <p>모은 포인트로 상품을 구매할 수 있는 Market J입니다.</p>
 </a>
 -->
-<a href="attendance.html" class="feature-card">
+<a href="attendance.html" class="feature-card" data-card-id="attendance">
 <div class="icon">🗓️</div>
 <h3>팀 벌금</h3>
 <p>출근보고·근태를 기록하고, 팀 벌금 현황과 납부 내역을 확인합니다.</p>
 </a>
 </div>
+<script>
+/* 관리자가 정한 카드 순서 -- 마지막으로 받은 순서를 기억해 두었다가 먼저 적용(깜빡임 방지), 서버 값은 아래에서 받아 갱신 */
+window.__applyDashOrder = function(order){
+  try{
+    var grid = document.querySelector('.card-grid');
+    if(!grid || !order || !order.length) return;
+    var cards = [].slice.call(grid.querySelectorAll('.feature-card[data-card-id]'));
+    var orig = {}; cards.forEach(function(c, i){ orig[c.getAttribute('data-card-id')] = i; });
+    var rank = {}; order.forEach(function(id, i){ rank[id] = i; });
+    function r(c){ var id = c.getAttribute('data-card-id'); return rank[id] === undefined ? 1000 + orig[id] : rank[id]; }
+    cards.sort(function(a, b){ return r(a) - r(b); });
+    cards.forEach(function(c){ grid.appendChild(c); });
+  }catch(e){}
+};
+try{ window.__applyDashOrder(JSON.parse(localStorage.getItem('wp_dash_order_v1') || 'null')); }catch(e){}
+</script>
 
 <div style="margin-top:36px;">
 <h2 style="font-size:18px;color:var(--navy-950);margin:0 0 14px;">포인트 순위</h2>
@@ -357,6 +373,19 @@ document.getElementById('logoutLink').addEventListener('click', async (e)=>{
   });
 })();
 try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(e){}
+</script>
+<script>
+(function(){
+  try{
+    supabaseClient.from('site_settings').select('value').eq('key', 'dashboard_card_order').maybeSingle().then(function(res){
+      var v = res && res.data && res.data.value;
+      if(Array.isArray(v) && v.length){
+        window.__applyDashOrder(v);
+        try{ localStorage.setItem('wp_dash_order_v1', JSON.stringify(v)); }catch(e){}
+      }
+    }, function(){});
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
