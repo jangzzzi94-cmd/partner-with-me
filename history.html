@@ -92,6 +92,24 @@ button.copybtn.copied{background:#dff0d8; border-color:#b9dcae; color:#2f7d4d;}
 .use-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
 button.secondary{background:#eef4ee; color:#2f5c3f; border:1px solid #cfe3cf;padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;}
 button.secondary:hover{background:#e2eee2;}
+.cm-back{position:fixed;inset:0;background:rgba(10,26,48,.55);z-index:200;display:none;align-items:flex-start;justify-content:center;padding:max(12px,5vh) 12px 12px;}
+.cm-card{background:#fff;border-radius:14px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,.3);}
+.cm-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--ink);}
+.cm-head button{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--ink-soft);}
+.cm-body{padding:12px 14px;overflow-y:auto;}
+.cm-body input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit;}
+.cm-list{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+.cm-list:empty{display:none;}
+.cm-opt{padding:11px 12px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;}
+.cm-opt:last-child{border-bottom:none;}
+.cm-opt:hover{background:#eef2f9;}
+.cm-opt.on{background:#dfe8f7;font-weight:700;}
+.cm-opt small{color:var(--ink-soft);font-weight:400;}
+.cm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.cm-actions button{padding:10px 16px;font-size:14px;border-radius:9px;}
+.cm-msg{margin-top:10px;font-size:13.5px;line-height:1.6;}
+.cm-msg.ok{color:#2f7d4f;}.cm-msg.err{color:#c0392b;}
+.cm-msg a{color:var(--amber);font-weight:700;}
 .used-badge{display:none; margin-top:8px; font-size:12px; color:#2f5c3f; background:#eef4ee;border:1px solid #cfe3cf; border-radius:6px; padding:6px 10px;}
 .used-badge.show{display:block;}
 </style>
@@ -203,11 +221,21 @@ button.secondary:hover{background:#e2eee2;}
     </div>
     <div class="dl-row">
       <button class="primary" id="dlBtn">엑셀 파일 다운로드 (.xlsx)</button>
+      <button class="secondary" id="saveCustBtn" type="button">👥 고객 인적사항에 저장</button>
       <span class="status" id="dlStatus"></span>
     </div>
   </div>
   <div class="note" id="footNote"></div>
 </div>
+<div class="cm-back" id="custModal"><div class="cm-card">
+  <div class="cm-head"><b>👥 고객 인적사항에 저장</b><button type="button" id="cmClose" aria-label="닫기">✕</button></div>
+  <div class="cm-body">
+    <input type="text" id="cmName" placeholder="고객명을 입력하세요" autocomplete="off" maxlength="40">
+    <div class="cm-list" id="cmList"></div>
+    <div class="cm-actions" id="cmActions"></div>
+    <div class="cm-msg" id="cmMsg"></div>
+  </div>
+</div></div>
 <script src="assets/supabase-client.js"></script>
 <script>
 // ⚠️ 테스트용 임시 스위치: true로 두면 포인트 차감 없이(포인트가 있다고 가정하고) 무제한으로
@@ -1311,6 +1339,123 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
     dlStatus.textContent="다운로드 오류: "+err.message;
   }
 });
+
+// ===== 병력정리 결과를 고객리스트(인적사항 페이지)에 저장 =====
+(function(){
+  const TPL = { simple:"✅병력사항(간편)\n", standard:"✅병력사항(표준체)\n", dental:"✅병력사항(치아)\n", major:"✅병력사항(중대질환)\n" };
+  const FIELD = { simple:"simple_text", standard:"standard_text", dental:"dental_text", major:"major_text" };
+  const PERSONAL_TPL = (n)=> "✅인적사항✅\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
+  const BANK_TPL = "은행명 : \n계좌번호 : ";
+  const $ = (id)=> document.getElementById(id);
+  let all = null, picked = null;
+
+  function parseName(t){ const m = /^[ \t]*이름[ \t]*[:：][ \t]*(.*)$/m.exec(t || ""); return m ? m[1].trim() : ""; }
+  function dispName(c){ return ((c.name || "").trim()) || parseName(c.personal_text); }
+  function birthOf(c){
+    const t = c.personal_text || ""; let m, d;
+    m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+    if(m){ d = m[1].replace(/\D/g, ""); if(d.length === 8) d = d.slice(2); if(d.length === 6) return d.slice(0,2)+"."+d.slice(2,4)+"."+d.slice(4,6); }
+    m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+    if(m){ d = m[1].replace(/\D/g, ""); if(d.length >= 6) return d.slice(0,2)+"."+d.slice(2,4)+"."+d.slice(4,6); }
+    return "";
+  }
+  function hasHistory(c){
+    return Object.keys(FIELD).some(k => (c[FIELD[k]] || "").replace(TPL[k], "").trim() !== "");
+  }
+  function setMsg(text, kind){ const el = $("cmMsg"); el.className = "cm-msg" + (kind ? " " + kind : ""); el.textContent = text || ""; }
+  function newValues(){
+    const r = lastResult || {};
+    return { simple: TPL.simple + (r.textA || ""), standard: TPL.standard + (r.textB || ""), dental: TPL.dental + (r.textD || ""), major: TPL.major + (r.textC || "") };
+  }
+  async function loadAll(){
+    let rows = [], from = 0;
+    for(;;){
+      const res = await supabaseClient.from("customers").select("id,name,personal_text,created_at,simple_text,standard_text,dental_text,major_text").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
+      if(res.error) throw res.error;
+      rows = rows.concat(res.data || []);
+      if(!res.data || res.data.length < 1000) break;
+      from += 1000;
+    }
+    all = rows;
+  }
+  function render(){
+    const q = $("cmName").value.trim(), ql = q.toLowerCase();
+    const list = $("cmList"), act = $("cmActions");
+    list.innerHTML = ""; act.innerHTML = ""; 
+    if(!all || !q){ picked = null; return; }
+    const counts = {}; all.forEach(c => { const k = dispName(c).toLowerCase(); if(k) counts[k] = (counts[k] || 0) + 1; });
+    const ms = all.filter(c => dispName(c).toLowerCase().indexOf(ql) >= 0);
+    const exact = ms.filter(c => dispName(c).toLowerCase() === ql);
+    if(picked && !ms.some(c => c.id === picked.id)) picked = null;
+    if(!picked && exact.length === 1) picked = exact[0];
+    ms.slice(0, 15).forEach(c => {
+      const dup = counts[dispName(c).toLowerCase()] > 1;
+      const b = birthOf(c);
+      const tag = dup ? (b ? b + "생" : "등록 " + String(c.created_at).slice(0,10)) : "";
+      const row = document.createElement("div");
+      row.className = "cm-opt" + (picked && picked.id === c.id ? " on" : "");
+      const left = document.createElement("span"); left.textContent = dispName(c) + (tag ? " (" + tag + ")" : "");
+      const right = document.createElement("small"); right.textContent = hasHistory(c) ? "병력 있음" : "";
+      row.appendChild(left); row.appendChild(right);
+      row.addEventListener("click", () => { picked = c; render(); });
+      list.appendChild(row);
+    });
+    if(picked){
+      const b = document.createElement("button"); b.className = "primary"; b.type = "button"; b.textContent = "「" + dispName(picked) + "」에 저장";
+      b.addEventListener("click", saveToPicked); act.appendChild(b);
+    }
+    if(!exact.length){
+      const n = document.createElement("button"); n.className = picked ? "ghost" : "primary"; n.type = "button"; n.textContent = "신규추가 (「" + q + "」 새 고객 만들기)";
+      n.addEventListener("click", () => createNew(q)); act.appendChild(n);
+    } else {
+      const n = document.createElement("button"); n.className = "ghost"; n.type = "button"; n.textContent = "동명이인이라 새로 만들기";
+      n.addEventListener("click", () => createNew(q)); act.appendChild(n);
+    }
+  }
+  function done(id, name, created){
+    const el = $("cmMsg"); el.className = "cm-msg ok"; el.textContent = "";
+    el.appendChild(document.createTextNode((created ? "새 고객 「" + name + "」을(를) 만들어 " : "「" + name + "」에 ") + "병력사항(간편·표준체·치아·중대질환)을 저장했어요. "));
+    const a = document.createElement("a"); a.href = "customers.html#/c/" + id; a.textContent = "고객 페이지 열기"; el.appendChild(a);
+    $("cmActions").innerHTML = "";
+  }
+  async function saveToPicked(){
+    if(!picked) return;
+    if(hasHistory(picked) && !confirm("「" + dispName(picked) + "」에는 이미 적어 둔 병력사항이 있어요.\n새 병력정리 결과로 덮어쓸까요?")) return;
+    setMsg("저장 중…");
+    const v = newValues();
+    try{
+      const res = await supabaseClient.from("customers").update({ simple_text:v.simple, standard_text:v.standard, dental_text:v.dental, major_text:v.major, updated_at:new Date().toISOString() }).eq("id", picked.id).select("id");
+      if(res.error) throw res.error;
+      if(!res.data || !res.data.length) throw new Error("저장할 고객을 찾지 못했어요");
+      done(picked.id, dispName(picked), false);
+      await loadAll();
+    }catch(e){ console.error(e); setMsg("저장하지 못했어요: " + (e.message || e), "err"); }
+  }
+  async function createNew(name){
+    setMsg("만드는 중…");
+    const v = newValues();
+    try{
+      const res = await supabaseClient.from("customers").insert({ name:name, props:{}, personal_text:PERSONAL_TPL(name), bank_text:BANK_TPL, simple_text:v.simple, standard_text:v.standard, dental_text:v.dental, major_text:v.major }).select("id").single();
+      if(res.error) throw res.error;
+      done(res.data.id, name, true);
+      await loadAll();
+    }catch(e){ console.error(e); setMsg("만들지 못했어요: " + (e.message || e), "err"); }
+  }
+  $("saveCustBtn").addEventListener("click", async () => {
+    if(!lastResult){ return; }
+    $("custModal").style.display = "flex"; $("cmName").value = ""; picked = null; $("cmList").innerHTML = ""; $("cmActions").innerHTML = ""; setMsg("");
+    setTimeout(() => $("cmName").focus(), 50);
+    try{
+      const { data:{ session } } = await supabaseClient.auth.getSession();
+      if(!session){ setMsg("로그인이 필요해요. 다시 로그인해 주세요.", "err"); return; }
+      setMsg("고객 목록 불러오는 중…"); await loadAll(); setMsg("");
+    }catch(e){ console.error(e); setMsg("고객 목록을 불러오지 못했어요: " + (e.message || e), "err"); }
+  });
+  $("cmName").addEventListener("input", () => { setMsg(""); render(); });
+  $("cmClose").addEventListener("click", () => { $("custModal").style.display = "none"; });
+  $("custModal").addEventListener("click", (e) => { if(e.target === $("custModal")) $("custModal").style.display = "none"; });
+  document.addEventListener("keydown", (e) => { if(e.key === "Escape") $("custModal").style.display = "none"; });
+})();
 document.getElementById("footNote").textContent =
   "※ 기본진료정보 파일은 11개 열(순번~내가 낸 의료비) 구성을 기준으로 처리하며, 그 중 I·J열은 원본 매크로와 동일하게 자동 제외됩니다. " +
   "엑셀의 텍스트 정렬 방식과 브라우저 정렬 방식에 미세한 차이가 있을 수 있어 \"주상병명\" 정렬 결과가 원본과 완전히 동일하지 않을 수 있습니다.";

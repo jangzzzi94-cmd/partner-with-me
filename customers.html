@@ -242,6 +242,22 @@
           <button type="button" class="cu-btn sm" data-copy="personal+standard">인적사항+표준체 복사</button>
         </div>
       </div>
+      <div class="box">
+        <label for="dentalText">병력사항(치아)</label>
+        <textarea id="dentalText" data-field="dental_text"></textarea>
+        <div class="btns">
+          <button type="button" class="cu-btn sm" data-copy="dental">병력(치아) 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+dental">인적사항+치아 복사</button>
+        </div>
+      </div>
+      <div class="box">
+        <label for="majorText">병력사항(중대질환)</label>
+        <textarea id="majorText" data-field="major_text"></textarea>
+        <div class="btns">
+          <button type="button" class="cu-btn sm" data-copy="major">병력(중대질환) 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+major">인적사항+중대질환 복사</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -288,12 +304,14 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   var BUCKET = 'customer-files';
   var PEND_KEY = 'wp_customers_pending_v1';
   var MAX_FILE = 50 * 1024 * 1024;
-  var TEXT_FIELDS = ['personal_text', 'bank_text', 'simple_text', 'standard_text'];
+  var TEXT_FIELDS = ['personal_text', 'bank_text', 'simple_text', 'standard_text', 'dental_text', 'major_text'];
   var TEMPLATES = {
     personal_text: '✅인적사항✅\n이름 : \n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ',
     bank_text: '은행명 : \n계좌번호 : ',
     simple_text: '✅병력사항(간편)\n',
-    standard_text: '✅병력사항(표준체)\n'
+    standard_text: '✅병력사항(표준체)\n',
+    dental_text: '✅병력사항(치아)\n',
+    major_text: '✅병력사항(중대질환)\n'
   };
   var TYPE_LABEL = { text: '텍스트', multi_select: '다중선택', date: '날짜', created_time: '생성일시' };
   var COLORS = [['#e8f0fe', '#1d4ed8'], ['#e8f6ee', '#1e7e50'], ['#fdecea', '#c0392b'], ['#fff4e0', '#b45309'], ['#f3e8ff', '#7e22ce'], ['#e0f7fa', '#0e7490'], ['#fde8f1', '#be185d'], ['#eef2f8', '#1f3f74']];
@@ -512,7 +530,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function haystack(c){
     var ri = refInfo(c);
-    var parts = [c.name, dispName(c), ri.plain, birthOf(c), c.personal_text, c.simple_text, c.standard_text, c.bank_text];
+    var parts = [c.name, dispName(c), ri.plain, birthOf(c), c.personal_text, c.simple_text, c.standard_text, c.dental_text, c.major_text, c.bank_text];
     props.forEach(function(p){
       var v = c.props[p.id];
       if(p.type === 'text' && v) parts.push(v);
@@ -1087,13 +1105,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         download('customers_backup_' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
       } else {
         var live = all.props.filter(function(p){ return !p.deleted_at; });
-        var head = ['이름', '소개자', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
+        var head = ['이름', '소개자', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)', '병력(치아)', '병력(중대질환)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
         var byCust = {};
         all.notes.forEach(function(n){ if(n.deleted_at) return; (byCust[n.customer_id] = byCust[n.customer_id] || []).push(fmtDateTime(n.created_at) + ' ' + (n.body || '') + ((n.attachments || []).length ? ' [첨부 ' + n.attachments.map(function(a){ return a.name; }).join(', ') + ']' : '')); });
         var rows = [head];
         all.customers.filter(function(c){ return !c.deleted_at; }).forEach(function(c){
           var pr = c.props || {};
-          var r = [dispName(c), refInfo(c).plain, fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text];
+          var r = [dispName(c), refInfo(c).plain, fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text, c.dental_text, c.major_text];
           live.forEach(function(p){
             var v = pr[p.id];
             if(p.type === 'multi_select'){ r.push((v || []).map(function(id){ var i = optIndex(p, id); var o = null; (p.options || []).forEach(function(x){ if(x.id === id) o = x; }); return o ? o.name : ''; }).filter(Boolean).join(', ')); }
@@ -1312,7 +1330,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         btn.addEventListener('click', function(){
           var c = getCust(curId); if(!c) return;
           var k = btn.getAttribute('data-copy');
-          var map = { personal: c.personal_text, bank: c.bank_text, simple: c.simple_text, standard: c.standard_text };
+          var map = { personal: c.personal_text, bank: c.bank_text, simple: c.simple_text, standard: c.standard_text, dental: c.dental_text, major: c.major_text };
           var text;
           var keys = k.split('+');
           if(keys.length === 1) text = map[k];
