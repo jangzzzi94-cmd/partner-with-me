@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>고객리스트 | With Partners</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .cu-wrap{max-width:1100px;margin:0 auto;padding:20px 14px 90px;}
+  .cu-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+  .cu-head h1{font-size:22px;margin:0;color:var(--navy-950);}
+  .cu-btn{background:#fff;border:1px solid var(--line);color:var(--navy-800);padding:8px 13px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .cu-btn:hover{border-color:var(--navy-600);}
+  .cu-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .cu-btn.primary{background:var(--navy-900);border-color:var(--navy-900);color:#fff;font-weight:700;}
+  .cu-btn.danger{color:var(--danger);border-color:#f0c6c1;}
+  .cu-btn.sm{padding:5px 10px;font-size:12.5px;}
+  .cu-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+  .cu-tools input[type=text]{flex:1;min-width:160px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:15px;background:#fff;}
+  .cu-status{font-size:12px;color:var(--muted);}
+  .cu-status.warn{color:#b45309;font-weight:600;}
+  .cu-addprop{display:none;gap:8px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;}
+  .cu-addprop input,.cu-addprop select{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;font-family:inherit;}
+  .cu-tablewrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:calc(100vh - 230px);}
+  table.cu-table{border-collapse:collapse;width:100%;font-size:14px;}
+  .cu-table th{position:sticky;top:0;background:var(--navy-100);color:var(--navy-950);text-align:left;padding:10px 12px;font-size:12.5px;white-space:nowrap;border-bottom:1px solid var(--line);cursor:pointer;z-index:2;}
+  .cu-table th .hm{margin-left:6px;color:var(--muted);font-weight:700;cursor:pointer;padding:0 4px;}
+  .cu-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .cu-table tr.row{cursor:pointer;}
+  .cu-table tr.row:hover td{background:#f7f9fd;}
+  .cu-table td.name{font-weight:700;color:var(--navy-950);}
+  .cu-empty{padding:28px 14px;text-align:center;color:var(--muted);font-size:14px;}
+  .chip{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;font-weight:600;margin:1px 4px 1px 0;white-space:nowrap;}
+  .cu-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .cu-bar .sp{flex:1;}
+  .cu-title{width:100%;font-size:22px;font-weight:800;color:var(--navy-950);border:none;border-bottom:2px solid var(--line);padding:6px 2px;background:transparent;font-family:inherit;margin-bottom:12px;}
+  .cu-title:focus{outline:none;border-bottom-color:var(--navy-600);}
+  .cu-sec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;}
+  .cu-sec h2{font-size:14.5px;margin:0 0 10px;color:var(--navy-950);}
+  .prop-row{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px dashed var(--line);}
+  .prop-row:last-child{border-bottom:none;}
+  .prop-label{flex:none;width:120px;font-size:13px;color:var(--muted);font-weight:700;padding-top:7px;word-break:keep-all;}
+  .prop-label .hm{cursor:pointer;padding:0 4px;color:var(--muted);}
+  .prop-val{flex:1;min-width:0;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;}
+  .prop-val input[type=text],.prop-val input[type=date],.prop-val textarea{flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;background:#fff;}
+  .prop-val textarea{resize:none;overflow:hidden;line-height:1.5;}
+  .prop-val .ro{padding:7px 0;font-size:14px;color:var(--ink);}
+  .ms-wrap{display:flex;flex-wrap:wrap;align-items:center;gap:2px;min-height:34px;flex:1;}
+  .cu-pop{position:absolute;z-index:80;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(15,37,69,.18);padding:8px;min-width:200px;max-width:280px;}
+  .cu-pop .opt{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:14px;}
+  .cu-pop .opt:hover{background:var(--navy-100);}
+  .cu-pop .opt .x{margin-left:auto;color:var(--muted);padding:0 4px;}
+  .cu-pop input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px;margin-top:6px;font-family:inherit;}
+  .cu-pop .mi{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;}
+  .cu-pop .mi:hover{background:var(--navy-100);}
+  .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
+  .chat:empty::before{content:"아직 기록이 없어요. 아래에 비고·특이사항을 적어 보내세요.";color:var(--muted);font-size:13px;}
+  .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
+  .msg2 .body{white-space:pre-wrap;word-break:break-word;font-size:14.5px;line-height:1.55;}
+  .msg2 .meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11.5px;color:var(--muted);}
+  .msg2 .meta .sp{flex:1;}
+  .msg2 .meta button{border:none;background:transparent;color:var(--navy-600);font-size:12px;cursor:pointer;padding:2px 4px;font-family:inherit;}
+  .msg2 .meta button.del{color:var(--danger);}
+  .att{margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;}
+  .att img{max-width:220px;max-height:180px;border-radius:8px;border:1px solid var(--line);display:block;cursor:zoom-in;}
+  .att a.file{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;color:var(--navy-800);background:#f7f9fd;max-width:100%;word-break:break-all;}
+  .composer{display:flex;flex-direction:column;gap:8px;}
+  .composer textarea{width:100%;min-height:70px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;resize:vertical;}
+  .composer .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .pendfiles{display:flex;flex-wrap:wrap;gap:6px;}
+  .pendfiles .pf{background:var(--navy-100);border-radius:14px;padding:3px 10px;font-size:12.5px;display:flex;gap:6px;align-items:center;}
+  .pendfiles .pf b{cursor:pointer;color:var(--muted);}
+  .box{margin-bottom:12px;}
+  .box label{display:block;font-size:13px;font-weight:700;color:var(--navy-900);margin-bottom:5px;}
+  .box textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;line-height:1.55;resize:none;overflow:hidden;background:#fff;}
+  .box .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .ch-toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(10,26,48,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;display:none;z-index:120;max-width:90%;text-align:center;}
+  .cu-err{position:fixed;left:0;right:0;bottom:0;background:#fdecea;color:#c0392b;font-size:12px;padding:8px 12px;display:none;z-index:130;word-break:break-all;}
+  @media (max-width:640px){
+    .navbar{padding:14px 16px;}
+    .prop-row{flex-direction:column;gap:2px;}
+    .prop-label{width:auto;padding-top:0;}
+    .cu-table td{max-width:170px;}
+  }
+</style>
+</head>
+<body>
+<div class="navbar">
+<a href="dashboard.html" class="brand">With <span>Partners</span></a>
+<nav><a href="dashboard.html">대시보드</a><a href="profile.html">프로필</a><a href="#" id="logoutLink">로그아웃</a></nav>
+</div>
+
+<div class="cu-wrap">
+
+  <!-- ============ 목록 ============ -->
+  <div id="viewList">
+    <div class="cu-head">
+      <h1>👥 고객리스트</h1>
+      <button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button>
+    </div>
+    <div class="cu-tools">
+      <input type="text" id="searchInput" placeholder="이름·연락처·메모 검색" autocomplete="off">
+      <button type="button" class="cu-btn" id="addPropBtn">+ 항목 추가</button>
+      <span class="cu-status" id="listStatus"></span>
+    </div>
+    <div class="cu-addprop" id="addPropForm">
+      <input type="text" id="newPropName" placeholder="항목 이름 (예: 상태, 다음 연락일)" maxlength="30">
+      <select id="newPropType">
+        <option value="text">텍스트</option>
+        <option value="multi_select">다중선택</option>
+        <option value="date">날짜</option>
+        <option value="created_time">생성일시</option>
+      </select>
+      <button type="button" class="cu-btn primary sm" id="newPropOk">만들기</button>
+      <button type="button" class="cu-btn sm" id="newPropCancel">취소</button>
+    </div>
+    <div class="cu-tablewrap"><table class="cu-table" id="custTable"></table></div>
+  </div>
+
+  <!-- ============ 고객 상세 ============ -->
+  <div id="viewDetail" style="display:none;">
+    <div class="cu-bar">
+      <button type="button" class="cu-btn" id="backBtn">← 목록</button>
+      <span class="cu-status" id="saveStatus"></span>
+      <span class="sp"></span>
+      <button type="button" class="cu-btn" id="saveNowBtn">💾 저장</button>
+      <button type="button" class="cu-btn danger" id="delCustBtn">삭제</button>
+    </div>
+    <input type="text" class="cu-title" id="custName" placeholder="고객 이름" autocomplete="off">
+
+    <div class="cu-sec" id="propsSec">
+      <h2>고객 정보</h2>
+      <div id="propsPanel"></div>
+      <button type="button" class="cu-btn sm" id="detailAddPropBtn" style="margin-top:8px;">+ 항목 추가</button>
+    </div>
+
+    <div class="cu-sec">
+      <h2>비고 · 특이사항 <span class="cu-status">(사진·PDF·파일 첨부 가능)</span></h2>
+      <div class="chat" id="chatList"></div>
+      <div class="composer">
+        <textarea id="noteText" placeholder="내용을 입력하세요"></textarea>
+        <div class="pendfiles" id="pendFiles"></div>
+        <div class="row">
+          <button type="button" class="cu-btn sm" id="attachBtn">📎 파일</button>
+          <button type="button" class="cu-btn sm" id="cameraBtn">📷 사진</button>
+          <span style="flex:1;"></span>
+          <span class="cu-status" id="sendStatus"></span>
+          <button type="button" class="cu-btn primary" id="sendBtn">보내기</button>
+        </div>
+        <input type="file" id="fileInput" multiple style="display:none;">
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
+      </div>
+    </div>
+
+    <div class="cu-sec" id="boxesSec">
+      <div class="box">
+        <label for="personalText">인적사항</label>
+        <textarea id="personalText" data-field="personal_text"></textarea>
+        <div class="btns"><button type="button" class="cu-btn sm" data-copy="personal">인적사항 복사</button></div>
+      </div>
+      <div class="box">
+        <label for="bankText">계좌</label>
+        <textarea id="bankText" data-field="bank_text"></textarea>
+        <div class="btns"><button type="button" class="cu-btn sm" data-copy="bank">계좌 복사</button></div>
+      </div>
+      <div class="box">
+        <label for="simpleText">병력사항(간편)</label>
+        <textarea id="simpleText" data-field="simple_text"></textarea>
+        <div class="btns">
+          <button type="button" class="cu-btn sm" data-copy="simple">병력(간편) 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+simple">인적사항+간편 복사</button>
+        </div>
+      </div>
+      <div class="box">
+        <label for="standardText">병력사항(표준체)</label>
+        <textarea id="standardText" data-field="standard_text"></textarea>
+        <div class="btns">
+          <button type="button" class="cu-btn sm" data-copy="standard">병력(표준체) 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+standard">인적사항+표준체 복사</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="ch-toast" id="toast"></div>
+<div class="cu-err" id="errBox"></div>
+
+<script src="assets/supabase-client.js"></script>
+<script>
+/* =========================================================================
+   고객리스트 -- 한 줄이 고객 한 명. 클릭하면 상세 페이지(노션 항목, 채팅식 비고, 복사 박스).
+   - 모든 데이터는 본인 계정에만 보인다(Supabase RLS: user_id = 로그인한 나).
+   - 입력하면 자동 저장. 저장이 실패하면 이 기기에 임시 보관해 두었다가 다시 시도한다.
+   ========================================================================= */
+(function(){
+  'use strict';
+  var BUCKET = 'customer-files';
+  var PEND_KEY = 'wp_customers_pending_v1';
+  var MAX_FILE = 50 * 1024 * 1024;
+  var TEXT_FIELDS = ['personal_text', 'bank_text', 'simple_text', 'standard_text'];
+  var TEMPLATES = {
+    personal_text: '✅인적사항✅\n이름 : \n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ',
+    bank_text: '은행명 : \n계좌번호 : ',
+    simple_text: '✅병력사항(간편)\n',
+    standard_text: '✅병력사항(표준체)\n'
+  };
+  var TYPE_LABEL = { text: '텍스트', multi_select: '다중선택', date: '날짜', created_time: '생성일시' };
+  var COLORS = [['#e8f0fe', '#1d4ed8'], ['#e8f6ee', '#1e7e50'], ['#fdecea', '#c0392b'], ['#fff4e0', '#b45309'], ['#f3e8ff', '#7e22ce'], ['#e0f7fa', '#0e7490'], ['#fde8f1', '#be185d'], ['#eef2f8', '#1f3f74']];
+
+  var $ = function(id){ return document.getElementById(id); };
+  var sb = null, uid = null;
+  var props = [], customers = [], notes = [];
+  var curId = null;
+  var search = '', sortKey = '__created', sortDir = 'desc';
+  var dirty = {}, saveTimers = {}, saving = {};
+  var pendingFiles = [];
+  var signed = {};
+  var toastTimer = null;
+
+  window.addEventListener('error', function(e){
+    var b = $('errBox'); b.style.display = 'block';
+    b.textContent = '⚠ 오류가 났어요. 이 문구를 캡처해서 알려주세요 · ' + (e && e.message ? e.message : '') + (e && e.lineno ? ' (줄 ' + e.lineno + ')' : '');
+  });
+
+  /* ---------------- 작은 도구들 ---------------- */
+  function h(tag, attrs, kids){
+    var el = document.createElement(tag);
+    if(attrs){
+      for(var k in attrs){
+        var v = attrs[k];
+        if(k === 'class') el.className = v;
+        else if(k === 'text') el.textContent = v;
+        else if(k.indexOf('on') === 0) el.addEventListener(k.slice(2), v);
+        else if(v !== false && v != null) el.setAttribute(k, v);
+      }
+    }
+    (kids || []).forEach(function(c){ if(c == null) return; el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return el;
+  }
+  function uuid(){
+    if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+  }
+  function showToast(msg){
+    var t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.style.display = 'none'; }, 1600);
+  }
+  function autosize(t){ t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight + 2, 700) + 'px'; }
+  function pad2(n){ return (n < 10 ? '0' : '') + n; }
+  function fmtDateTime(iso){
+    if(!iso) return '';
+    var d = new Date(iso);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function fmtSize(n){ if(n < 1024) return n + 'B'; if(n < 1048576) return (n / 1024).toFixed(0) + 'KB'; return (n / 1048576).toFixed(1) + 'MB'; }
+  function errText(e){ return (e && e.message) ? String(e.message).slice(0, 90) : String(e); }
+
+  /* ---- 복사 (클립보드 → 안 되면 선택 후 execCommand) ---- */
+  function fallbackCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.readOnly = true;
+    ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ ta.setSelectionRange(0, text.length); }catch(e){}
+    var ok = false; try{ ok = document.execCommand('copy'); }catch(e){ ok = false; }
+    document.body.removeChild(ta); return ok;
+  }
+  function copyText(text, label){
+    if(!text){ showToast('복사할 내용이 없어요'); return; }
+    function done(){ showToast((label ? label + ' ' : '') + '복사되었습니다'); }
+    function fb(){ if(fallbackCopy(text)) done(); else showToast('복사가 안 됐어요. 직접 선택해서 복사해 주세요'); }
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, fb); } else { fb(); }
+  }
+
+  /* ---------------- 임시 보관(저장 실패 대비) ---------------- */
+  function pendGet(){ try{ return JSON.parse(localStorage.getItem(PEND_KEY) || '{}') || {}; }catch(e){ return {}; } }
+  function pendSet(o){ try{ localStorage.setItem(PEND_KEY, JSON.stringify(o)); }catch(e){} }
+  function snapshot(c){
+    var s = { name: c.name, props: c.props, t: Date.now() };
+    TEXT_FIELDS.forEach(function(f){ s[f] = c[f]; });
+    return s;
+  }
+
+  /* ---------------- 데이터 읽기 ---------------- */
+  function must(res){ if(res && res.error) throw res.error; return res; }
+  async function loadProps(){
+    var res = must(await sb.from('customer_props').select('*').order('position', { ascending: true }).order('created_at', { ascending: true }));
+    props = res.data || [];
+  }
+  async function loadCustomers(){
+    var res = must(await sb.from('customers').select('*').order('created_at', { ascending: false }).limit(3000));
+    customers = (res.data || []).map(function(c){ c.props = c.props || {}; return c; });
+  }
+  function getCust(id){ for(var i = 0; i < customers.length; i++){ if(customers[i].id === id) return customers[i]; } return null; }
+  function getProp(id){ for(var i = 0; i < props.length; i++){ if(props[i].id === id) return props[i]; } return null; }
+
+  /* ---------------- 저장 ---------------- */
+  function setStatus(kind, msg){
+    var els = [$('saveStatus'), $('listStatus')];
+    els.forEach(function(el){
+      el.className = 'cu-status' + (kind === 'warn' ? ' warn' : '');
+      el.textContent = msg || '';
+    });
+  }
+  function anyDirty(){ for(var k in dirty){ if(dirty[k]) return true; } return false; }
+  function markDirty(c){
+    dirty[c.id] = true;
+    var p = pendGet(); p[c.id] = snapshot(c); pendSet(p);
+    setStatus('', '저장 대기 중…');
+    clearTimeout(saveTimers[c.id]);
+    saveTimers[c.id] = setTimeout(function(){ saveCustomer(c.id); }, 900);
+  }
+  async function saveCustomer(id){
+    var c = getCust(id);
+    if(!c || saving[id]) return !saving[id];
+    saving[id] = true;
+    setStatus('', '저장 중…');
+    try{
+      var body = { name: c.name, props: c.props, updated_at: new Date().toISOString() };
+      TEXT_FIELDS.forEach(function(f){ body[f] = c[f] || ''; });
+      must(await sb.from('customers').update(body).eq('id', id));
+      dirty[id] = false;
+      var p = pendGet(); delete p[id]; pendSet(p);
+      setStatus('', '✓ 저장됨 · ' + fmtDateTime(new Date().toISOString()).slice(11));
+      return true;
+    }catch(e){
+      console.error(e);
+      setStatus('warn', '⚠ 저장 실패(' + errText(e) + ') · 이 기기에 임시 보관 중 · 「저장」 버튼으로 다시 시도하세요');
+      return false;
+    }finally{
+      saving[id] = false;
+    }
+  }
+  async function flushAll(){
+    var ok = true;
+    for(var k in dirty){ if(dirty[k]){ clearTimeout(saveTimers[k]); var r = await saveCustomer(k); if(!r) ok = false; } }
+    return ok;
+  }
+
+  /* ---------------- 화면 전환 ---------------- */
+  function route(){
+    var m = /^#\/c\/([0-9a-fA-F-]{36})$/.exec(location.hash || '');
+    if(m){ openDetail(m[1]); } else { showList(); }
+  }
+  async function showList(){
+    curId = null;
+    $('viewDetail').style.display = 'none';
+    $('viewList').style.display = 'block';
+    closePops();
+    renderList();
+    if(anyDirty()) flushAll().then(renderList);
+  }
+
+  /* ---------------- 목록 ---------------- */
+  function sortValue(c, key){
+    if(key === '__created') return c.created_at || '';
+    if(key === '__name') return (c.name || '').toLowerCase();
+    var p = getProp(key); if(!p) return '';
+    if(p.type === 'created_time') return c.created_at || '';
+    var v = c.props[p.id];
+    if(p.type === 'multi_select'){
+      var first = (v && v.length) ? v[0] : null; var o = null;
+      (p.options || []).forEach(function(x){ if(x.id === first) o = x; });
+      return o ? o.name : '';
+    }
+    return (v || '').toString().toLowerCase();
+  }
+  function haystack(c){
+    var parts = [c.name, c.personal_text, c.simple_text, c.standard_text, c.bank_text];
+    props.forEach(function(p){
+      var v = c.props[p.id];
+      if(p.type === 'text' && v) parts.push(v);
+      if(p.type === 'multi_select' && v){ (p.options || []).forEach(function(o){ if(v.indexOf(o.id) >= 0) parts.push(o.name); }); }
+      if(p.type === 'date' && v) parts.push(v);
+    });
+    return parts.join(' ').toLowerCase();
+  }
+  function chipEl(opt, idx){
+    var col = COLORS[(opt.c != null ? opt.c : idx) % COLORS.length];
+    return h('span', { class: 'chip', text: opt.name, style: 'background:' + col[0] + ';color:' + col[1] + ';' });
+  }
+  function optIndex(p, id){ var arr = p.options || []; for(var i = 0; i < arr.length; i++){ if(arr[i].id === id) return i; } return -1; }
+  function renderList(){
+    var table = $('custTable');
+    table.innerHTML = '';
+    var thead = h('thead'), tr = h('tr');
+    function th(label, key, extra){
+      var arrow = (sortKey === key) ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+      var el = h('th', { text: label + arrow, onclick: function(){ if(sortKey === key){ sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortKey = key; sortDir = 'asc'; } renderList(); } });
+      if(extra) el.appendChild(extra);
+      tr.appendChild(el);
+    }
+    th('이름', '__name');
+    props.forEach(function(p){
+      var menu = h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } });
+      th(p.name, p.id, menu);
+    });
+    thead.appendChild(tr); table.appendChild(thead);
+
+    var q = search.trim().toLowerCase();
+    var list = customers.filter(function(c){ return !q || haystack(c).indexOf(q) >= 0; });
+    list.sort(function(a, b){
+      var x = sortValue(a, sortKey), y = sortValue(b, sortKey);
+      var r = x < y ? -1 : (x > y ? 1 : 0);
+      return sortDir === 'asc' ? r : -r;
+    });
+    var tbody = h('tbody');
+    list.forEach(function(c){
+      var row = h('tr', { class: 'row', onclick: function(){ location.hash = '#/c/' + c.id; } });
+      row.appendChild(h('td', { class: 'name', text: c.name || '(이름 없음)' }));
+      props.forEach(function(p){
+        var td = h('td');
+        var v = c.props[p.id];
+        if(p.type === 'text'){ td.textContent = v || ''; }
+        else if(p.type === 'date'){ td.textContent = v || ''; }
+        else if(p.type === 'created_time'){ td.textContent = fmtDateTime(c.created_at); }
+        else if(p.type === 'multi_select'){
+          (v || []).forEach(function(id){ var i = optIndex(p, id); if(i >= 0) td.appendChild(chipEl(p.options[i], i)); });
+        }
+        row.appendChild(td);
+      });
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    if(!list.length){
+      var msg = customers.length ? '검색 결과가 없어요.' : '아직 고객이 없어요. 「+ 새로 만들기」를 눌러 첫 고객을 추가해 보세요.';
+      var wrap = $('custTable').parentNode;
+      var old = wrap.querySelector('.cu-empty'); if(old) old.remove();
+      wrap.appendChild(h('div', { class: 'cu-empty', text: msg }));
+    } else {
+      var old2 = $('custTable').parentNode.querySelector('.cu-empty'); if(old2) old2.remove();
+    }
+  }
+
+  /* ---------------- 항목(속성) 관리 ---------------- */
+  async function createProp(name, type){
+    name = (name || '').trim();
+    if(!name){ showToast('항목 이름을 입력해 주세요'); return false; }
+    var pos = props.length ? Math.max.apply(null, props.map(function(p){ return p.position || 0; })) + 1 : 0;
+    try{
+      var res = must(await sb.from('customer_props').insert({ user_id: uid, name: name, type: type, options: [], position: pos }).select().single());
+      props.push(res.data);
+      return true;
+    }catch(e){ showToast('항목을 만들지 못했어요: ' + errText(e)); return false; }
+  }
+  async function renameProp(id){
+    var p = getProp(id); if(!p) return;
+    var n = prompt('항목 이름', p.name); if(n == null) return; n = n.trim(); if(!n) return;
+    try{ must(await sb.from('customer_props').update({ name: n }).eq('id', id)); p.name = n; refreshViews(); }
+    catch(e){ showToast('이름을 바꾸지 못했어요: ' + errText(e)); }
+  }
+  async function deleteProp(id){
+    var p = getProp(id); if(!p) return;
+    if(!confirm('「' + p.name + '」 항목을 삭제할까요?\n모든 고객의 이 항목 값이 화면에서 사라집니다.')) return;
+    try{ must(await sb.from('customer_props').delete().eq('id', id)); props = props.filter(function(x){ return x.id !== id; }); refreshViews(); }
+    catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
+  }
+  function refreshViews(){ if(curId) renderProps(); renderList(); }
+
+  /* ---- 팝업(⋯ 메뉴, 다중선택) ---- */
+  function closePops(){ var a = document.querySelectorAll('.cu-pop'); for(var i = 0; i < a.length; i++) a[i].remove(); }
+  function placePop(pop, anchor){
+    document.body.appendChild(pop);
+    var r = anchor.getBoundingClientRect();
+    var left = r.left + window.pageXOffset, top = r.bottom + window.pageYOffset + 4;
+    var maxLeft = window.pageXOffset + document.documentElement.clientWidth - pop.offsetWidth - 8;
+    pop.style.left = Math.max(8, Math.min(left, maxLeft)) + 'px';
+    pop.style.top = top + 'px';
+  }
+  document.addEventListener('click', function(e){
+    if(e.target.closest && (e.target.closest('.cu-pop') || e.target.closest('[data-popanchor]'))) return;
+    closePops();
+  });
+  function openPropMenu(id, anchor){
+    closePops();
+    var p = getProp(id); if(!p) return;
+    var pop = h('div', { class: 'cu-pop' }, [
+      h('div', { class: 'mi', text: '이름 변경', onclick: function(){ closePops(); renameProp(id); } }),
+      h('div', { class: 'mi', text: '항목 삭제', style: 'color:#c0392b;', onclick: function(){ closePops(); deleteProp(id); } })
+    ]);
+    anchor.setAttribute('data-popanchor', '1');
+    placePop(pop, anchor);
+  }
+  async function saveOptions(p){
+    try{ must(await sb.from('customer_props').update({ options: p.options }).eq('id', p.id)); return true; }
+    catch(e){ showToast('옵션을 저장하지 못했어요: ' + errText(e)); return false; }
+  }
+  function openMultiPicker(p, c, anchor, rerender){
+    closePops();
+    var pop = h('div', { class: 'cu-pop' });
+    anchor.setAttribute('data-popanchor', '1');
+    function draw(){
+      pop.innerHTML = '';
+      (p.options || []).forEach(function(o, i){
+        var on = (c.props[p.id] || []).indexOf(o.id) >= 0;
+        var row = h('div', { class: 'opt' }, [
+          h('span', { text: on ? '☑' : '☐' }),
+          chipEl(o, i),
+          h('span', { class: 'x', text: '✕', title: '옵션 삭제', onclick: async function(e){
+            e.stopPropagation();
+            if(!confirm('옵션 「' + o.name + '」을(를) 삭제할까요?')) return;
+            p.options = p.options.filter(function(x){ return x.id !== o.id; });
+            customers.forEach(function(cc){ var a = cc.props[p.id]; if(a && a.indexOf(o.id) >= 0){ cc.props[p.id] = a.filter(function(x){ return x !== o.id; }); markDirty(cc); } });
+            await saveOptions(p); draw(); rerender();
+          } })
+        ]);
+        row.addEventListener('click', function(){
+          var arr = (c.props[p.id] || []).slice();
+          var ix = arr.indexOf(o.id);
+          if(ix >= 0) arr.splice(ix, 1); else arr.push(o.id);
+          c.props[p.id] = arr; markDirty(c); draw(); rerender();
+        });
+        pop.appendChild(row);
+      });
+      var inp = h('input', { type: 'text', placeholder: '새 옵션 입력 후 Enter', maxlength: '30' });
+      inp.addEventListener('keydown', async function(e){
+        if(e.key !== 'Enter') return;
+        e.preventDefault();
+        var name = inp.value.trim(); if(!name) return;
+        var found = null; (p.options || []).forEach(function(o){ if(o.name === name) found = o; });
+        if(!found){
+          found = { id: uuid().slice(0, 8), name: name, c: (p.options || []).length % COLORS.length };
+          p.options = (p.options || []).concat([found]);
+          await saveOptions(p);
+        }
+        var arr = (c.props[p.id] || []).slice();
+        if(arr.indexOf(found.id) < 0) arr.push(found.id);
+        c.props[p.id] = arr; markDirty(c); draw(); rerender();
+        var again = pop.querySelector('input'); if(again) again.focus();
+      });
+      pop.appendChild(inp);
+    }
+    draw();
+    placePop(pop, anchor);
+    var f = pop.querySelector('input'); if(f) f.focus();
+  }
+
+  /* ---------------- 상세 ---------------- */
+  function renderProps(){
+    var c = getCust(curId); if(!c) return;
+    var panel = $('propsPanel'); panel.innerHTML = '';
+    if(!props.length){ panel.appendChild(h('div', { class: 'cu-status', text: '아직 항목이 없어요. 「+ 항목 추가」로 텍스트, 다중선택, 날짜, 생성일시 항목을 만들 수 있어요.' })); return; }
+    props.forEach(function(p){
+      var label = h('div', { class: 'prop-label' }, [p.name, h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } })]);
+      var val = h('div', { class: 'prop-val' });
+      var cur = c.props[p.id];
+      if(p.type === 'text'){
+        var ta = h('textarea', { rows: '1' });
+        ta.value = cur || '';
+        ta.addEventListener('input', function(){ if(ta.value) c.props[p.id] = ta.value; else delete c.props[p.id]; autosize(ta); markDirty(c); });
+        val.appendChild(ta);
+        val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '복사', onclick: function(){ copyText(ta.value, p.name); } }));
+        setTimeout(function(){ autosize(ta); }, 0);
+      } else if(p.type === 'date'){
+        var di = h('input', { type: 'date' }); di.value = cur || '';
+        di.addEventListener('input', function(){ if(di.value) c.props[p.id] = di.value; else delete c.props[p.id]; markDirty(c); });
+        val.appendChild(di);
+        val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '복사', onclick: function(){ copyText(di.value, p.name); } }));
+      } else if(p.type === 'created_time'){
+        val.appendChild(h('div', { class: 'ro', text: fmtDateTime(c.created_at) }));
+      } else if(p.type === 'multi_select'){
+        var wrap = h('div', { class: 'ms-wrap' });
+        var draw = function(){
+          wrap.innerHTML = '';
+          (c.props[p.id] || []).forEach(function(id){ var i = optIndex(p, id); if(i >= 0) wrap.appendChild(chipEl(p.options[i], i)); });
+          var btn = h('button', { type: 'button', class: 'cu-btn sm', text: '＋ 선택' });
+          btn.addEventListener('click', function(e){ e.stopPropagation(); openMultiPicker(p, c, btn, draw); });
+          wrap.appendChild(btn);
+        };
+        draw(); val.appendChild(wrap);
+      }
+      panel.appendChild(h('div', { class: 'prop-row' }, [label, val]));
+    });
+  }
+  function fillBoxes(c){
+    TEXT_FIELDS.forEach(function(f){
+      var el = document.querySelector('textarea[data-field="' + f + '"]');
+      el.value = c[f] || '';
+      autosize(el);
+    });
+  }
+  async function openDetail(id){
+    var c = getCust(id);
+    if(!c){ try{ await loadCustomers(); }catch(e){} c = getCust(id); }
+    if(!c){ showToast('고객을 찾을 수 없어요'); location.hash = '#/'; return; }
+    curId = id; pendingFiles = []; renderPending();
+    $('viewList').style.display = 'none';
+    $('viewDetail').style.display = 'block';
+    window.scrollTo(0, 0);
+    $('custName').value = c.name || '';
+    fillBoxes(c);
+    renderProps();
+    $('noteText').value = '';
+    $('chatList').innerHTML = '';
+    setStatus('', anyDirty() ? '저장 대기 중…' : '');
+    await loadNotes(id);
+  }
+
+  /* ---- 비고(채팅) ---- */
+  async function ensureSigned(paths){
+    var need = paths.filter(function(p){ return !signed[p]; });
+    if(!need.length) return;
+    try{
+      var res = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+      if(res && res.data){ res.data.forEach(function(r){ if(r && r.signedUrl) signed[r.path] = r.signedUrl; }); }
+    }catch(e){ console.error(e); }
+  }
+  async function loadNotes(id){
+    try{
+      var res = must(await sb.from('customer_notes').select('*').eq('customer_id', id).order('created_at', { ascending: true }));
+      if(curId !== id) return;
+      notes = res.data || [];
+      var paths = [];
+      notes.forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
+      await ensureSigned(paths);
+      renderChat(true);
+    }catch(e){
+      $('chatList').textContent = '';
+      showToast('비고를 불러오지 못했어요: ' + errText(e));
+    }
+  }
+  function isImage(a){ return /^image\//.test(a.type || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.name || ''); }
+  function renderChat(scroll){
+    var box = $('chatList'); box.innerHTML = '';
+    notes.forEach(function(n){
+      var m = h('div', { class: 'msg2' });
+      if(n.body) m.appendChild(h('div', { class: 'body', text: n.body }));
+      if((n.attachments || []).length){
+        var att = h('div', { class: 'att' });
+        n.attachments.forEach(function(a){
+          var url = signed[a.path];
+          if(isImage(a) && url){
+            att.appendChild(h('img', { src: url, alt: a.name, loading: 'lazy', onclick: function(){ window.open(url, '_blank'); } }));
+          } else {
+            att.appendChild(h('a', { class: 'file', href: url || '#', target: '_blank', rel: 'noopener' }, ['📄 ' + a.name + (a.size ? ' (' + fmtSize(a.size) + ')' : '')]));
+          }
+        });
+        m.appendChild(att);
+      }
+      var meta = h('div', { class: 'meta' }, [fmtDateTime(n.created_at), h('span', { class: 'sp' })]);
+      if(n.body) meta.appendChild(h('button', { type: 'button', text: '복사', onclick: function(){ copyText(n.body, '내용'); } }));
+      meta.appendChild(h('button', { type: 'button', class: 'del', text: '삭제', onclick: function(){ deleteNote(n.id); } }));
+      m.appendChild(meta);
+      box.appendChild(m);
+    });
+    if(scroll) box.scrollTop = box.scrollHeight;
+  }
+  async function deleteNote(id){
+    if(!confirm('이 기록을 삭제할까요? 첨부한 파일도 함께 삭제됩니다.')) return;
+    var n = null; notes.forEach(function(x){ if(x.id === id) n = x; });
+    try{
+      var paths = n ? (n.attachments || []).map(function(a){ return a.path; }) : [];
+      if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
+      must(await sb.from('customer_notes').delete().eq('id', id));
+      notes = notes.filter(function(x){ return x.id !== id; });
+      renderChat(false);
+    }catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
+  }
+  function renderPending(){
+    var box = $('pendFiles'); box.innerHTML = '';
+    pendingFiles.forEach(function(f, i){
+      box.appendChild(h('span', { class: 'pf' }, [f.name + ' (' + fmtSize(f.size) + ')', h('b', { text: '✕', onclick: function(){ pendingFiles.splice(i, 1); renderPending(); } })]));
+    });
+  }
+  function addFiles(list){
+    for(var i = 0; i < list.length; i++){
+      var f = list[i];
+      if(f.size > MAX_FILE){ showToast('「' + f.name + '」은 50MB를 넘어서 올릴 수 없어요'); continue; }
+      pendingFiles.push(f);
+    }
+    renderPending();
+  }
+  // 큰 사진은 줄여서 올린다(저장 공간 절약). 사진이 아니거나 작은 파일은 그대로.
+  function compressImage(file){
+    return new Promise(function(resolve){
+      if(!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 1200 * 1024){ resolve(file); return; }
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function(){
+        try{
+          var max = 2000, w = img.naturalWidth, hgt = img.naturalHeight, s = Math.min(1, max / Math.max(w, hgt));
+          var cv = document.createElement('canvas'); cv.width = Math.round(w * s); cv.height = Math.round(hgt * s);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          cv.toBlob(function(b){ URL.revokeObjectURL(url); if(b && b.size < file.size){ b.name = file.name.replace(/\.\w+$/, '') + '.jpg'; resolve(b); } else resolve(file); }, 'image/jpeg', 0.85);
+        }catch(e){ URL.revokeObjectURL(url); resolve(file); }
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+  async function sendNote(){
+    var c = getCust(curId); if(!c) return;
+    var text = $('noteText').value.trim();
+    if(!text && !pendingFiles.length){ showToast('내용이나 파일을 넣어 주세요'); return; }
+    var btn = $('sendBtn'), st = $('sendStatus');
+    btn.disabled = true;
+    try{
+      var atts = [];
+      for(var i = 0; i < pendingFiles.length; i++){
+        var f = pendingFiles[i];
+        st.textContent = '업로드 중… (' + (i + 1) + '/' + pendingFiles.length + ')';
+        var up = await compressImage(f);
+        var origName = f.name || 'file';
+        var ext = (/\.([A-Za-z0-9]{1,8})$/.exec(up.name || origName) || [])[1];
+        var path = uid + '/' + c.id + '/' + uuid() + (ext ? '.' + ext.toLowerCase() : '');
+        var type = up.type || f.type || 'application/octet-stream';
+        must(await sb.storage.from(BUCKET).upload(path, up, { contentType: type, upsert: false }));
+        atts.push({ path: path, name: origName, type: type, size: up.size });
+      }
+      st.textContent = '저장 중…';
+      var res = must(await sb.from('customer_notes').insert({ customer_id: c.id, user_id: uid, body: text, attachments: atts }).select().single());
+      notes.push(res.data);
+      await ensureSigned(atts.map(function(a){ return a.path; }));
+      $('noteText').value = ''; pendingFiles = []; renderPending();
+      renderChat(true);
+      st.textContent = '';
+    }catch(e){
+      console.error(e);
+      st.textContent = '';
+      showToast('보내지 못했어요: ' + errText(e) + ' (입력한 내용은 그대로 남아 있어요)');
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------------- 새로 만들기 / 삭제 ---------------- */
+  async function createCustomer(){
+    var btn = $('newBtn'); btn.disabled = true;
+    try{
+      var row = { user_id: uid, name: '', props: {} };
+      TEXT_FIELDS.forEach(function(f){ row[f] = TEMPLATES[f]; });
+      var res = must(await sb.from('customers').insert(row).select().single());
+      var c = res.data; c.props = c.props || {};
+      customers.unshift(c);
+      location.hash = '#/c/' + c.id;
+      setTimeout(function(){ var n = $('custName'); if(n) n.focus(); }, 80);
+    }catch(e){ showToast('새 고객을 만들지 못했어요: ' + errText(e)); }
+    finally{ btn.disabled = false; }
+  }
+  async function deleteCustomer(){
+    var c = getCust(curId); if(!c) return;
+    if(!confirm('「' + (c.name || '이름 없음') + '」 고객을 삭제할까요?\n비고와 첨부 파일도 모두 삭제되며 되돌릴 수 없습니다.')) return;
+    try{
+      var paths = [];
+      try{
+        var r = await sb.from('customer_notes').select('attachments').eq('customer_id', c.id);
+        ((r && r.data) || []).forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
+      }catch(e){}
+      if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
+      must(await sb.from('customers').delete().eq('id', c.id));
+      customers = customers.filter(function(x){ return x.id !== c.id; });
+      delete dirty[c.id]; var p = pendGet(); delete p[c.id]; pendSet(p);
+      location.hash = '#/';
+      showToast('삭제했어요');
+    }catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
+  }
+
+  /* ---------------- 이벤트 연결 ---------------- */
+  function wire(){
+    $('newBtn').addEventListener('click', createCustomer);
+    $('searchInput').addEventListener('input', function(){ search = this.value; renderList(); });
+    function toggleAdd(show){
+      var f = $('addPropForm'); f.style.display = show ? 'flex' : 'none';
+      if(show){ $('newPropName').value = ''; $('newPropName').focus(); }
+    }
+    $('addPropBtn').addEventListener('click', function(){ toggleAdd(true); });
+    $('newPropCancel').addEventListener('click', function(){ toggleAdd(false); });
+    $('newPropOk').addEventListener('click', async function(){
+      if(await createProp($('newPropName').value, $('newPropType').value)){ toggleAdd(false); refreshViews(); }
+    });
+    $('detailAddPropBtn').addEventListener('click', async function(){
+      var name = prompt('새 항목 이름 (예: 상태, 다음 연락일)'); if(name == null) return;
+      var t = prompt('유형을 입력하세요: 1=텍스트  2=다중선택  3=날짜  4=생성일시', '1'); if(t == null) return;
+      var type = { '1': 'text', '2': 'multi_select', '3': 'date', '4': 'created_time' }[String(t).trim()];
+      if(!type){ showToast('1~4 중에서 입력해 주세요'); return; }
+      if(await createProp(name, type)) refreshViews();
+    });
+    $('backBtn').addEventListener('click', function(){ location.hash = '#/'; });
+    $('saveNowBtn').addEventListener('click', async function(){
+      var btn = this; btn.disabled = true;
+      var ok = await flushAll();
+      btn.disabled = false;
+      showToast(ok ? '저장되었습니다' : '저장에 실패했어요. 인터넷을 확인해 주세요');
+    });
+    $('delCustBtn').addEventListener('click', deleteCustomer);
+    $('custName').addEventListener('input', function(){ var c = getCust(curId); if(!c) return; c.name = this.value; markDirty(c); });
+    var boxTAs = document.querySelectorAll('textarea[data-field]');
+    for(var i = 0; i < boxTAs.length; i++){
+      (function(ta){
+        ta.addEventListener('input', function(){ var c = getCust(curId); if(!c) return; c[ta.getAttribute('data-field')] = ta.value; autosize(ta); markDirty(c); });
+      })(boxTAs[i]);
+    }
+    var copyBtns = document.querySelectorAll('[data-copy]');
+    for(var j = 0; j < copyBtns.length; j++){
+      (function(btn){
+        btn.addEventListener('click', function(){
+          var c = getCust(curId); if(!c) return;
+          var k = btn.getAttribute('data-copy');
+          var map = { personal: c.personal_text, bank: c.bank_text, simple: c.simple_text, standard: c.standard_text };
+          var text;
+          if(k === 'personal+simple') text = (c.personal_text || '').replace(/\s+$/, '') + '\n\n' + (c.simple_text || '');
+          else if(k === 'personal+standard') text = (c.personal_text || '').replace(/\s+$/, '') + '\n\n' + (c.standard_text || '');
+          else text = map[k];
+          copyText(text, btn.textContent.replace(/\s*복사$/, ''));
+        });
+      })(copyBtns[j]);
+    }
+    $('attachBtn').addEventListener('click', function(){ $('fileInput').click(); });
+    $('cameraBtn').addEventListener('click', function(){ $('cameraInput').click(); });
+    $('fileInput').addEventListener('change', function(){ addFiles(this.files); this.value = ''; });
+    $('cameraInput').addEventListener('change', function(){ addFiles(this.files); this.value = ''; });
+    $('sendBtn').addEventListener('click', sendNote);
+    $('noteText').addEventListener('keydown', function(e){ if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); sendNote(); } });
+    window.addEventListener('hashchange', route);
+    window.addEventListener('online', function(){ if(anyDirty()) flushAll(); });
+    document.addEventListener('visibilitychange', async function(){
+      if(document.hidden || anyDirty() || curId) return;
+      try{ await loadProps(); await loadCustomers(); renderList(); }catch(e){}
+    });
+    $('logoutLink').addEventListener('click', function(e){ e.preventDefault(); if(typeof logout === 'function') logout(); });
+  }
+
+  /* ---------------- 시작 ---------------- */
+  async function start(){
+    var session = await requireLogin(); // 로그인이 없으면 로그인 화면으로 이동한다
+    if(!session) return;
+    sb = supabaseClient; uid = session.user.id;
+    wire();
+    try{
+      await loadProps(); await loadCustomers();
+    }catch(e){
+      console.error(e);
+      var missing = /does not exist|schema cache|42P01|PGRST205/i.test((e && (e.code + ' ' + e.message)) || '');
+      $('custTable').parentNode.appendChild(h('div', { class: 'cu-empty', text: missing ? '고객리스트 저장 공간이 아직 준비되지 않았어요. 관리자에게 문의해 주세요.' : '목록을 불러오지 못했어요: ' + errText(e) }));
+    }
+    // 저장하지 못하고 닫았던 수정 내용이 이 기기에 남아 있으면 이어서 저장한다
+    var p = pendGet(), changed = false;
+    Object.keys(p).forEach(function(id){
+      var c = getCust(id);
+      if(!c){ delete p[id]; changed = true; return; }
+      var s = p[id]; c.name = s.name; c.props = s.props || {};
+      TEXT_FIELDS.forEach(function(f){ if(typeof s[f] === 'string') c[f] = s[f]; });
+      dirty[id] = true;
+    });
+    if(changed) pendSet(p);
+    route();
+    if(anyDirty()) flushAll();
+  }
+  start();
+})();
+</script>
+</body>
+</html>

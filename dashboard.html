@@ -16,9 +16,12 @@
   /* 대시보드 메뉴만 한 줄에 3개씩 배치(병력정리/보장분석표/가족보장분석 →
      3종확인서/팀벌금). hub.html 등 다른 페이지의 .card-grid(2개짜리)는 건드리지
      않기 위해 assets/style.css는 그대로 두고 이 페이지에서만 덮어쓴다. */
-  .card-grid{grid-template-columns:1fr 1fr 1fr;}
+  .card-grid{grid-template-columns:1fr 1fr 1fr;gap:14px;}
+  .feature-card{padding:20px 20px;}
+  .feature-card .icon{margin-bottom:8px;font-size:26px;}
+  .feature-card h3{margin:0;}
   @media (max-width:900px){.card-grid{grid-template-columns:1fr 1fr;}}
-  @media (max-width:640px){.card-grid{grid-template-columns:1fr;}}
+  @media (max-width:640px){.card-grid{grid-template-columns:1fr 1fr;gap:10px;}.feature-card{padding:16px 14px;}.feature-card h3{font-size:15px;}}
 </style>
 </head>
 <body>
@@ -39,37 +42,35 @@
 <a href="history.html" class="feature-card" data-card-id="history" id="historyCard">
 <div class="icon">📋</div>
 <h3>병력정리</h3>
-<p>기본진료정보와 세부진료정보를 업로드해 자동으로 병력을 정리하고 고지사항 텍스트를 생성합니다.</p>
 <span class="badge-soon" id="historyBadge" style="display:none">승인 대기중</span>
 </a>
 <a href="coverage.html" class="feature-card" data-card-id="coverage">
 <div class="icon">📊</div>
 <h3>보장분석표</h3>
-<p>가입된 보장 내역을 업로드해 보장분석표(전)/(후)를 자동으로 만들고, 종합비교·보장차이까지 한 번에 확인합니다.</p>
 <span class="badge-soon" id="coverageBadge" style="display:none">1회 3,000P</span>
 </a>
 <a href="family-coverage.html" class="feature-card" data-card-id="family">
 <div class="icon">👨‍👩‍👧‍👦</div>
 <h3>가족보장분석</h3>
-<p>가족 구성원별 보장분석표를 모아 하나의 통합 리포트로 비교하고, PDF로 저장합니다.</p>
 <span class="badge-soon" id="familyCoverageBadge" style="display:none">1회 1,000P</span>
 </a>
 <a href="confirm-helper.html" class="feature-card" data-card-id="confirm">
 <div class="icon">✅</div>
 <h3>3종확인서</h3>
-<p>인적사항과 보험사 청약 문자를 붙여넣으면 앱 「확인서 생성」에 넣을 값을 항목별로 뽑아 순서대로 복사할 수 있습니다.</p>
+</a>
+<a href="customers.html" class="feature-card" data-card-id="customers">
+<div class="icon">👥</div>
+<h3>고객리스트</h3>
 </a>
 <!-- Market J: 지금은 화면에서만 숨겼습니다(기능·jmarket.html은 그대로). 다시 보이게 하려면 아래 주석을 풀면 됩니다.
 <a href="jmarket.html" class="feature-card" data-card-id="market">
 <div class="icon">🛒</div>
 <h3>Market J</h3>
-<p>모은 포인트로 상품을 구매할 수 있는 Market J입니다.</p>
 </a>
 -->
 <a href="attendance.html" class="feature-card" data-card-id="attendance">
 <div class="icon">🗓️</div>
 <h3>팀 벌금</h3>
-<p>출근보고·근태를 기록하고, 팀 벌금 현황과 납부 내역을 확인합니다.</p>
 </a>
 </div>
 <script>
