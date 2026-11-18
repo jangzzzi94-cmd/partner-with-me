@@ -1454,6 +1454,24 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function openModal(id){ $(id).style.display = 'flex'; }
   function closeModal(id){ $(id).style.display = 'none'; }
+  function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
+  // 폰에서 목록을 누를 때 키보드가 닫히면서 화면이 움직여, 누른 줄이 아니라 위(또는 아래) 줄이 선택되는 문제 방지:
+  // 손가락을 댄 순간의 줄을 기억해 두었다가, 손가락을 뗄 때(움직이지 않았다면) 그 줄을 선택한다.
+  var jobDown = null;
+  function wireJobPick(){
+    var box = $('jobResults'); if(!window.PointerEvent) return;
+    box.addEventListener('pointerdown', function(e){
+      var row = e.target.closest ? e.target.closest('.jo') : null;
+      jobDown = (row && row._job) ? { j: row._job, x: e.clientX, y: e.clientY } : null;
+    });
+    box.addEventListener('pointerup', function(e){
+      var d = jobDown; jobDown = null;
+      if(!d) return;
+      if(Math.abs(e.clientX - d.x) > 10 || Math.abs(e.clientY - d.y) > 10) return; // 끌어서 스크롤한 경우는 선택 아님
+      pickJob(d.j);
+    });
+    box.addEventListener('pointercancel', function(){ jobDown = null; }); // 스크롤이 시작되면 취소
+  }
   function renderJobResults(){
     var q = $('jobQuery').value, box = $('jobResults');
     box.innerHTML = '';
@@ -1468,7 +1486,8 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var main = h('div', { class: 'jn' }); main.appendChild(markText(j.name, toks)); row.appendChild(main);
       if(!j.desc) row.className = 'jo nodesc';
       if(j.desc){ var sub = h('div', { class: 'jd' }); sub.appendChild(markText(j.desc, toks)); row.appendChild(sub); }
-      row.addEventListener('click', function(){ setPersonalLine('직업', j.name); closeModal('jobModal'); });
+      row._job = j;
+      if(!window.PointerEvent) row.addEventListener('click', function(){ pickJob(j); });
       box.appendChild(row);
     });
   }
@@ -1513,6 +1532,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       openModal('jobModal'); setTimeout(function(){ $('jobQuery').focus(); }, 50);
     });
     $('jobQuery').addEventListener('input', renderJobResults);
+    wireJobPick();
     $('addrFindBtn').addEventListener('click', function(){ openModal('addrModal'); startAddrSearch(); });
     $('addrBack').addEventListener('click', startAddrSearch);
     function putAddr(){
