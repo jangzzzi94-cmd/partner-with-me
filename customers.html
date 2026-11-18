@@ -130,6 +130,21 @@
   .box label{display:block;font-size:13px;font-weight:700;color:var(--navy-900);margin-bottom:5px;}
   .box textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;line-height:1.55;resize:none;overflow:hidden;background:#fff;}
   .box .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .cv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .cv-item{min-width:0;}
+  .cv-th{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;object-position:top left;border:1px solid var(--line);border-radius:8px;background:#f1f4f9;cursor:pointer;}
+  .cv-lab{font-size:12px;color:var(--muted);text-align:center;margin-top:4px;word-break:keep-all;}
+  .cv-none{font-size:13px;color:var(--muted);}
+  .cv-lb{position:fixed;inset:0;background:#0b1424;z-index:200;display:none;flex-direction:column;}
+  .cv-lb-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;color:#fff;flex-wrap:wrap;}
+  .cv-lb-bar .t{flex:1;font-weight:700;font-size:14px;min-width:120px;}
+  .cv-lb-bar button{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:7px 12px;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .cv-lb-bar button:disabled{opacity:.4;cursor:default;}
+  .cv-lb-body{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:0 12px 16px;}
+  .cv-lb-body img{display:block;max-width:100%;background:#fff;cursor:zoom-in;}
+  .cv-lb-body.fit{align-items:center;}
+  .cv-lb-body.fit img{max-height:calc(100vh - 90px);width:auto;object-fit:contain;}
+  .cv-lb-body.full img{max-width:none;cursor:zoom-out;}
   .ch-toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(10,26,48,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;display:none;z-index:120;max-width:90%;text-align:center;}
   .cu-err{position:fixed;left:0;right:0;bottom:0;background:#fdecea;color:#c0392b;font-size:12px;padding:8px 12px;display:none;z-index:130;word-break:break-all;}
   @media (max-width:640px){
@@ -282,8 +297,24 @@
         </div>
         <textarea id="majorText" data-field="major_text"></textarea>
       </div>
+      <div class="box" id="cvBox">
+        <div class="box-head"><label style="margin:0;">🔎보장분석표🔎</label></div>
+        <div class="cv-grid" id="cvGrid"></div>
+        <div class="cv-none" id="cvNone" style="display:none;">저장된 보장분석표가 없어요</div>
+      </div>
     </div>
   </div>
+</div>
+<div class="cv-lb" id="cvLb">
+  <div class="cv-lb-bar">
+    <span class="t" id="cvLbTitle"></span>
+    <button type="button" id="cvLbPrev" aria-label="이전">◀</button>
+    <button type="button" id="cvLbNext" aria-label="다음">▶</button>
+    <button type="button" id="cvLbZoom">🔍 원본 크기</button>
+    <button type="button" id="cvLbSave">💾 이미지 저장</button>
+    <button type="button" id="cvLbClose" aria-label="닫기">✕</button>
+  </div>
+  <div class="cv-lb-body fit" id="cvLbBody"><img id="cvLbImg" alt=""></div>
 </div>
 <div class="md-back" id="jobModal"><div class="md-card">
   <div class="md-head"><span>🔍 직업 찾기</span><button type="button" data-close="jobModal" aria-label="닫기">✕</button></div>
@@ -908,11 +939,83 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     FOLD_IDS.forEach(function(id){ setFold(id, true); updateDot(id); });
     renderProps();
     renderReferrer();
+    renderCoverage(c);
     $('noteText').value = '';
     $('chatList').innerHTML = '';
     setStatus('', anyDirty() ? '저장 대기 중…' : '');
     await loadNotes(id);
   }
+
+
+  /* ---- 🔎보장분석표🔎 : 보장분석표 페이지에서 저장한 이미지 4장 ---- */
+  var covList = [], covIdx = 0, covName = '', covFull = false;
+  async function renderCoverage(c){
+    var items = ((c && c.coverage_images) || []).filter(function(x){ return x && x.path; });
+    covList = items; covName = dispName(c) || '고객';
+    var grid = $('cvGrid'); grid.innerHTML = '';
+    $('cvNone').style.display = items.length ? 'none' : 'block';
+    if(!items.length) return;
+    var id = c.id;
+    await ensureSigned(items.map(function(x){ return x.path; }));
+    if(curId !== id) return;
+    items.forEach(function(it, i){
+      var url = signed[it.path];
+      var cell = h('div', { class: 'cv-item' });
+      if(url) cell.appendChild(h('img', { class: 'cv-th', src: url, alt: it.label || '', loading: 'lazy', onclick: function(){ openCovLb(i); } }));
+      else cell.appendChild(h('div', { class: 'cv-th', text: '불러오기 실패' }));
+      cell.appendChild(h('div', { class: 'cv-lab', text: it.label || '' }));
+      grid.appendChild(cell);
+    });
+  }
+  function setCovZoom(full){
+    covFull = !!full;
+    var body = $('cvLbBody'), img = $('cvLbImg');
+    body.className = 'cv-lb-body ' + (covFull ? 'full' : 'fit');
+    img.style.width = '';
+    if(covFull){
+      var nat = img.naturalWidth || 0;
+      if(nat) img.style.width = Math.round(nat > 1800 ? nat / 2 : nat) + 'px'; // 큰 이미지는 2배 해상도로 찍혀 있어서 절반이 실제 화면 크기
+    }
+    $('cvLbZoom').textContent = covFull ? '↔ 화면에 맞추기' : '🔍 원본 크기';
+  }
+  function showCovLb(){
+    var it = covList[covIdx]; if(!it) return;
+    $('cvLbTitle').textContent = covName + ' · ' + (it.label || '') + '  (' + (covIdx + 1) + '/' + covList.length + ')';
+    $('cvLbImg').src = signed[it.path] || '';
+    $('cvLbPrev').disabled = covIdx <= 0;
+    $('cvLbNext').disabled = covIdx >= covList.length - 1;
+    setCovZoom(false);
+    $('cvLbBody').scrollTop = 0;
+  }
+  function openCovLb(i){ covIdx = i; $('cvLb').style.display = 'flex'; showCovLb(); }
+  function closeCovLb(){ $('cvLb').style.display = 'none'; $('cvLbImg').src = ''; }
+  async function saveCovImage(){
+    var it = covList[covIdx]; if(!it) return;
+    var ext = (it.type === 'image/jpeg') ? 'jpg' : 'png';
+    var fname = (covName + '_' + (it.label || '보장분석표')).replace(/[\\/:*?"<>|]/g, '_') + '.' + ext;
+    var btn = $('cvLbSave'); btn.disabled = true;
+    try{
+      var res = await sb.storage.from(BUCKET).createSignedUrl(it.path, 120, { download: fname });
+      if(res.error || !res.data || !res.data.signedUrl) throw (res.error || new Error('주소를 만들지 못했어요'));
+      var a = document.createElement('a'); a.href = res.data.signedUrl; a.download = fname; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(e){
+      showToast('저장하지 못했어요: ' + errText(e));
+    }finally{ btn.disabled = false; }
+  }
+  $('cvLbClose').addEventListener('click', closeCovLb);
+  $('cvLbPrev').addEventListener('click', function(){ if(covIdx > 0){ covIdx--; showCovLb(); } });
+  $('cvLbNext').addEventListener('click', function(){ if(covIdx < covList.length - 1){ covIdx++; showCovLb(); } });
+  $('cvLbZoom').addEventListener('click', function(){ setCovZoom(!covFull); });
+  $('cvLbSave').addEventListener('click', saveCovImage);
+  $('cvLbImg').addEventListener('click', function(){ setCovZoom(!covFull); });
+  $('cvLb').addEventListener('click', function(e){ if(e.target === $('cvLb')) closeCovLb(); });
+  document.addEventListener('keydown', function(e){
+    if($('cvLb').style.display !== 'flex') return;
+    if(e.key === 'Escape') closeCovLb();
+    else if(e.key === 'ArrowLeft'){ $('cvLbPrev').click(); }
+    else if(e.key === 'ArrowRight'){ $('cvLbNext').click(); }
+  });
 
   /* ---- 비고(채팅) ---- */
   async function ensureSigned(paths){
@@ -1110,6 +1213,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var paths = [];
       var notesAll = await fetchAll(function(){ return sb.from('customer_notes').select('attachments').eq('customer_id', t.id); });
       notesAll.forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
+      try{ var cr = await sb.from('customers').select('coverage_images').eq('id', t.id).single(); if(cr.data) (cr.data.coverage_images || []).forEach(function(a){ if(a && a.path) paths.push(a.path); }); }catch(e){}
       if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
       must(await sb.from('customers').delete().eq('id', t.id));
       trash = trash.filter(function(x){ return x.id !== t.id; });

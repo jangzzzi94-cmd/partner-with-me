@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="assets/supabase-client.js"></script>
 <style>
 :root{ --ink:#132a4c; --ink-soft:#5b6b7c; --paper:#f5f7fb; --panel:#fff; --line:#dfe5ec; --amber:#16305c; }
@@ -26,6 +27,7 @@ button.secondary{background:#fff;color:var(--amber);border:1px solid var(--amber
 button.danger{background:#fff;color:#c0392b;border:1px solid #c0392b;}
 .status{font-size:13px;margin-top:10px;white-space:pre-wrap;}
 .status.err{color:#c0392b;}
+.status:empty{display:none;}
 .status.ok{color:#1a7a3c;}
 .log{font-size:12px;color:var(--ink-soft);background:#fafbfd;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:10px;}
 table.preview{border-collapse:collapse;width:100%;font-size:12px;margin-top:14px;table-layout:fixed;}
@@ -97,6 +99,32 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 #masterTable td.admin-cell, #masterTable td.admin-cell input, #masterTable td.admin-cell textarea{ background:#eaf3ff; }
 #masterTable th.admin-head{ background:#dbeafe; }
 .admin-tag{ display:inline-block; font-size:10px; font-weight:700; color:#1d4ed8; background:#fff; border:1px solid #93c5fd; border-radius:8px; padding:0 6px; line-height:16px; }
+
+/* ---- 인적사항 추가 (고객리스트에 보장분석표 이미지 저장) ---- */
+.cv-back{position:fixed;inset:0;background:rgba(10,26,48,.55);z-index:300;display:none;align-items:flex-start;justify-content:center;padding:max(12px,5vh) 12px 12px;}
+.cv-card{background:#fff;border-radius:14px;width:100%;max-width:480px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,.3);}
+.cv-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);}
+.cv-head button{background:transparent;border:none;color:var(--ink-soft);font-size:20px;padding:0 6px;}
+.cv-body{padding:14px;overflow-y:auto;}
+.cv-body input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;}
+.cv-list{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+.cv-list:empty{display:none;}
+.cv-opt{padding:11px 12px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;}
+.cv-opt:last-child{border-bottom:none;}
+.cv-opt:hover{background:#eef2f9;}
+.cv-opt.on{background:#dfe8f7;font-weight:700;}
+.cv-q{margin-top:14px;font-size:15px;font-weight:700;line-height:1.5;}
+.cv-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.cv-actions button{padding:10px 18px;font-size:14px;}
+.cv-msg{margin-top:10px;font-size:13.5px;line-height:1.6;}
+.cv-msg.ok{color:#1a7a3c;}.cv-msg.err{color:#c0392b;}
+.cv-msg a{color:var(--amber);font-weight:700;}
+/* 이미지로 저장할 때 쓰는 임시 화면(사용자에게는 보이지 않는다) */
+.cap-root{position:absolute;left:0;top:0;z-index:-1;background:#fff;padding:18px;font-family:"Pretendard","Malgun Gothic",sans-serif;color:#132a4c;}
+.cap-root .cap-title{font-size:19px;font-weight:800;margin:0 0 12px;}
+.cap-root .cap-val{white-space:pre-wrap;word-break:break-word;text-align:center;line-height:1.4;font-size:12px;min-height:16px;}
+.cap-root th,.cap-root td{position:static !important;}
+.cap-root table{margin-top:0 !important;}
 </style>
 </head>
 <body>
@@ -123,16 +151,17 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
     <div class="row">
       <input type="file" id="fileInput" accept=".pdf,.xlsx,.xlsm">
       <button id="runBtn" disabled>가져오기 실행</button>
-      <button id="dlBtn" class="secondary" disabled>전체 다운로드 (원본 서식 .xlsx)</button>
+      <button id="dlBtn" class="secondary" disabled>전체 다운로드</button>
+      <button id="saveCustBtn" class="secondary" type="button">👥 인적사항 추가</button>
     </div>
     <div id="pdfDropZone" style="margin-top:10px;border:2px dashed var(--line);border-radius:8px;padding:14px 12px;background:#fafbfd;text-align:center;font-size:13px;color:var(--ink-soft);">
       📄 보장분석 <strong>PDF</strong>를 여기(또는 화면 아무 곳)로 끌어다 놓으면 바로 인식합니다
     </div>
-    <div class="status" id="status">PDF를 끌어다 놓거나 파일을 선택하세요. 파일 없이 아래 표에 직접 적어 넣어도 됩니다.</div>
+    <div class="status" id="status"></div>
     <div id="resumeDropZone" class="row" style="margin-top:10px;border:1px dashed var(--line);border-radius:8px;padding:10px 12px;background:#fafbfd;">
       <input type="file" id="resumeFileInput" accept=".xlsx" style="display:none;">
       <button type="button" id="resumeUploadBtn" class="secondary">📂 이전 보장분석표 불러오기 (이어서 수정)</button>
-      <div class="status" id="resumeStatus" style="margin:0;">파일을 여기로 끌어다 놓거나 버튼을 눌러 골라주세요. With Partners에서 내려받았던 .xlsx를 텍스트만 고쳐서 다시 올리면, "유지" 표시했던 상품까지 그대로 화면에서 이어서 수정할 수 있습니다.</div>
+      <div class="status" id="resumeStatus" style="margin:0;"></div>
     </div>
   </div>
 
@@ -209,6 +238,17 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 </div>
 
 </div>
+
+<div class="cv-back" id="cvModal"><div class="cv-card">
+  <div class="cv-head"><b>👥 인적사항 추가</b><button type="button" id="cvClose" aria-label="닫기">✕</button></div>
+  <div class="cv-body">
+    <input type="text" id="cvName" placeholder="고객명" autocomplete="off" maxlength="40">
+    <div class="cv-list" id="cvList"></div>
+    <div class="cv-q" id="cvQ"></div>
+    <div class="cv-actions" id="cvActions"></div>
+    <div class="cv-msg" id="cvMsg"></div>
+  </div>
+</div></div>
 <script>
 /* =========================================================================
    ENGINE (동작1 + 동작2 VBA 매크로 통합 포트) -- 보장분석표(전) 탭에서 사용
@@ -2966,6 +3006,262 @@ document.getElementById("logoutLink").addEventListener("click", async (e)=>{
 
 document.getElementById("importAdminMasterBtn").addEventListener("click", toggleAdminMasterLink);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdminPlansIfIdle(); });
+</script>
+<script>
+/* =========================================================================
+   「인적사항 추가」 -- 보장분석표(전) · (후) · 종합 전.후 비교 · 3-1. 보장차이 를 이미지로
+   만들어서 고객리스트의 해당 고객 「🔎보장분석표🔎」에 저장한다.
+   - 화면의 표를 그대로 사진처럼 찍되, 입력칸/버튼 같은 조작 도구는 빼고 깔끔하게 만든다.
+   - (전)·(후)는 상품 칸이 8개보다 적으면 빈 칸으로 8개까지 채우고, 8개보다 많으면 전부 담는다.
+   ========================================================================= */
+(function(){
+  const BUCKET = "customer-files";
+  const CAP_MIN_COLS = 8;
+  const LABEL_COLS_W = 300; // 구분(60)+항목(150)+합계(90)
+  const COL_W = (typeof DATA_COL_WIDTH === "number") ? DATA_COL_WIDTH : 140;
+  const SHEETS = [
+    { key:"before",  label:"보장분석표(전)" },
+    { key:"after",   label:"보장분석표(후)" },
+    { key:"summary", label:"종합 전.후 비교" },
+    { key:"diff",    label:"3-1. 보장차이" }
+  ];
+  const TPL = { simple:"✅병력사항(간편)\n", standard:"✅병력사항(표준체)\n", dental:"✅병력사항(치아)\n", major:"✅병력사항(중대질환)\n" };
+  const PERSONAL_TPL = (n)=> "✅인적사항✅\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
+  const BANK_TPL = "은행명 : \n계좌번호 : ";
+  const $ = (id)=> document.getElementById(id);
+  let all = null, picked = null, busy = false;
+
+  /* ---------- 고객 이름 도우미 (고객리스트와 같은 규칙) ---------- */
+  function parseName(t){ const m = /^[ \t]*이름[ \t]*[:：][ \t]*(.*)$/m.exec(t || ""); return m ? m[1].trim() : ""; }
+  function dispName(c){ return ((c.name || "").trim()) || parseName(c.personal_text); }
+  function birthOf(c){
+    const t = c.personal_text || ""; let m, d;
+    m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+    if(m){ d = m[1].replace(/\D/g, ""); if(d.length === 8) d = d.slice(2); if(d.length === 6) return d.slice(0,2)+"."+d.slice(2,4)+"."+d.slice(4,6); }
+    m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+    if(m){ d = m[1].replace(/\D/g, ""); if(d.length >= 6) return d.slice(0,2)+"."+d.slice(2,4)+"."+d.slice(4,6); }
+    return "";
+  }
+  function tagOf(c, counts){
+    const n = dispName(c).toLowerCase();
+    if(!n || (counts[n] || 0) < 2) return "";
+    const b = birthOf(c);
+    return b ? b + "생" : "등록 " + String(c.created_at).slice(0,10);
+  }
+  function uuid(){
+    if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==="x"?r:(r&3|8)).toString(16); });
+  }
+
+  /* ---------- 이미지 만들기 ---------- */
+  function letter(i){ return String.fromCharCode(69 + i) + "열"; }
+  function newRoot(title, widthPx){
+    const root = document.createElement("div");
+    root.className = "cap-root";
+    root.style.width = widthPx + "px";
+    const h = document.createElement("div"); h.className = "cap-title"; h.textContent = title; root.appendChild(h);
+    return root;
+  }
+  // 입력창/버튼을 걷어낸 표 복사본. 상품 칸이 minCols보다 적으면 빈 칸으로 채운다.
+  function cleanTable(src, opts){
+    const clone = src.cloneNode(true);
+    const sf = src.querySelectorAll("input, textarea"), df = clone.querySelectorAll("input, textarea");
+    df.forEach((el, i)=>{
+      const d = document.createElement("div"); d.className = "cap-val"; d.textContent = sf[i] ? sf[i].value : "";
+      el.parentNode.replaceChild(d, el);
+    });
+    clone.querySelectorAll("button").forEach(b => b.remove());
+    clone.querySelectorAll("[class]").forEach(el => {
+      el.className = String(el.className).replace(/stick-l\d+/g, "").replace(/limit-warn-cell/g, "").replace(/range-selected/g, "").trim();
+      el.removeAttribute("title");
+    });
+    clone.querySelectorAll("[data-gridrow]").forEach(el => el.classList.remove("range-selected"));
+    if(opts && opts.dropFirstBodyRow){ const r = clone.querySelector("tbody tr"); if(r) r.remove(); }
+    const cols = clone.querySelectorAll("colgroup col");
+    const n = Math.max(0, cols.length - 3);
+    const total = Math.max(n, CAP_MIN_COLS);
+    const cg = clone.querySelector("colgroup");
+    for(let k = n; k < total; k++){
+      const c = document.createElement("col"); c.style.width = COL_W + "px"; cg.appendChild(c);
+      const hr = clone.querySelector("thead tr"); if(hr){ const th = document.createElement("th"); th.textContent = letter(k); hr.appendChild(th); }
+      clone.querySelectorAll("tbody tr").forEach(tr => tr.appendChild(document.createElement("td")));
+    }
+    // 머리글의 "E열" 글자는 버튼을 지운 뒤에도 남아 있다
+    clone.style.width = (LABEL_COLS_W + total * COL_W) + "px";
+    clone.style.tableLayout = "fixed";
+    return { table: clone, width: LABEL_COLS_W + total * COL_W };
+  }
+  function customerLabel(){ const n = ($("customerNameInput").value || "").trim(); return n ? n + "님 · " : ""; }
+  function buildRoot(key){
+    if(key === "before"){
+      const t = cleanTable($("previewTable"), {});
+      const root = newRoot(customerLabel() + "보장분석표(전)", t.width + 36);
+      root.appendChild(t.table); return root;
+    }
+    if(key === "after"){
+      renderAfterSheet();
+      const t = cleanTable($("afterTable"), { dropFirstBodyRow: true });
+      const root = newRoot(customerLabel() + "보장분석표(후)", t.width + 36);
+      root.appendChild(t.table); return root;
+    }
+    if(key === "summary"){
+      renderSummarySheet();
+      const card = document.querySelector("#sheet-summary .card").cloneNode(true);
+      card.querySelectorAll(".sub").forEach(e => e.remove());
+      card.className = ""; card.removeAttribute("id");
+      const h2 = card.querySelector("h2"); if(h2){ h2.className = "cap-title"; h2.removeAttribute("id"); h2.removeAttribute("style"); }
+      const g = card.querySelector(".summary-groups"); if(g) g.style.gridTemplateColumns = "repeat(3,1fr)";
+      const root = document.createElement("div"); root.className = "cap-root"; root.style.width = "1060px";
+      root.appendChild(card); return root;
+    }
+    renderDiffSheet();
+    const card = document.querySelector("#sheet-diff .card").cloneNode(true);
+    card.querySelectorAll(".sub").forEach(e => e.remove());
+    card.className = "";
+    const h2 = card.querySelector("h2"); if(h2){ h2.className = "cap-title"; h2.removeAttribute("style"); h2.textContent = customerLabel() + "3-1. 보장차이 (전 → 후)"; }
+    const sw = card.querySelector(".scrollwrap"); if(sw){ sw.style.maxHeight = "none"; sw.style.overflow = "visible"; sw.style.border = "none"; }
+    const tb = card.querySelector("table"); if(tb){ tb.style.width = "760px"; tb.style.marginTop = "0"; }
+    const root = document.createElement("div"); root.className = "cap-root"; root.style.width = "800px";
+    root.appendChild(card); return root;
+  }
+  async function toBlob(canvas){
+    const png = await new Promise(r => canvas.toBlob(r, "image/png"));
+    if(png && png.size <= 2.2 * 1024 * 1024) return { blob: png, ext: "png", type: "image/png" };
+    const jpg = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.92));
+    return { blob: jpg || png, ext: jpg ? "jpg" : "png", type: jpg ? "image/jpeg" : "image/png" };
+  }
+  async function makeImage(key){
+    if(typeof html2canvas !== "function") throw new Error("이미지 만드는 도구를 불러오지 못했어요. 새로고침 후 다시 시도해 주세요.");
+    const root = buildRoot(key);
+    document.body.appendChild(root);
+    const px = window.pageXOffset, py = window.pageYOffset;
+    window.scrollTo(0, 0);
+    try{
+      await new Promise(r => setTimeout(r, 60));
+      const w = root.offsetWidth, h = root.offsetHeight;
+      const scale = Math.max(1, Math.min(2, Math.sqrt(12000000 / Math.max(1, w * h))));
+      const canvas = await html2canvas(root, { scale, backgroundColor:"#ffffff", useCORS:true, logging:false, scrollX:0, scrollY:0, windowWidth: Math.max(w + 40, window.innerWidth), windowHeight: Math.max(h + 40, window.innerHeight) });
+      const out = await toBlob(canvas);
+      out.w = canvas.width; out.h = canvas.height;
+      return out;
+    } finally {
+      root.remove(); window.scrollTo(px, py);
+    }
+  }
+  window.__makeCoverageImage = makeImage; // (확인용)
+
+  /* ---------- 고객 찾기 / 저장 ---------- */
+  function setMsg(text, kind){ const el = $("cvMsg"); el.className = "cv-msg" + (kind ? " " + kind : ""); el.textContent = text || ""; }
+  async function loadAll(){
+    let rows = [], from = 0;
+    for(;;){
+      const res = await supabaseClient.from("customers").select("id,name,personal_text,created_at,coverage_images").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
+      if(res.error) throw res.error;
+      rows = rows.concat(res.data || []);
+      if(!res.data || res.data.length < 1000) break;
+      from += 1000;
+    }
+    all = rows;
+  }
+  function render(){
+    const q = $("cvName").value.trim(), ql = q.toLowerCase();
+    const list = $("cvList"), act = $("cvActions"), qEl = $("cvQ");
+    list.innerHTML = ""; act.innerHTML = ""; qEl.textContent = "";
+    if(busy) return;
+    if(!all || !q){ picked = null; return; }
+    const counts = {}; all.forEach(c => { const k = dispName(c).toLowerCase(); if(k) counts[k] = (counts[k] || 0) + 1; });
+    const exact = all.filter(c => dispName(c).toLowerCase() === ql);
+    if(picked && !exact.some(c => c.id === picked.id)) picked = null;
+    if(!picked && exact.length === 1) picked = exact[0];
+    const addBtn = (text, cls, fn) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; if(cls) b.className = cls; b.addEventListener("click", fn); act.appendChild(b); };
+    const rowsToShow = exact.length ? exact : all.filter(c => dispName(c).toLowerCase().indexOf(ql) >= 0).slice(0, 8);
+    if(exact.length > 1 || !exact.length){
+      rowsToShow.forEach(c => {
+        const row = document.createElement("div"); row.className = "cv-opt" + (picked && picked.id === c.id ? " on" : "");
+        const t = tagOf(c, counts);
+        row.textContent = dispName(c) + (t ? " (" + t + ")" : "");
+        if(exact.length > 1) row.addEventListener("click", () => { picked = c; render(); });
+        else row.addEventListener("click", () => { $("cvName").value = dispName(c); picked = null; render(); });
+        list.appendChild(row);
+      });
+    }
+    if(picked){
+      const t = tagOf(picked, counts);
+      qEl.textContent = "「" + dispName(picked) + (t ? " (" + t + ")" : "") + "」님에 추가하겠습니까?" + ((picked.coverage_images || []).length ? "\n(이미 저장된 보장분석표는 새 이미지로 바뀌어요)" : "");
+      qEl.style.whiteSpace = "pre-line";
+      addBtn("추가", "", () => save(picked));
+      addBtn("취소", "secondary", () => { $("cvModal").style.display = "none"; });
+    } else if(exact.length > 1){
+      qEl.textContent = "같은 이름이 여러 명이에요. 고객을 골라 주세요.";
+    } else {
+      qEl.textContent = "「" + q + "」 고객이 없어요. 새 고객으로 만들어 추가할까요?";
+      addBtn("신규추가", "", () => save(null, q));
+      addBtn("취소", "secondary", () => { $("cvModal").style.display = "none"; });
+    }
+  }
+  async function save(customer, newName){
+    if(busy) return; busy = true;
+    $("cvActions").innerHTML = "";
+    const uploaded = [];
+    try{
+      const { data:{ session } } = await supabaseClient.auth.getSession();
+      if(!session) throw new Error("로그인이 필요해요");
+      const uid = session.user.id;
+      let cust = customer;
+      if(!cust){
+        setMsg("새 고객 만드는 중…");
+        const res = await supabaseClient.from("customers").insert({ name:newName, props:{}, personal_text:PERSONAL_TPL(newName), bank_text:BANK_TPL, simple_text:TPL.simple, standard_text:TPL.standard, dental_text:TPL.dental, major_text:TPL.major }).select("id,name,personal_text,created_at,coverage_images").single();
+        if(res.error) throw res.error;
+        cust = res.data;
+      }
+      const items = [];
+      for(let i = 0; i < SHEETS.length; i++){
+        const sh = SHEETS[i];
+        setMsg("이미지 만드는 중… (" + (i + 1) + "/" + SHEETS.length + ") " + sh.label);
+        const img = await makeImage(sh.key);
+        const path = uid + "/" + cust.id + "/cov_" + sh.key + "_" + uuid() + "." + img.ext;
+        const up = await supabaseClient.storage.from(BUCKET).upload(path, img.blob, { contentType: img.type, upsert:false });
+        if(up.error) throw up.error;
+        uploaded.push(path);
+        items.push({ key: sh.key, label: sh.label, path: path, type: img.type, size: img.blob.size, w: img.w, h: img.h, saved_at: new Date().toISOString() });
+      }
+      setMsg("저장 중…");
+      const old = (cust.coverage_images || []).map(x => x && x.path).filter(Boolean);
+      const upd = await supabaseClient.from("customers").update({ coverage_images: items, updated_at: new Date().toISOString() }).eq("id", cust.id).select("id");
+      if(upd.error) throw upd.error;
+      if(!upd.data || !upd.data.length) throw new Error("저장할 고객을 찾지 못했어요");
+      if(old.length){ try{ await supabaseClient.storage.from(BUCKET).remove(old); }catch(e){ console.warn(e); } }
+      const el = $("cvMsg"); el.className = "cv-msg ok"; el.textContent = "";
+      el.appendChild(document.createTextNode("「" + dispName(cust) + "」님의 보장분석표 이미지 4장을 저장했어요. "));
+      const a = document.createElement("a"); a.href = "customers.html#/c/" + cust.id; a.textContent = "고객 페이지 열기"; el.appendChild(a);
+      $("cvQ").textContent = "";
+      busy = false;
+      await loadAll();
+    }catch(e){
+      console.error(e);
+      if(uploaded.length){ try{ await supabaseClient.storage.from(BUCKET).remove(uploaded); }catch(_){} }
+      busy = false;
+      setMsg("저장하지 못했어요: " + (e && e.message ? e.message : e), "err");
+      render();
+    }
+  }
+
+  $("saveCustBtn").addEventListener("click", async () => {
+    $("cvModal").style.display = "flex";
+    $("cvName").value = ($("customerNameInput").value || "").trim();
+    picked = null; setMsg(""); $("cvList").innerHTML = ""; $("cvActions").innerHTML = ""; $("cvQ").textContent = "";
+    try{
+      const { data:{ session } } = await supabaseClient.auth.getSession();
+      if(!session){ setMsg("로그인이 필요해요. 다시 로그인해 주세요.", "err"); return; }
+      setMsg("고객 목록 불러오는 중…"); await loadAll(); setMsg("");
+      if(!$("cvName").value.trim()) setTimeout(() => $("cvName").focus(), 50);
+      render();
+    }catch(e){ console.error(e); setMsg("고객 목록을 불러오지 못했어요: " + (e.message || e), "err"); }
+  });
+  $("cvName").addEventListener("input", () => { if(busy) return; setMsg(""); render(); });
+  $("cvClose").addEventListener("click", () => { if(!busy) $("cvModal").style.display = "none"; });
+  $("cvModal").addEventListener("click", (e) => { if(e.target === $("cvModal") && !busy) $("cvModal").style.display = "none"; });
+})();
 </script>
 </body>
 </html>
