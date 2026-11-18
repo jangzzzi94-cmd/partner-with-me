@@ -102,11 +102,39 @@
   .md-head button{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);padding:0 6px;}
   .md-body{padding:12px 14px;overflow-y:auto;flex:1;min-height:0;overscroll-behavior:contain;}
   .md-back{overscroll-behavior:contain;}
-  .ct-cell{display:inline-flex;align-items:center;cursor:pointer;user-select:none;padding:2px;}
-  .ct-cell input{-webkit-appearance:none;appearance:none;width:21px;height:21px;margin:0;border:1.8px solid #b9c3d3;border-radius:6px;background:transparent;cursor:pointer;position:relative;transition:background .12s,border-color .12s;}
-  .ct-cell input:checked{background:#16a34a;border-color:#16a34a;}
-  .ct-cell input:checked::after{content:'';position:absolute;left:6.5px;top:2.5px;width:5px;height:10px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg);}
-  .ct-cell input:focus-visible{outline:2px solid #86efac;outline-offset:2px;}
+  .ct-box{display:inline-block;width:21px;height:21px;border:1.8px solid #b9c3d3;border-radius:6px;background:transparent;position:relative;vertical-align:middle;}
+  .ct-box.on{background:#16a34a;border-color:#16a34a;}
+  .ct-box.on::after{content:'';position:absolute;left:6.5px;top:2.5px;width:5px;height:10px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg);}
+  .dz{border:2px dashed #b9c3d3;border-radius:12px;padding:26px 14px;text-align:center;color:var(--muted);font-size:14px;background:#f8fafc;transition:background .12s,border-color .12s;}
+  .dz.over{background:#e8f6ee;border-color:#16a34a;color:#166534;}
+  .dz .cu-btn{margin-top:10px;}
+  .ct-sum{margin-top:12px;font-size:13.5px;line-height:1.7;color:var(--navy-950);}
+  .ct-sum b{font-weight:800;}
+  .ct-sum .warn{color:#b45309;}
+  .ct-sum details{margin-top:6px;font-size:12.5px;color:var(--muted);}
+  .ct-sum details div{max-height:140px;overflow-y:auto;word-break:keep-all;margin-top:4px;}
+  .ctl-wrap{overflow-x:auto;margin-top:4px;}
+  .ctl{min-width:640px;}
+  .ctl-row{display:grid;grid-template-columns:92px 120px minmax(150px,1fr) 78px 74px 64px;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;}
+  .ctl-row.hd{font-size:11.5px;font-weight:800;color:var(--muted);padding:2px 4px 6px;}
+  .ctl-row:last-child{border-bottom:none;}
+  .ctl-row .ins{font-weight:700;color:var(--navy-950);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ctl-row .no{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155;}
+  .ctl-row .pd{white-space:nowrap;overflow-x:auto;scrollbar-width:none;cursor:grab;}
+  .ctl-row .pd::-webkit-scrollbar{display:none;}
+  .ctl-row .pd.more{-webkit-mask-image:linear-gradient(to right,#000 85%,transparent);mask-image:linear-gradient(to right,#000 85%,transparent);}
+  .ctl-row .pd.drag{cursor:grabbing;user-select:none;}
+  .ctl-row .pm{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .ctl-row .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .st{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap;}
+  .st.ok{background:#dcfce7;color:#166534;}
+  .st.bad{background:#fee2e2;color:#b91c1c;}
+  .st.warn{background:#ffedd5;color:#c2410c;}
+  .st.lapse{background:#fef3c7;color:#92400e;}
+  .st.info{background:#dbeafe;color:#1d4ed8;}
+  .st.gray{background:#e5e7eb;color:#4b5563;}
+  .ctl-none{color:var(--muted);font-size:13px;padding:6px 2px;}
+  .box.folded .ctl-wrap,.box.folded .ctl-none{display:none !important;}
   .tm-grp{font-size:12.5px;font-weight:800;color:var(--muted);margin:12px 2px 6px;}
   .tm-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;flex-wrap:wrap;}
   .tm-row .nm{font-weight:800;color:var(--navy-950);font-size:14.5px;}
@@ -230,7 +258,7 @@
   <div id="viewList">
     <div class="cu-head">
       <h1>👥 고객리스트</h1>
-      <span style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="cu-btn" id="tmBtn" style="display:none;">👥 팀원 고객계보도</button><button type="button" class="cu-btn" id="lnCtBtn">⭐ 기고객계보도</button><button type="button" class="cu-btn" id="lnAllBtn">🌳 전체고객계보도</button><button type="button" class="cu-btn" id="impBtn">📋 텍스트로 추가</button><button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button></span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="cu-btn" id="ctBtn">📑 계약리스트</button><button type="button" class="cu-btn" id="tmBtn" style="display:none;">👥 팀원 고객계보도</button><button type="button" class="cu-btn" id="lnCtBtn">⭐ 기고객계보도</button><button type="button" class="cu-btn" id="lnAllBtn">🌳 전체고객계보도</button><button type="button" class="cu-btn" id="impBtn">📋 텍스트로 추가</button><button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button></span>
     </div>
     <div class="cu-tools">
       <input type="text" id="searchInput" placeholder="이름·연락처·메모 검색" autocomplete="off">
@@ -367,6 +395,11 @@
         <div class="cv-grid" id="cvGrid"></div>
         <div class="cv-none" id="cvNone" style="display:none;">저장된 보장분석표가 없어요</div>
       </div>
+      <div class="box folded" id="ctBox">
+        <div class="box-head"><div class="fold" id="ctFold" role="button" tabindex="0"><span class="arr">▶</span> 📑계약내용📑 <span class="dot" title="계약 있음"></span></div></div>
+        <div class="ctl-wrap" id="ctlWrap"><div class="ctl" id="ctlList"></div></div>
+        <div class="ctl-none" id="ctlNone" style="display:none;">올라온 계약이 없어요</div>
+      </div>
     </div>
   </div>
 </div>
@@ -381,6 +414,14 @@
   </div>
   <div class="cv-lb-body fit" id="cvLbBody"><img id="cvLbImg" alt=""></div>
 </div>
+<div class="md-back" id="ctModal"><div class="md-card" style="max-width:600px;">
+  <div class="md-head"><span>📑 계약리스트</span><button type="button" data-close="ctModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <div class="dz" id="ctDrop">신계약 엑셀 파일을 여기로 끌어다 놓으세요<br><button type="button" class="cu-btn" id="ctPick">파일 열기</button><input type="file" id="ctFile" accept=".xlsx,.xls,.csv" style="display:none;"></div>
+    <div class="ct-sum" id="ctSum"></div>
+  </div>
+  <div class="imp-bar"><span id="ctMsg" class="imp-msg"></span><button type="button" class="cu-btn primary" id="ctApply" disabled>반영하기</button></div>
+</div></div>
 <div class="md-back" id="tmModal"><div class="md-card" style="max-width:560px;">
   <div class="md-head"><span>👥 팀원 고객계보도</span><button type="button" data-close="tmModal" aria-label="닫기">✕</button></div>
   <div class="md-body" id="tmBody"></div>
@@ -688,9 +729,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function optIndex(p, id){ var arr = p.options || []; for(var i = 0; i < arr.length; i++){ if(arr[i].id === id) return i; } return -1; }
   // 가족 칸: 3명쯤 들어갈 폭으로 고정. 더 많으면 잘라서 보여주고, 좌우로 드래그(폰은 밀어서)해 나머지를 본다
-  function famCell(c){
-    var td = h('td', { class: 'famtd' });
-    var box = h('div', { class: 'fam-scroll', text: famText(c) });
+  function dragScroll(box){
     var moved = false, down = null;
     function more(){ box.classList.toggle('more', box.scrollWidth > box.clientWidth + 1 && box.scrollLeft + box.clientWidth < box.scrollWidth - 2); }
     box.addEventListener('scroll', more);
@@ -708,22 +747,22 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     function up(){ down = null; box.classList.remove('drag'); }
     box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
     box.addEventListener('click', function(e){ if(moved){ e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
-    td.appendChild(box);
     setTimeout(more, 0);
+    return more;
+  }
+  function famCell(c){
+    var td = h('td', { class: 'famtd' });
+    var box = h('div', { class: 'fam-scroll', text: famText(c) });
+    dragScroll(box);
+    td.appendChild(box);
     return td;
   }
-  function isContracted(c){ return !!(c.props && c.props.__contracted === true); }
+  var CT_NOT_COUNTED = ['청약철회', '반송'];
+  function ctList(c){ var a = c && c.props && c.props.__contracts; return Array.isArray(a) ? a : []; }
+  function isContracted(c){ return ctList(c).some(function(x){ return CT_NOT_COUNTED.indexOf(x.st) < 0; }); }
   function contractCell(c){
-    var td = h('td', { class: 'ctd' });
-    var lab = h('label', { class: 'ct-cell', title: '기고객이면 체크' });
-    var cb = h('input', { type: 'checkbox' }); cb.checked = isContracted(c);
-    cb.addEventListener('change', function(){
-      c.props = c.props || {}; c.props.__contracted = cb.checked;
-      markDirty(c);
-    });
-    lab.appendChild(cb);
-    td.addEventListener('click', function(e){ e.stopPropagation(); });
-    td.appendChild(lab);
+    var td = h('td', { class: 'ctd', title: isContracted(c) ? '기고객 (계약리스트 엑셀과 일치)' : '' });
+    td.appendChild(h('span', { class: 'ct-box' + (isContracted(c) ? ' on' : '') }));
     return td;
   }
   function renderList(){
@@ -1178,6 +1217,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     renderReferrer();
     renderFamily();
     renderCoverage(c);
+    renderContracts(c);
     $('noteText').value = '';
     $('chatList').innerHTML = '';
     setStatus('', anyDirty() ? '저장 대기 중…' : '');
@@ -1604,7 +1644,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
   function closeModal(id){
     $(id).style.display = 'none';
-    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
     if(!open) document.documentElement.style.overflow = '';
   }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
@@ -2269,6 +2309,189 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     v.addEventListener('pointerup', up); v.addEventListener('pointercancel', up);
     window.addEventListener('resize', function(){ if($('lnModal').style.display === 'flex') lnFit(); });
   }
+
+  /* ---------------- 📑계약내용📑 (고객 상세) ---------------- */
+  function setCtFold(folded){
+    $('ctBox').classList.toggle('folded', folded);
+    $('ctFold').querySelector('.arr').textContent = folded ? '▶' : '▼';
+  }
+  $('ctFold').addEventListener('click', function(){ setCtFold(!$('ctBox').classList.contains('folded')); });
+  $('ctFold').addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('ctFold').click(); } });
+  function stClass(st){
+    if(st === '정상') return 'ok';
+    if(st === '해약' || st === '해지') return 'bad';
+    if(st === '연체') return 'warn';
+    if(st === '실효') return 'lapse';
+    if(st === '납입면제') return 'info';
+    return 'gray'; // 청약철회·반송·소멸·시효 등
+  }
+  function fmtWon(n){ return (n === '' || n == null || isNaN(Number(n))) ? '' : Number(n).toLocaleString('ko-KR') + '원'; }
+  function renderContracts(c){
+    var list = ctList(c).slice().sort(function(a, b){ return String(b.dt || '') < String(a.dt || '') ? -1 : (String(b.dt || '') > String(a.dt || '') ? 1 : 0); });
+    var box = $('ctlList'); box.innerHTML = '';
+    setCtFold(true);
+    $('ctFold').querySelector('.dot').style.display = list.length ? 'inline-block' : 'none';
+    $('ctlNone').style.display = list.length ? 'none' : 'block';
+    $('ctlWrap').style.display = list.length ? '' : 'none';
+    if(!list.length) return;
+    var hd = h('div', { class: 'ctl-row hd' });
+    ['보험사', '증권번호', '상품명', '보험료', '계약상태', '계약자'].forEach(function(t, i){ hd.appendChild(h('div', { text: t, style: i === 3 ? 'text-align:right;' : '' })); });
+    box.appendChild(hd);
+    list.forEach(function(x){
+      var row = h('div', { class: 'ctl-row' });
+      row.appendChild(h('div', { class: 'ins', text: x.ins || '', title: x.ins || '' }));
+      row.appendChild(h('div', { class: 'no', text: x.no || '', title: x.no || '' }));
+      var pd = h('div', { class: 'pd', text: x.nm || '', title: x.nm || '' }); dragScroll(pd);
+      row.appendChild(pd);
+      row.appendChild(h('div', { class: 'pm', text: fmtWon(x.prem) }));
+      row.appendChild(h('div', {}, [h('span', { class: 'st ' + stClass(x.st), text: x.st || '-' })]));
+      row.appendChild(h('div', { class: 'hl', text: x.holder || '', title: x.holder || '' }));
+      box.appendChild(row);
+    });
+  }
+
+  /* ---------------- 📑 계약리스트: 신계약 엑셀 업로드 → 고객과 맞춰 기고객 표시 + 계약내용 저장 ---------------- */
+  var ctPlan = null, ctBusy = false, xlsxP = null;
+  function loadXlsx(){
+    if(window.XLSX) return Promise.resolve();
+    if(xlsxP) return xlsxP;
+    xlsxP = new Promise(function(res, rej){
+      var sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      sc.onload = function(){ res(); }; sc.onerror = function(){ xlsxP = null; rej(new Error('엑셀 읽기 도구를 불러오지 못했어요 (인터넷 연결 확인)')); };
+      document.head.appendChild(sc);
+    });
+    return xlsxP;
+  }
+  var CT_COLS = { ins: ['보험사', 15], no: ['증권번호', 16], holder: ['계약자', 17], insured: ['피보험자', 18], rrn: ['피보험자주민번호', 21], dt: ['계약일자', 23], st: ['계약상태', 24], prem: ['초회보험료', 26], nm: ['상품명', 44] };
+  function ctSerialToDate(v){
+    if(v instanceof Date){ return v.getFullYear() + '-' + pad2(v.getMonth() + 1) + '-' + pad2(v.getDate()); }
+    if(typeof v === 'number' && window.XLSX && XLSX.SSF){ var d = XLSX.SSF.parse_date_code(v); if(d) return d.y + '-' + pad2(d.m) + '-' + pad2(d.d); }
+    return String(v || '').slice(0, 10);
+  }
+  async function ctReadFile(file){
+    await loadXlsx();
+    var buf = await file.arrayBuffer();
+    var wb = XLSX.read(buf, { type: 'array' });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    // 이 엑셀은 파일에 적힌 범위(dimension)가 실제보다 작게 저장돼 있어서(예: 20행), 실제 셀 기준으로 범위를 다시 잡는다
+    var maxR = 0, maxC = 0;
+    Object.keys(ws).forEach(function(k){ if(k.charAt(0) === '!') return; var a = XLSX.utils.decode_cell(k); if(a.r > maxR) maxR = a.r; if(a.c > maxC) maxC = a.c; });
+    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    var hi = -1;
+    for(var i = 0; i < Math.min(rows.length, 15); i++){
+      var t = rows[i].map(function(x){ return String(x).trim(); });
+      if(t.indexOf('증권번호') >= 0 && t.indexOf('피보험자') >= 0){ hi = i; break; }
+    }
+    var idx = {}, head = hi >= 0 ? rows[hi].map(function(x){ return String(x).trim(); }) : [];
+    for(var k in CT_COLS){ var at = head.indexOf(CT_COLS[k][0]); idx[k] = at >= 0 ? at : CT_COLS[k][1]; } // 머리글을 못 찾으면 열 위치(P·Q·R·S·V·Y·AA·AS)로
+    if(hi < 0) hi = 2;
+    var out = [];
+    for(var r = hi + 1; r < rows.length; r++){
+      var row = rows[r], g = function(key){ var v = row[idx[key]]; return v == null ? '' : v; };
+      var no = String(g('no')).trim(), insured = String(g('insured')).trim();
+      if(!no || !insured) continue;
+      var prem = g('prem'); prem = (typeof prem === 'number') ? prem : Number(String(prem).replace(/[^\d.\-]/g, ''));
+      out.push({ ins: String(g('ins')).trim(), no: no, nm: String(g('nm')).trim(), prem: isNaN(prem) ? '' : prem, st: String(g('st')).trim(), holder: String(g('holder')).trim(), dt: ctSerialToDate(g('dt')), insured: insured, v6: String(g('rrn')).replace(/\D/g, '').slice(0, 6) });
+    }
+    return out;
+  }
+  function ctBirth6(c){ var b = birthOf(c); return b ? b.replace(/\./g, '') : ''; }
+  // 피보험자 이름이 같은 고객과 연결. 동명이인이면 주민번호 앞 6자리(생년월일)로 가린다
+  function ctMatch(rows){
+    var byName = {};
+    customers.forEach(function(c){ if(c.deleted_at) return; var k = refKey(dispName(c)); if(k) (byName[k] = byName[k] || []).push(c); });
+    var per = {}, unmatched = {}, ambiguous = {}, nUn = 0, nAmb = 0;
+    rows.forEach(function(x){
+      var cand = byName[refKey(x.insured)] || [];
+      if(!cand.length){ unmatched[x.insured] = (unmatched[x.insured] || 0) + 1; nUn++; return; }
+      var hit = null;
+      if(cand.length === 1){
+        var b = ctBirth6(cand[0]);
+        hit = (b && x.v6 && b !== x.v6) ? 'mismatch' : cand[0]; // 둘 다 생년월일이 있는데 다르면 다른 사람
+      } else {
+        var same = cand.filter(function(c){ return x.v6 && ctBirth6(c) === x.v6; });
+        if(same.length === 1) hit = same[0];
+        else if(!same.length){ var unk = cand.filter(function(c){ return !ctBirth6(c); }); if(unk.length === 1 && !x.v6) hit = unk[0]; }
+      }
+      if(hit === 'mismatch'){ unmatched[x.insured + ' (생년월일 다름)'] = (unmatched[x.insured + ' (생년월일 다름)'] || 0) + 1; nUn++; return; }
+      if(!hit){ ambiguous[x.insured] = (ambiguous[x.insured] || 0) + 1; nAmb++; return; }
+      (per[hit.id] = per[hit.id] || { c: hit, rows: [] }).rows.push(x);
+    });
+    var items = Object.keys(per).map(function(k){ return per[k]; }), added = 0, updated = 0;
+    items.forEach(function(it){
+      var have = {}; ctList(it.c).forEach(function(x){ have[x.ins + '|' + x.no] = 1; });
+      var merged = {}; ctList(it.c).forEach(function(x){ merged[x.ins + '|' + x.no] = x; });
+      it.rows.forEach(function(x){
+        var key = x.ins + '|' + x.no; if(have[key]) updated++; else added++;
+        merged[key] = { ins: x.ins, no: x.no, nm: x.nm, prem: x.prem, st: x.st, holder: x.holder, dt: x.dt };
+      });
+      it.next = Object.keys(merged).map(function(k){ return merged[k]; });
+    });
+    return { items: items, unmatched: unmatched, ambiguous: ambiguous, nUn: nUn, nAmb: nAmb, added: added, updated: updated, total: rows.length };
+  }
+  function ctShow(plan, fileName){
+    var box = $('ctSum'); box.innerHTML = '';
+    var nCust = plan.items.length, newBox = plan.items.filter(function(it){ return !isContracted(it.c) && it.next.some(function(x){ return CT_NOT_COUNTED.indexOf(x.st) < 0; }); }).length;
+    box.appendChild(h('div', {}, [h('b', { text: fileName }), document.createTextNode(' · 계약 ' + plan.total + '건')]));
+    box.appendChild(h('div', {}, [document.createTextNode('고객리스트와 일치: '), h('b', { text: nCust + '명' }), document.createTextNode(' (새로 기고객이 되는 사람 ' + newBox + '명)')]));
+    box.appendChild(h('div', { text: '새 계약 ' + plan.added + '건 추가 · 이미 있던 계약 ' + plan.updated + '건 갱신' }));
+    if(plan.nUn){
+      var names = Object.keys(plan.unmatched).sort();
+      var d = h('details'); d.appendChild(h('summary', { text: '고객리스트에 없는 피보험자 ' + plan.nUn + '건 (' + names.length + '명) — 건너뜀' }));
+      d.appendChild(h('div', { text: names.join(', ') })); box.appendChild(d);
+    }
+    if(plan.nAmb){
+      var an = Object.keys(plan.ambiguous).sort();
+      box.appendChild(h('div', { class: 'warn', text: '⚠ 동명이인이라 구분하지 못한 ' + plan.nAmb + '건 — 건너뜀: ' + an.join(', ') + ' (고객의 주민등록번호 앞자리를 넣으면 구분돼요)' }));
+    }
+    $('ctApply').disabled = !nCust; $('ctApply').textContent = nCust ? nCust + '명 반영하기' : '반영하기';
+  }
+  async function ctHandle(file){
+    if(!file || ctBusy) return;
+    var msg = $('ctMsg'); msg.className = 'imp-msg'; msg.textContent = '읽는 중…'; $('ctSum').innerHTML = ''; $('ctApply').disabled = true; ctPlan = null;
+    try{
+      var rows = await ctReadFile(file);
+      if(!rows.length){ msg.className = 'imp-msg err'; msg.textContent = '계약 행을 찾지 못했어요. 신계약 엑셀이 맞는지 확인해 주세요.'; return; }
+      ctPlan = ctMatch(rows); msg.textContent = '';
+      ctShow(ctPlan, file.name);
+    }catch(e){ console.error(e); msg.className = 'imp-msg err'; msg.textContent = errText(e); }
+  }
+  async function ctApply(){
+    if(!ctPlan || ctBusy) return;
+    ctBusy = true; $('ctApply').disabled = true;
+    var msg = $('ctMsg'), items = ctPlan.items.slice(), done = 0, fail = 0, firstErr = '', pos = 0;
+    async function worker(){
+      while(pos < items.length){
+        var it = items[pos++];
+        var props = Object.assign({}, it.c.props || {}, { __contracts: it.next });
+        delete props.__contracted;
+        try{
+          must(await sb.from('customers').update({ props: props, updated_at: new Date().toISOString() }).eq('id', it.c.id));
+          it.c.props = props; it.saved = true; done++;
+        }catch(e){ console.error(e); fail++; if(!firstErr) firstErr = errText(e); }
+        msg.className = 'imp-msg'; msg.textContent = '저장 중… ' + (done + fail) + ' / ' + items.length;
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    ctBusy = false; ncache = null; renderList();
+    if(fail){ msg.className = 'imp-msg err'; msg.textContent = done + '명 반영, ' + fail + '명 실패: ' + firstErr; ctPlan.items = items.filter(function(it){ return !it.saved; }); $('ctApply').disabled = !ctPlan.items.length; }
+    else { closeModal('ctModal'); ctPlan = null; showToast(done + '명의 계약을 반영했어요'); }
+  }
+  function wireContracts(){
+    $('ctBtn').addEventListener('click', function(){ $('ctFile').value = ''; $('ctSum').innerHTML = ''; $('ctMsg').textContent = ''; $('ctApply').disabled = true; $('ctApply').textContent = '반영하기'; ctPlan = null; openModal('ctModal'); });
+    $('ctPick').addEventListener('click', function(){ $('ctFile').value = ''; $('ctFile').click(); });
+    $('ctFile').addEventListener('change', function(){ ctHandle($('ctFile').files[0]); });
+    var dz = $('ctDrop');
+    ['dragenter', 'dragover'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add('over'); }); });
+    ['dragleave', 'drop'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove('over'); }); });
+    dz.addEventListener('drop', function(e){ var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) ctHandle(f); });
+    // 창 안 아무 곳에 놓아도 파일이 열리지 않게
+    $('ctModal').addEventListener('dragover', function(e){ e.preventDefault(); });
+    $('ctModal').addEventListener('drop', function(e){ e.preventDefault(); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) ctHandle(f); });
+    $('ctApply').addEventListener('click', ctApply);
+  }
   function wireFinders(){
     $('jobFindBtn').addEventListener('click', function(){
       $('jobQuery').value = ''; renderJobResults(true);
@@ -2289,7 +2512,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
     ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
     ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else closeModal('tmModal'); } });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); } } });
   }
 
   /* ---------------- 이벤트 연결 ---------------- */
@@ -2298,6 +2521,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     wireFinders();
     wireImport();
     wireLineage();
+    wireContracts();
     try{
       var mq = window.matchMedia('(max-width:640px)');
       var onMq = function(){ if($('viewList').style.display !== 'none') renderList(); };
