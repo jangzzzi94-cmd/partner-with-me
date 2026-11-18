@@ -114,8 +114,8 @@
   .ct-sum details{margin-top:6px;font-size:12.5px;color:var(--muted);}
   .ct-sum details div{max-height:140px;overflow-y:auto;word-break:keep-all;margin-top:4px;}
   .ctl-wrap{overflow-x:auto;margin-top:4px;}
-  .ctl{min-width:640px;}
-  .ctl-row{display:grid;grid-template-columns:92px 120px minmax(150px,1fr) 78px 74px 64px;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;}
+  .ctl{min-width:730px;}
+  .ctl-row{display:grid;grid-template-columns:88px 78px 118px minmax(140px,1fr) 78px 74px 62px;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;}
   .ctl-row.hd{font-size:11.5px;font-weight:800;color:var(--muted);padding:2px 4px 6px;}
   .ctl-row:last-child{border-bottom:none;}
   .ctl-row .ins{font-weight:700;color:var(--navy-950);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -124,7 +124,8 @@
   .ctl-row .pd::-webkit-scrollbar{display:none;}
   .ctl-row .pd.more{-webkit-mask-image:linear-gradient(to right,#000 85%,transparent);mask-image:linear-gradient(to right,#000 85%,transparent);}
   .ctl-row .pd.drag{cursor:grabbing;user-select:none;}
-  .ctl-row .pm{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .ctl-row .pm{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;padding-right:30px;}
+  .ctl-row .dt{white-space:nowrap;color:#334155;font-variant-numeric:tabular-nums;}
   .ctl-row .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .st{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap;}
   .st.ok{background:#dcfce7;color:#166534;}
@@ -2335,11 +2336,12 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('ctlWrap').style.display = list.length ? '' : 'none';
     if(!list.length) return;
     var hd = h('div', { class: 'ctl-row hd' });
-    ['보험사', '증권번호', '상품명', '보험료', '계약상태', '계약자'].forEach(function(t, i){ hd.appendChild(h('div', { text: t, style: i === 3 ? 'text-align:right;' : '' })); });
+    ['보험사', '계약일', '증권번호', '상품명', '보험료', '계약상태', '계약자'].forEach(function(t, i){ hd.appendChild(h('div', { text: t, style: i === 4 ? 'text-align:right;padding-right:30px;' : '' })); });
     box.appendChild(hd);
     list.forEach(function(x){
       var row = h('div', { class: 'ctl-row' });
       row.appendChild(h('div', { class: 'ins', text: x.ins || '', title: x.ins || '' }));
+      row.appendChild(h('div', { class: 'dt', text: String(x.dt || '').replace(/-/g, '.') }));
       row.appendChild(h('div', { class: 'no', text: x.no || '', title: x.no || '' }));
       var pd = h('div', { class: 'pd', text: x.nm || '', title: x.nm || '' }); dragScroll(pd);
       row.appendChild(pd);
@@ -2398,45 +2400,63 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     return out;
   }
   function ctBirth6(c){ var b = birthOf(c); return b ? b.replace(/\./g, '') : ''; }
-  // 피보험자 이름이 같은 고객과 연결. 동명이인이면 주민번호 앞 6자리(생년월일)로 가린다
+  // 이름 비교: 공백·점·하이픈 등은 무시 (외국인 이름은 띄어쓰기가 달라도 철자만 맞으면 같은 사람)
+  function ctKey(v){ return String(v || '').toLowerCase().replace(/[\s\-._,·'"()]+/g, ''); }
+  var CT_FIELDS = ['nm', 'prem', 'st', 'holder', 'dt'];
+  var CT_FIELD_LABEL = { nm: '상품명', prem: '보험료', st: '계약상태', holder: '계약자', dt: '계약일' };
+  // 피보험자 이름이 같은 고객과 연결. 이름이 같은 고객이 여럿일 때만 주민번호 앞 6자리(생년월일)로 가린다
   function ctMatch(rows){
     var byName = {};
-    customers.forEach(function(c){ if(c.deleted_at) return; var k = refKey(dispName(c)); if(k) (byName[k] = byName[k] || []).push(c); });
+    customers.forEach(function(c){ if(c.deleted_at) return; var k = ctKey(dispName(c)); if(k) (byName[k] = byName[k] || []).push(c); });
     var per = {}, unmatched = {}, ambiguous = {}, nUn = 0, nAmb = 0;
     rows.forEach(function(x){
-      var cand = byName[refKey(x.insured)] || [];
+      var cand = byName[ctKey(x.insured)] || [], hit = null;
       if(!cand.length){ unmatched[x.insured] = (unmatched[x.insured] || 0) + 1; nUn++; return; }
-      var hit = null;
-      if(cand.length === 1){
-        var b = ctBirth6(cand[0]);
-        hit = (b && x.v6 && b !== x.v6) ? 'mismatch' : cand[0]; // 둘 다 생년월일이 있는데 다르면 다른 사람
-      } else {
+      if(cand.length === 1) hit = cand[0];
+      else {
         var same = cand.filter(function(c){ return x.v6 && ctBirth6(c) === x.v6; });
         if(same.length === 1) hit = same[0];
-        else if(!same.length){ var unk = cand.filter(function(c){ return !ctBirth6(c); }); if(unk.length === 1 && !x.v6) hit = unk[0]; }
+        else if(!same.length){ var unk = cand.filter(function(c){ return !ctBirth6(c); }); if(unk.length === 1) hit = unk[0]; }
       }
-      if(hit === 'mismatch'){ unmatched[x.insured + ' (생년월일 다름)'] = (unmatched[x.insured + ' (생년월일 다름)'] || 0) + 1; nUn++; return; }
       if(!hit){ ambiguous[x.insured] = (ambiguous[x.insured] || 0) + 1; nAmb++; return; }
       (per[hit.id] = per[hit.id] || { c: hit, rows: [] }).rows.push(x);
     });
-    var items = Object.keys(per).map(function(k){ return per[k]; }), added = 0, updated = 0;
+    var items = Object.keys(per).map(function(k){ return per[k]; }), added = 0, changed = 0, same = 0, stChanges = {}, detail = [];
     items.forEach(function(it){
-      var have = {}; ctList(it.c).forEach(function(x){ have[x.ins + '|' + x.no] = 1; });
-      var merged = {}; ctList(it.c).forEach(function(x){ merged[x.ins + '|' + x.no] = x; });
+      var merged = {}, order = [];
+      ctList(it.c).forEach(function(x){ var k = x.ins + '|' + x.no; merged[k] = Object.assign({}, x); order.push(k); });
+      var touched = false;
       it.rows.forEach(function(x){
-        var key = x.ins + '|' + x.no; if(have[key]) updated++; else added++;
-        merged[key] = { ins: x.ins, no: x.no, nm: x.nm, prem: x.prem, st: x.st, holder: x.holder, dt: x.dt };
+        var key = x.ins + '|' + x.no, cur = merged[key];
+        if(!cur){ merged[key] = { ins: x.ins, no: x.no, nm: x.nm, prem: x.prem, st: x.st, holder: x.holder, dt: x.dt }; order.push(key); added++; touched = true; return; }
+        // 이미 있는 계약: 달라진 항목만 바꾸고, 같으면 그대로 둔다 (엑셀 칸이 비어 있으면 기존 값을 지우지 않음)
+        var diffs = [];
+        CT_FIELDS.forEach(function(f){
+          var nv = x[f]; if(nv === '' || nv == null || (typeof nv === 'number' && isNaN(nv))) return;
+          if(String(cur[f]) !== String(nv)){ diffs.push(f); if(f === 'st'){ var sk = (cur.st || '-') + ' → ' + nv; stChanges[sk] = (stChanges[sk] || 0) + 1; } cur[f] = nv; }
+        });
+        if(diffs.length){ changed++; touched = true; detail.push(dispName(it.c) + ' · ' + x.ins + ' ' + x.no + ' (' + diffs.map(function(f){ return CT_FIELD_LABEL[f]; }).join(', ') + ')'); }
+        else same++;
       });
-      it.next = Object.keys(merged).map(function(k){ return merged[k]; });
+      it.touched = touched;
+      it.next = order.map(function(k){ return merged[k]; });
     });
-    return { items: items, unmatched: unmatched, ambiguous: ambiguous, nUn: nUn, nAmb: nAmb, added: added, updated: updated, total: rows.length };
+    return { items: items, unmatched: unmatched, ambiguous: ambiguous, nUn: nUn, nAmb: nAmb, added: added, changed: changed, same: same, stChanges: stChanges, detail: detail, total: rows.length };
   }
   function ctShow(plan, fileName){
     var box = $('ctSum'); box.innerHTML = '';
-    var nCust = plan.items.length, newBox = plan.items.filter(function(it){ return !isContracted(it.c) && it.next.some(function(x){ return CT_NOT_COUNTED.indexOf(x.st) < 0; }); }).length;
+    var todo = plan.items.filter(function(it){ return it.touched; });
+    plan.items.forEach(function(it){ it.skip = !it.touched; });
+    var newBox = todo.filter(function(it){ return !isContracted(it.c) && it.next.some(function(x){ return CT_NOT_COUNTED.indexOf(x.st) < 0; }); }).length;
     box.appendChild(h('div', {}, [h('b', { text: fileName }), document.createTextNode(' · 계약 ' + plan.total + '건')]));
-    box.appendChild(h('div', {}, [document.createTextNode('고객리스트와 일치: '), h('b', { text: nCust + '명' }), document.createTextNode(' (새로 기고객이 되는 사람 ' + newBox + '명)')]));
-    box.appendChild(h('div', { text: '새 계약 ' + plan.added + '건 추가 · 이미 있던 계약 ' + plan.updated + '건 갱신' }));
+    box.appendChild(h('div', {}, [document.createTextNode('고객리스트와 일치: '), h('b', { text: plan.items.length + '명' }), document.createTextNode(' · 새로 기고객이 되는 사람 ' + newBox + '명')]));
+    box.appendChild(h('div', {}, [document.createTextNode('새 계약 '), h('b', { text: plan.added + '건' }), document.createTextNode(' 추가 · 내용이 달라져 변경 '), h('b', { text: plan.changed + '건' }), document.createTextNode(' · 같은 계약 ' + plan.same + '건은 그대로 둠')]));
+    var sk = Object.keys(plan.stChanges);
+    if(sk.length) box.appendChild(h('div', { text: '계약상태 변경: ' + sk.map(function(k){ return k + ' ' + plan.stChanges[k] + '건'; }).join(', ') }));
+    if(plan.detail.length){
+      var dc = h('details'); dc.appendChild(h('summary', { text: '변경되는 계약 ' + plan.detail.length + '건 보기' }));
+      dc.appendChild(h('div', { text: plan.detail.join(' / ') })); box.appendChild(dc);
+    }
     if(plan.nUn){
       var names = Object.keys(plan.unmatched).sort();
       var d = h('details'); d.appendChild(h('summary', { text: '고객리스트에 없는 피보험자 ' + plan.nUn + '건 (' + names.length + '명) — 건너뜀' }));
@@ -2446,7 +2466,8 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var an = Object.keys(plan.ambiguous).sort();
       box.appendChild(h('div', { class: 'warn', text: '⚠ 동명이인이라 구분하지 못한 ' + plan.nAmb + '건 — 건너뜀: ' + an.join(', ') + ' (고객의 주민등록번호 앞자리를 넣으면 구분돼요)' }));
     }
-    $('ctApply').disabled = !nCust; $('ctApply').textContent = nCust ? nCust + '명 반영하기' : '반영하기';
+    if(!todo.length) box.appendChild(h('div', { text: '새로 추가하거나 바꿀 내용이 없어요.' }));
+    $('ctApply').disabled = !todo.length; $('ctApply').textContent = todo.length ? todo.length + '명 반영하기' : '반영하기';
   }
   async function ctHandle(file){
     if(!file || ctBusy) return;
@@ -2461,7 +2482,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   async function ctApply(){
     if(!ctPlan || ctBusy) return;
     ctBusy = true; $('ctApply').disabled = true;
-    var msg = $('ctMsg'), items = ctPlan.items.slice(), done = 0, fail = 0, firstErr = '', pos = 0;
+    var msg = $('ctMsg'), items = ctPlan.items.filter(function(it){ return it.touched && !it.saved; }), done = 0, fail = 0, firstErr = '', pos = 0;
     async function worker(){
       while(pos < items.length){
         var it = items[pos++];
@@ -2476,7 +2497,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     }
     await Promise.all([worker(), worker(), worker(), worker()]);
     ctBusy = false; ncache = null; renderList();
-    if(fail){ msg.className = 'imp-msg err'; msg.textContent = done + '명 반영, ' + fail + '명 실패: ' + firstErr; ctPlan.items = items.filter(function(it){ return !it.saved; }); $('ctApply').disabled = !ctPlan.items.length; }
+    if(fail){ msg.className = 'imp-msg err'; msg.textContent = done + '명 반영, ' + fail + '명 실패: ' + firstErr; $('ctApply').disabled = !ctPlan.items.some(function(it){ return it.touched && !it.saved; }); }
     else { closeModal('ctModal'); ctPlan = null; showToast(done + '명의 계약을 반영했어요'); }
   }
   function wireContracts(){
