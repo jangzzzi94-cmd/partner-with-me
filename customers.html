@@ -41,6 +41,17 @@
   .cu-titlerow{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px;}
   .cu-title{flex:0 0 36%;max-width:220px;min-width:0;font-size:22px;font-weight:800;color:var(--navy-950);border:none;border-bottom:2px solid var(--line);padding:6px 2px;background:transparent;font-family:inherit;}
   .ref-box{flex:1;min-width:0;}
+  .rel-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;align-items:start;}
+  .rel-card{border:1px solid var(--line);border-radius:12px;background:#fff;padding:9px 10px 10px;min-width:0;}
+  .rel-lab{font-size:12.5px;font-weight:800;color:var(--navy-900);margin-bottom:6px;}
+  .rel-in{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;}
+  .fam-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .fam-chip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:14px;background:#fff;overflow:hidden;max-width:100%;}
+  .fam-chip .fam-go{border:0;background:none;padding:3px 4px 3px 11px;font-size:12.5px;color:var(--navy-800);cursor:pointer;font-family:inherit;text-align:left;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fam-chip .fam-go:hover{text-decoration:underline;}
+  .fam-chip .fam-x{border:0;background:none;padding:3px 8px 3px 2px;font-size:11px;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .fam-chip .fam-x:hover{color:var(--danger);}
+  .fam-none{font-size:12.5px;color:var(--muted);}
   .ref-main{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:38px;}
   .ref-quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
   .ref-quick button{border:1px solid var(--line);background:#fff;color:var(--navy-800);border-radius:14px;padding:3px 11px;font-size:12.5px;cursor:pointer;font-family:inherit;}
@@ -127,6 +138,7 @@
   .pendfiles{display:flex;flex-wrap:wrap;gap:6px;}
   .pendfiles .pf{background:var(--navy-100);border-radius:14px;padding:3px 10px;font-size:12.5px;display:flex;gap:6px;align-items:center;}
   .pendfiles .pf b{cursor:pointer;color:var(--muted);}
+  .rel-card .ref-pop{left:0;right:auto;min-width:200px;}
   .box{margin-bottom:12px;}
   .box label{display:block;font-size:13px;font-weight:700;color:var(--navy-900);margin-bottom:5px;}
   .box textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;line-height:1.55;resize:none;overflow:hidden;background:#fff;}
@@ -204,7 +216,10 @@
     </div>
     <div class="cu-titlerow">
       <input type="text" class="cu-title" id="custName" placeholder="이름" autocomplete="off">
-      <div class="ref-box" id="refBox"></div>
+    </div>
+    <div class="rel-row">
+      <div class="rel-card ref-box" id="refBox"></div>
+      <div class="rel-card" id="famBox"></div>
     </div>
 
     <div class="cu-sec" id="propsSec">
@@ -441,7 +456,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function pendGet(){ try{ return JSON.parse(localStorage.getItem(PEND_KEY) || '{}') || {}; }catch(e){ return {}; } }
   function pendSet(o){ try{ localStorage.setItem(PEND_KEY, JSON.stringify(o)); }catch(e){} }
   function snapshot(c){
-    var s = { name: c.name, props: c.props, referrer_id: c.referrer_id || null, referrer_text: c.referrer_text || '', t: Date.now() };
+    var s = { name: c.name, props: c.props, referrer_id: c.referrer_id || null, referrer_text: c.referrer_text || '', family_ids: (c.family_ids || []).slice(), t: Date.now() };
     TEXT_FIELDS.forEach(function(f){ s[f] = c[f]; });
     return s;
   }
@@ -465,7 +480,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   async function loadCustomers(){
     var rows = await fetchAll(function(){ return sb.from('customers').select('*').is('deleted_at', null).order('created_at', { ascending: false }); });
-    customers = rows.map(function(c){ c.props = c.props || {}; return c; });
+    customers = rows.map(function(c){ c.props = c.props || {}; c.family_ids = c.family_ids || []; return c; });
     ncache = null;
   }
   /* ---- 이름·생년월일·소개자 도우미 ---- */
@@ -503,6 +518,9 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     return { text: tx, id: null, plain: tx };
   }
   function getCust(id){ for(var i = 0; i < customers.length; i++){ if(customers[i].id === id) return customers[i]; } return null; }
+  // 가족: 내 고객 여러 명 (id 목록). 삭제된 고객은 건너뛴다
+  function famList(c){ var out = []; (c.family_ids || []).forEach(function(id){ var t = getCust(id); if(t && t.id !== c.id) out.push(t); }); return out; }
+  function famText(c){ return famList(c).map(nameWithTag).join(', '); }
   function getProp(id){ for(var i = 0; i < props.length; i++){ if(props[i].id === id) return props[i]; } return null; }
 
   /* ---------------- 저장 ---------------- */
@@ -534,7 +552,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         var dn = parsePersonalName(c.personal_text);
         if(dn){ c.name = dn; if(curId === id && nameEl) nameEl.value = dn; }
       }
-      var body = { name: c.name, props: c.props, referrer_id: c.referrer_id || null, referrer_text: c.referrer_text || '', updated_at: new Date().toISOString() };
+      var body = { name: c.name, props: c.props, referrer_id: c.referrer_id || null, referrer_text: c.referrer_text || '', family_ids: c.family_ids || [], updated_at: new Date().toISOString() };
       TEXT_FIELDS.forEach(function(f){ body[f] = c[f] || ''; });
       must(await sb.from('customers').update(body).eq('id', id));
       dirty[id] = false;
@@ -574,6 +592,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(key === '__created') return c.created_at || '';
     if(key === '__name') return dispName(c).toLowerCase();
     if(key === '__ref') return refInfo(c).plain.toLowerCase();
+    if(key === '__fam') return famList(c).map(dispName).join(' ').toLowerCase();
     var p = getProp(key); if(!p) return '';
     if(p.type === 'created_time') return c.created_at || '';
     var v = c.props[p.id];
@@ -586,7 +605,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function haystack(c){
     var ri = refInfo(c);
-    var parts = [c.name, dispName(c), ri.plain, birthOf(c), c.personal_text, c.simple_text, c.standard_text, c.dental_text, c.major_text, c.bank_text];
+    var parts = [c.name, dispName(c), ri.plain, famList(c).map(dispName).join(' '), birthOf(c), c.personal_text, c.simple_text, c.standard_text, c.dental_text, c.major_text, c.bank_text];
     props.forEach(function(p){
       var v = c.props[p.id];
       if(p.type === 'text' && v) parts.push(v);
@@ -615,6 +634,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     }
     th('이름', '__name');
     th('소개자', '__ref');
+    th('가족', '__fam');
     props.forEach(function(p){
       var menu = h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } });
       th(p.name, p.id, menu, p.id);
@@ -633,6 +653,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var row = h('tr', { class: 'row', onclick: function(){ location.hash = '#/c/' + c.id; } });
       row.appendChild(h('td', { class: 'name', text: nameWithTag(c) }));
       row.appendChild(h('td', { text: refInfo(c).text }));
+      row.appendChild(h('td', { text: famText(c) }));
       props.forEach(function(p){
         var td = h('td');
         var v = c.props[p.id];
@@ -825,6 +846,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function renderReferrer(){
     var c = getCust(curId), box = $('refBox'); if(!box) return;
     box.innerHTML = ''; if(!c) return;
+    box.appendChild(h('div', { class: 'rel-lab', text: '소개자' }));
     var ri = refInfo(c);
     var main = h('div', { class: 'ref-main' });
     if(ri.text){
@@ -833,7 +855,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       main.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '✕', title: '지우기', onclick: function(){ c.referrer_id = null; c.referrer_text = ''; markDirty(c); renderReferrer(); } }));
     } else {
       var wrap = h('div', { style: 'position:relative;flex:1;min-width:0;' });
-      var inp = h('input', { type: 'text', id: 'refInput', placeholder: '소개자', maxlength: '40', autocomplete: 'off', style: 'width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;' });
+      var inp = h('input', { type: 'text', id: 'refInput', placeholder: '이름 검색', maxlength: '40', autocomplete: 'off', class: 'rel-in' });
       var pop = h('div', { class: 'ref-pop', style: 'display:none;' });
       var items = [], hi = -1, blurT = null;
       var choose = function(t){ c.referrer_id = t.id; c.referrer_text = dispName(t); markDirty(c); renderReferrer(); };
@@ -890,6 +912,72 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     });
     box.appendChild(quick);
   }
+  /* 가족: 이름을 치면 내 고객 중에서 찾아 눌러서 추가 (여러 명). 추가한 사람은 아래에 버튼으로 보이고, 누르면 그 사람 페이지로 */
+  function renderFamily(){
+    var c = getCust(curId), box = $('famBox'); if(!box) return;
+    box.innerHTML = ''; if(!c) return;
+    box.appendChild(h('div', { class: 'rel-lab', text: '가족' }));
+    var wrap = h('div', { style: 'position:relative;' });
+    var inp = h('input', { type: 'text', placeholder: '이름 검색', maxlength: '40', autocomplete: 'off', class: 'rel-in' });
+    var pop = h('div', { class: 'ref-pop', style: 'display:none;' });
+    var list = h('div', { class: 'fam-list' });
+    var items = [], hi = -1, blurT = null;
+    function drawChips(){
+      list.innerHTML = '';
+      famList(c).forEach(function(t){
+        var chip = h('span', { class: 'fam-chip' });
+        chip.appendChild(h('button', { type: 'button', class: 'fam-go', text: nameWithTag(t), title: '인적사항 열기', onclick: function(){ location.hash = '#/c/' + t.id; } }));
+        chip.appendChild(h('button', { type: 'button', class: 'fam-x', text: '✕', title: '가족에서 빼기', onclick: function(e){
+          e.stopPropagation();
+          c.family_ids = (c.family_ids || []).filter(function(x){ return x !== t.id; });
+          markDirty(c); drawChips(); draw();
+        } }));
+        list.appendChild(chip);
+      });
+    }
+    function add(t){
+      var ids = (c.family_ids || []).slice();
+      if(ids.indexOf(t.id) < 0) ids.push(t.id);
+      c.family_ids = ids; markDirty(c);
+      inp.value = ''; drawChips(); pop.style.display = 'none'; inp.focus();
+    }
+    function draw(){
+      var q = inp.value.trim(), ql = q.toLowerCase();
+      pop.innerHTML = ''; items = []; hi = -1;
+      if(!q){ pop.style.display = 'none'; return; }
+      var have = c.family_ids || [];
+      var ms = customers.filter(function(t){ return t.id !== c.id && have.indexOf(t.id) < 0 && dispName(t).toLowerCase().indexOf(ql) >= 0; });
+      ms.sort(function(a, b){ var x = dispName(a).toLowerCase().indexOf(ql) === 0 ? 0 : 1, y = dispName(b).toLowerCase().indexOf(ql) === 0 ? 0 : 1; return x - y; });
+      ms.slice(0, 8).forEach(function(t){
+        items.push(t);
+        var row = h('div', { class: 'ref-opt', text: nameWithTag(t) });
+        row.addEventListener('mousedown', function(e){ e.preventDefault(); });
+        row.addEventListener('click', function(){ add(t); });
+        pop.appendChild(row);
+      });
+      if(!ms.length) pop.appendChild(h('div', { class: 'ref-opt free', text: '일치하는 고객이 없어요' }));
+      pop.style.display = 'block';
+    }
+    inp.addEventListener('input', draw);
+    inp.addEventListener('focus', function(){ clearTimeout(blurT); draw(); });
+    inp.addEventListener('blur', function(){ blurT = setTimeout(function(){ pop.style.display = 'none'; }, 250); });
+    inp.addEventListener('keydown', function(e){
+      if(pop.style.display === 'none') return;
+      var rows = pop.querySelectorAll('.ref-opt');
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        hi = e.key === 'ArrowDown' ? Math.min(items.length - 1, hi + 1) : Math.max(0, hi - 1);
+        for(var i = 0; i < rows.length; i++) rows[i].classList.toggle('on', i === hi);
+      } else if(e.key === 'Enter'){
+        e.preventDefault();
+        if(hi >= 0 && items[hi]) add(items[hi]);
+        else if(items.length === 1) add(items[0]);
+      } else if(e.key === 'Escape'){ pop.style.display = 'none'; }
+    });
+    wrap.appendChild(inp); wrap.appendChild(pop);
+    box.appendChild(wrap); box.appendChild(list);
+    drawChips();
+  }
   /* 병력사항 4개 박스 접기/펴기 (▶ 접힘 · ▼ 펼침) — 고객을 열 때는 항상 접힌 상태 */
   var FOLD_IDS = ['simpleText', 'standardText', 'dentalText', 'majorText'];
   function foldTpl(id){ return TEMPLATES[document.getElementById(id).getAttribute('data-field')] || ''; }
@@ -927,7 +1015,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(!dirty[id]){
       try{
         var fr = must(await sb.from('customers').select('*').eq('id', id).single());
-        if(fr.data && !fr.data.deleted_at){ fr.data.props = fr.data.props || {}; for(var i = 0; i < customers.length; i++){ if(customers[i].id === id) customers[i] = fr.data; } c = fr.data; }
+        if(fr.data && !fr.data.deleted_at){ fr.data.props = fr.data.props || {}; fr.data.family_ids = fr.data.family_ids || []; for(var i = 0; i < customers.length; i++){ if(customers[i].id === id) customers[i] = fr.data; } c = fr.data; }
       }catch(e){}
     }
     curId = id; pendingFiles = []; renderPending();
@@ -940,6 +1028,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     FOLD_IDS.forEach(function(id){ setFold(id, true); updateDot(id); });
     renderProps();
     renderReferrer();
+    renderFamily();
     renderCoverage(c);
     $('noteText').value = '';
     $('chatList').innerHTML = '';
@@ -1267,13 +1356,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         download('customers_backup_' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
       } else {
         var live = all.props.filter(function(p){ return !p.deleted_at; });
-        var head = ['이름', '소개자', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)', '병력(치아)', '병력(중대질환)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
+        var head = ['이름', '소개자', '가족', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)', '병력(치아)', '병력(중대질환)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
         var byCust = {};
         all.notes.forEach(function(n){ if(n.deleted_at) return; (byCust[n.customer_id] = byCust[n.customer_id] || []).push(fmtDateTime(n.created_at) + ' ' + (n.body || '') + ((n.attachments || []).length ? ' [첨부 ' + n.attachments.map(function(a){ return a.name; }).join(', ') + ']' : '')); });
         var rows = [head];
         all.customers.filter(function(c){ return !c.deleted_at; }).forEach(function(c){
           var pr = c.props || {};
-          var r = [dispName(c), refInfo(c).plain, fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text, c.dental_text, c.major_text];
+          var r = [dispName(c), refInfo(c).plain, (c.family_ids || []).map(function(id){ var t = null; all.customers.forEach(function(x){ if(x.id === id) t = x; }); return t ? dispName(t) : ''; }).filter(Boolean).join(', '), fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text, c.dental_text, c.major_text];
           live.forEach(function(p){
             var v = pr[p.id];
             if(p.type === 'multi_select'){ r.push((v || []).map(function(id){ var i = optIndex(p, id); var o = null; (p.options || []).forEach(function(x){ if(x.id === id) o = x; }); return o ? o.name : ''; }).filter(Boolean).join(', ')); }
@@ -1567,7 +1656,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     Object.keys(p).forEach(function(id){
       var c = getCust(id);
       if(!c){ delete p[id]; changed = true; return; }
-      var s = p[id]; c.name = s.name; c.props = s.props || {}; c.referrer_id = s.referrer_id || null; c.referrer_text = s.referrer_text || '';
+      var s = p[id]; c.name = s.name; c.props = s.props || {}; c.referrer_id = s.referrer_id || null; c.referrer_text = s.referrer_text || ''; c.family_ids = s.family_ids || c.family_ids || [];
       TEXT_FIELDS.forEach(function(f){ if(typeof s[f] === 'string') c[f] = s[f]; });
       dirty[id] = true;
     });
