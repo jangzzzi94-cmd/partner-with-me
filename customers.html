@@ -458,6 +458,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var d = new Date(iso);
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
   }
+  function fmtDateOnly(iso){ if(!iso) return ''; var d = new Date(iso); return d.getFullYear() + '.' + pad2(d.getMonth() + 1) + '.' + pad2(d.getDate()); }
   function fmtSize(n){ if(n < 1024) return n + 'B'; if(n < 1048576) return (n / 1024).toFixed(0) + 'KB'; return (n / 1048576).toFixed(1) + 'MB'; }
   function errText(e){ return (e && e.message) ? String(e.message).slice(0, 90) : String(e); }
 
@@ -661,6 +662,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     th('이름', '__name');
     th('소개자', '__ref');
     th('가족', '__fam');
+    th('등록일', '__created');
     props.forEach(function(p){
       var menu = h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } });
       th(p.name, p.id, menu, p.id);
@@ -672,6 +674,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     list.sort(function(a, b){
       var x = sortValue(a, sortKey), y = sortValue(b, sortKey);
       var r = x < y ? -1 : (x > y ? 1 : 0);
+      if(!r && sortKey !== '__created'){ x = a.created_at || ''; y = b.created_at || ''; return x < y ? 1 : (x > y ? -1 : 0); }
       return sortDir === 'asc' ? r : -r;
     });
     var tbody = h('tbody');
@@ -680,6 +683,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       row.appendChild(h('td', { class: 'name', text: nameWithTag(c) }));
       row.appendChild(h('td', { text: refInfo(c).text }));
       row.appendChild(h('td', { text: famText(c) }));
+      row.appendChild(h('td', { text: fmtDateOnly(c.created_at) }));
       props.forEach(function(p){
         var td = h('td');
         var v = c.props[p.id];
@@ -868,7 +872,9 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     });
   }
   /* 소개자: 제목 오른쪽. 이름을 치면 내 고객 중에서 찾아 고르고, 개척·돌방·DB·병원근무는 눌러서 체크 */
-  var QUICK = ['개척', '돌방', 'DB', '병원근무'];
+  var QUICK = ['개척', '돌방', 'DB', '병원근무', '가족'];
+  var refDone = false; // 소개자를 정한 직후엔 포커스를 두어, 탭 키가 바로 가족 칸으로 가게 한다
+  function focusFam(){ var f = document.querySelector('#famBox input'); if(f) f.focus(); }
   function refKey(v){ return String(v || '').toLowerCase().replace(/\s+/g, ''); }
   function refTokens(q){
     return String(q || '').split(/[,，、\/·;]+/).map(function(x){ return refKey(x.replace(/^[\s★☆]+/, '').replace(/\s*(님|씨)\s*$/, '')); }).filter(Boolean);
@@ -888,8 +894,8 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var inp = h('input', { type: 'text', id: 'refInput', placeholder: '이름 검색', maxlength: '40', autocomplete: 'off', class: 'rel-in' });
       var pop = h('div', { class: 'ref-pop', style: 'display:none;' });
       var items = [], hi = -1, blurT = null;
-      var choose = function(t){ c.referrer_id = t.id; c.referrer_text = dispName(t); markDirty(c); renderReferrer(); };
-      var freeText = function(q){ c.referrer_id = null; c.referrer_text = q; markDirty(c); renderReferrer(); };
+      var choose = function(t){ c.referrer_id = t.id; c.referrer_text = dispName(t); markDirty(c); refDone = true; renderReferrer(); };
+      var freeText = function(q){ c.referrer_id = null; c.referrer_text = q; markDirty(c); refDone = true; renderReferrer(); };
       var draw = function(){
         var q = inp.value.trim(), ql = q.toLowerCase();
         pop.innerHTML = ''; items = []; hi = -1;
@@ -918,7 +924,21 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       inp.addEventListener('input', draw);
       inp.addEventListener('focus', function(){ clearTimeout(blurT); draw(); });
       inp.addEventListener('blur', function(){ blurT = setTimeout(function(){ pop.style.display = 'none'; }, 250); });
+      var completeRef = function(){
+        if(hi >= 0){ var it = items[hi]; if(it.t) choose(it.t); else freeText(it.free); return true; }
+        var tk1 = refTokens(inp.value.trim()), q = tk1.length === 1 ? tk1[0] : inp.value.trim().toLowerCase();
+        var exact = items.filter(function(x){ return x.t && refKey(dispName(x.t)) === q; });
+        if(exact.length === 1){ choose(exact[0].t); return true; }
+        if(!exact.length){ freeText(inp.value.trim()); return true; }
+        return false;
+      };
       inp.addEventListener('keydown', function(e){
+        // 탭: 쓴 이름을 확정하고 곧바로 가족 칸으로
+        if(e.key === 'Tab' && !e.shiftKey && inp.value.trim()){
+          e.preventDefault();
+          if(completeRef()) setTimeout(focusFam, 0); else focusFam();
+          return;
+        }
         if(pop.style.display === 'none') return;
         var rows = pop.querySelectorAll('.ref-opt');
         if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
@@ -926,12 +946,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
           hi = e.key === 'ArrowDown' ? Math.min(items.length - 1, hi + 1) : Math.max(0, hi - 1);
           for(var i = 0; i < rows.length; i++) rows[i].classList.toggle('on', i === hi);
         } else if(e.key === 'Enter'){
-          e.preventDefault();
-          if(hi >= 0){ var it = items[hi]; if(it.t) choose(it.t); else freeText(it.free); return; }
-          var tk1 = refTokens(inp.value.trim()), q = tk1.length === 1 ? tk1[0] : inp.value.trim().toLowerCase();
-          var exact = items.filter(function(x){ return x.t && refKey(dispName(x.t)) === q; });
-          if(exact.length === 1) choose(exact[0].t);
-          else if(!exact.length) freeText(inp.value.trim());
+          e.preventDefault(); completeRef();
         } else if(e.key === 'Escape'){ pop.style.display = 'none'; }
       });
       wrap.appendChild(inp); wrap.appendChild(pop); main.appendChild(wrap);
@@ -942,10 +957,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var on = !c.referrer_id && (c.referrer_text || '') === q;
       quick.appendChild(h('button', { type: 'button', class: on ? 'on' : '', text: (on ? '✓ ' : '') + q, onclick: function(){
         if(on){ c.referrer_id = null; c.referrer_text = ''; } else { c.referrer_id = null; c.referrer_text = q; }
-        markDirty(c); renderReferrer();
+        markDirty(c); refDone = true; renderReferrer();
       } }));
     });
     box.appendChild(quick);
+    // 탭 키는 소개자 칸의 버튼들을 건너뛰고 가족 칸으로 간다
+    var bs = box.querySelectorAll('button'); for(var bi = 0; bi < bs.length; bi++) bs[bi].setAttribute('tabindex', '-1');
+    if(refDone){ refDone = false; main.setAttribute('tabindex', '-1'); main.style.outline = 'none'; try{ main.focus({ preventScroll: true }); }catch(e){} }
   }
   /* 가족: 이름을 치면 내 고객 중에서 찾아 눌러서 추가 (여러 명). 추가한 사람은 아래에 버튼으로 보이고, 누르면 그 사람 페이지로 */
   function renderFamily(){
@@ -1781,10 +1799,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var todo = impPeople.filter(function(p){ return p.on && !p.saved; });
     if(!todo.length || impBusy) return;
     impBusy = true; impUpdateBar();
-    var msg = $('impMsg'), done = 0, fails = [], CH = 10;
+    var msg = $('impMsg'), done = 0, fails = [], CH = 10, base = Date.now() - 1000;
     function rowOf(p){
       // 모든 행이 같은 칸을 갖도록 (일부 행에만 소개자 칸이 있으면 일괄 저장이 거절될 수 있음)
-      var r = { user_id: uid, name: p.name, props: {}, referrer_id: null, referrer_text: '' };
+      var r = { user_id: uid, name: p.name, props: {}, referrer_id: null, referrer_text: '', created_at: new Date(base - todo.indexOf(p) * 1000).toISOString() };
       TEXT_FIELDS.forEach(function(f){ r[f] = TEMPLATES[f]; });
       r.personal_text = p.personal; r.bank_text = p.bank;
       p.refMode = impRefPlan(p, todo, r);
