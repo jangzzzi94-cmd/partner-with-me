@@ -1043,7 +1043,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(addrScriptState === 1){ setTimeout(function(){ loadPostcode(cb); }, 300); return; }
     addrScriptState = 1;
     var sc = document.createElement('script');
-    sc.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    sc.src = 'https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
     sc.onload = function(){ addrScriptState = 2; cb(true); };
     sc.onerror = function(){ addrScriptState = 0; cb(false); };
     document.head.appendChild(sc);
