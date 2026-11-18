@@ -94,6 +94,11 @@
   .md-head button{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);padding:0 6px;}
   .md-body{padding:12px 14px;overflow-y:auto;flex:1;min-height:0;overscroll-behavior:contain;}
   .md-back{overscroll-behavior:contain;}
+  /* 직업 찾기: 검색창은 고정하고 목록만 스크롤한다 (한글 입력 확정 때 브라우저가 검색창으로 스크롤을 되돌리는 문제 방지) */
+  #jobModal .md-body{display:flex;flex-direction:column;overflow:hidden;}
+  #jobModal #jobQuery,#jobModal .md-hint{flex:none;}
+  #jobModal #jobResults{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;}
+  #jobModal #jobResults[style*="display: none"]{display:none !important;}
   .md-body input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit;}
   .md-list{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
   .md-list .jo{padding:11px 12px;font-size:14.5px;line-height:1.45;cursor:pointer;border-bottom:1px solid var(--line);word-break:keep-all;}
@@ -1478,8 +1483,15 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     });
     box.addEventListener('pointercancel', function(){ jobDown = null; }); // 스크롤이 시작되면 취소
   }
-  function renderJobResults(){
+  // 한글 입력 중에 목록을 누르면 PC 브라우저가 입력 중이던 글자를 확정하면서 같은 글을 한 번 더 알려 주는데,
+  // 그때마다 목록을 새로 그리면 스크롤이 맨 위로 돌아가 눌렀던 자리에 있는 다른 직업이 선택된다.
+  // 검색어가 그대로면 목록을 다시 그리지 않는다.
+  var lastJobQ = null;
+  function renderJobResults(force){
     var q = $('jobQuery').value, box = $('jobResults');
+    var key = q.trim().toLowerCase().replace(/\s+/g, ' ');
+    if(force !== true && key === lastJobQ) return;
+    lastJobQ = key;
     box.innerHTML = '';
     var toks = q.toLowerCase().split(/\s+/).filter(Boolean);
     if(!toks.length){ box.style.display = 'none'; $('jobHint').style.display = 'none'; return; }
@@ -1534,10 +1546,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function wireFinders(){
     $('jobFindBtn').addEventListener('click', function(){
-      $('jobQuery').value = ''; renderJobResults();
+      $('jobQuery').value = ''; renderJobResults(true);
       openModal('jobModal'); setTimeout(function(){ $('jobQuery').focus(); }, 50);
     });
-    $('jobQuery').addEventListener('input', renderJobResults);
+    $('jobQuery').addEventListener('input', function(){ renderJobResults(); });
     wireJobPick();
     $('addrFindBtn').addEventListener('click', function(){ openModal('addrModal'); startAddrSearch(); });
     $('addrBack').addEventListener('click', startAddrSearch);
