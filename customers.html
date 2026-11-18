@@ -61,6 +61,12 @@
   .cu-sec.dragover{outline:3px dashed var(--navy-600);outline-offset:-3px;background:#eef3fc;}
   .pendfiles .pf img{height:34px;width:34px;object-fit:cover;border-radius:6px;display:block;}
   .att video{max-width:280px;max-height:220px;border-radius:8px;border:1px solid var(--line);display:block;background:#000;}
+  .job-pop{position:absolute;z-index:90;background:#fff;border:1px solid var(--navy-600);border-radius:10px;box-shadow:0 10px 28px rgba(15,37,69,.2);max-height:min(300px,42vh);overflow-y:auto;display:none;}
+  .job-pop .jo{padding:9px 12px;font-size:14px;line-height:1.45;cursor:pointer;border-bottom:1px solid var(--line);word-break:keep-all;}
+  .job-pop .jo:last-child{border-bottom:none;}
+  .job-pop .jo.on,.job-pop .jo:hover{background:var(--navy-100);}
+  .job-pop .jo mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px;}
+  .job-pop .jh{padding:6px 12px;font-size:11.5px;color:var(--muted);background:#f7f9fd;position:sticky;top:0;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .chat:empty::before{content:"아직 기록이 없어요. 아래에 비고·특이사항을 적어 보내세요.";color:var(--muted);font-size:13px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -205,6 +211,7 @@
 <div class="cu-err" id="errBox"></div>
 
 <script src="assets/supabase-client.js"></script>
+<script src="assets/jobs-data.js"></script>
 <script>
 /* =========================================================================
    고객리스트 -- 한 줄이 고객 한 명. 클릭하면 상세 페이지(노션 항목, 채팅식 비고, 복사 박스).
@@ -924,9 +931,120 @@
     }catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
   }
 
+  /* ---------------- 직업 자동완성 ----------------
+     「직업 : 」 줄에서 글자를 치면 직업 목록(assets/jobs-data.js)에서 비슷한 것을 보여 준다.
+     보이는 것은 설명(참고내용)이고, 고르면 그 줄에는 직업명만 들어간다. */
+  var JOBS = (window.WP_JOBS || []).map(function(r){ return { name: r[0], desc: r[1] || '', key: (r[0] + ' ' + (r[1] || '')).toLowerCase().replace(/\s+/g, ''), nkey: r[0].toLowerCase().replace(/\s+/g, '') }; });
+  var jobPop = null, jobItems = [], jobHi = -1, jobCtx = null, jobSuppress = false, jobBlurT = null;
+  function jobLine(ta){
+    var pos = ta.selectionStart, v = ta.value;
+    var start = v.lastIndexOf('\n', pos - 1) + 1;
+    var end = v.indexOf('\n', pos); if(end < 0) end = v.length;
+    var line = v.slice(start, end);
+    var m = /^(\s*직업\s*[:：]\s*)(.*)$/.exec(line);
+    if(!m) return null;
+    var idx = v.slice(0, start).split('\n').length - 1;
+    return { start: start, end: end, prefix: m[1], query: m[2], valueStart: start + m[1].length, lineIndex: idx };
+  }
+  function hideJobPop(){ if(jobPop) jobPop.style.display = 'none'; jobItems = []; jobHi = -1; }
+  function jobSearch(q){
+    var toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if(!toks.length) return [];
+    var first = toks[0].replace(/\s+/g, '');
+    var res = [];
+    for(var i = 0; i < JOBS.length; i++){
+      var j = JOBS[i], ok = true;
+      for(var t = 0; t < toks.length; t++){ if(j.key.indexOf(toks[t]) < 0){ ok = false; break; } }
+      if(!ok) continue;
+      var score = j.nkey.indexOf(first) === 0 ? 0 : (j.nkey.indexOf(first) > 0 ? 1 : 2);
+      res.push({ j: j, score: score, i: i });
+    }
+    res.sort(function(a, b){ return a.score - b.score || a.i - b.i; });
+    return res.slice(0, 40).map(function(x){ return x.j; });
+  }
+  function markText(text, toks){
+    var frag = document.createDocumentFragment();
+    var low = text.toLowerCase(), marks = new Array(text.length + 1).fill(false);
+    toks.forEach(function(t){ if(!t) return; var from = 0, k; while((k = low.indexOf(t, from)) >= 0){ for(var x = k; x < k + t.length; x++) marks[x] = true; from = k + t.length; } });
+    var i = 0;
+    while(i < text.length){
+      var j = i; while(j < text.length && marks[j] === marks[i]) j++;
+      var piece = text.slice(i, j);
+      frag.appendChild(marks[i] ? h('mark', { text: piece }) : document.createTextNode(piece));
+      i = j;
+    }
+    return frag;
+  }
+  function pickJob(j){
+    var ta = jobCtx && jobCtx.ta; if(!ta) return;
+    var info = jobLine(ta) || jobCtx.info;
+    var v = ta.value;
+    jobSuppress = true;
+    ta.value = v.slice(0, info.valueStart) + j.name + v.slice(info.end);
+    var caret = info.valueStart + j.name.length;
+    ta.focus(); try{ ta.setSelectionRange(caret, caret); }catch(e){}
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    jobSuppress = false;
+    hideJobPop();
+  }
+  function showJobPop(ta){
+    if(jobSuppress || !JOBS.length){ return; }
+    var info = jobLine(ta);
+    if(!info || !info.query.trim()){ hideJobPop(); return; }
+    var list = jobSearch(info.query);
+    if(!list.length){ hideJobPop(); return; }
+    if(!jobPop){
+      jobPop = h('div', { class: 'job-pop' });
+      jobPop.addEventListener('mousedown', function(e){ e.preventDefault(); });
+      document.body.appendChild(jobPop);
+    }
+    jobItems = list; jobHi = -1; jobCtx = { ta: ta, info: info };
+    jobPop.innerHTML = '';
+    jobPop.appendChild(h('div', { class: 'jh', text: '직업 선택 (고르면 직업명만 입력돼요 · 그냥 직접 써도 돼요)' }));
+    var toks = info.query.toLowerCase().split(/\s+/).filter(Boolean);
+    list.forEach(function(j, i){
+      var shown = j.desc || j.name;
+      var row = h('div', { class: 'jo' });
+      row.appendChild(markText(shown, toks));
+      row.addEventListener('click', function(){ pickJob(j); });
+      jobPop.appendChild(row);
+    });
+    var r = ta.getBoundingClientRect();
+    var cs = getComputedStyle(ta);
+    var lh = parseFloat(cs.lineHeight) || 23, pt = parseFloat(cs.paddingTop) || 10;
+    var top = r.top + window.pageYOffset + pt + (info.lineIndex + 1) * lh + 4;
+    jobPop.style.display = 'block';
+    jobPop.style.left = (r.left + window.pageXOffset) + 'px';
+    jobPop.style.width = Math.min(r.width, 560) + 'px';
+    jobPop.style.top = top + 'px';
+    jobPop.scrollTop = 0;
+  }
+  function wireJobs(){
+    var ta = $('personalText');
+    ta.addEventListener('input', function(){ showJobPop(ta); });
+    ta.addEventListener('click', function(){ showJobPop(ta); });
+    ta.addEventListener('keydown', function(e){
+      if(!jobPop || jobPop.style.display === 'none' || !jobItems.length) return;
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        jobHi = e.key === 'ArrowDown' ? Math.min(jobItems.length - 1, jobHi + 1) : Math.max(0, jobHi - 1);
+        var rows = jobPop.querySelectorAll('.jo');
+        for(var i = 0; i < rows.length; i++) rows[i].classList.toggle('on', i === jobHi);
+        if(rows[jobHi]) rows[jobHi].scrollIntoView({ block: 'nearest' });
+      } else if(e.key === 'Enter' && jobHi >= 0){
+        e.preventDefault(); pickJob(jobItems[jobHi]);
+      } else if(e.key === 'Escape'){
+        hideJobPop();
+      }
+    });
+    ta.addEventListener('blur', function(){ clearTimeout(jobBlurT); jobBlurT = setTimeout(hideJobPop, 250); });
+    ta.addEventListener('focus', function(){ clearTimeout(jobBlurT); });
+  }
+
   /* ---------------- 이벤트 연결 ---------------- */
   function wire(){
     $('newBtn').addEventListener('click', createCustomer);
+    wireJobs();
     $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
     $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
     $('trashBtn').addEventListener('click', toggleTrash);
