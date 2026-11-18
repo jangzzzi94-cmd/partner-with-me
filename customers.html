@@ -38,7 +38,23 @@
   .cu-delrow span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .cu-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
   .cu-bar .sp{flex:1;}
-  .cu-title{width:100%;font-size:22px;font-weight:800;color:var(--navy-950);border:none;border-bottom:2px solid var(--line);padding:6px 2px;background:transparent;font-family:inherit;margin-bottom:12px;}
+  .cu-titlerow{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px;}
+  .cu-title{flex:0 0 36%;max-width:220px;min-width:0;font-size:22px;font-weight:800;color:var(--navy-950);border:none;border-bottom:2px solid var(--line);padding:6px 2px;background:transparent;font-family:inherit;}
+  .ref-box{flex:1;min-width:0;}
+  .ref-main{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:38px;}
+  .ref-quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .ref-quick button{border:1px solid var(--line);background:#fff;color:var(--navy-800);border-radius:14px;padding:3px 11px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+  .ref-quick button.on{background:var(--navy-900);border-color:var(--navy-900);color:#fff;font-weight:700;}
+  .cu-addbtns{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px;}
+  .cu-table th .ph,.prop-name::placeholder,.th-input::placeholder{color:#a9b3c4;font-weight:600;}
+  .th-input{width:110px;padding:3px 6px;border:1px solid var(--navy-600);border-radius:6px;font-size:13px;font-family:inherit;}
+  .prop-label{display:flex;align-items:flex-start;gap:2px;}
+  .prop-name{flex:1;min-width:0;border:none;background:transparent;font:inherit;font-weight:700;color:var(--muted);padding:7px 0;}
+  .prop-name:focus{outline:none;border-bottom:1px solid var(--navy-600);}
+  .chip-x{position:relative;display:inline-block;}
+  .chip-x .x{position:absolute;top:-6px;right:-4px;width:16px;height:16px;line-height:14px;text-align:center;font-size:12px;border-radius:50%;background:#fff;border:1px solid var(--line);color:var(--muted);cursor:pointer;display:none;}
+  .chip-x:hover .x{display:block;}
+  @media (hover:none){.chip-x .x{display:block;}}
   .cu-title:focus{outline:none;border-bottom-color:var(--navy-600);}
   .cu-sec{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px;}
   .cu-sec h2{font-size:14.5px;margin:0 0 10px;color:var(--navy-950);}
@@ -83,8 +99,8 @@
   .ref-opt:last-child{border-bottom:none;}
   .ref-opt:hover,.ref-opt.on{background:var(--navy-100);}
   .ref-opt.free{color:var(--muted);font-size:13px;}
+  .chat:empty{display:none;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
-  .chat:empty::before{content:"아직 기록이 없어요. 아래에 비고·특이사항을 적어 보내세요.";color:var(--muted);font-size:13px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
   .msg2 .body{white-space:pre-wrap;word-break:break-word;font-size:14.5px;line-height:1.55;}
   .msg2 .meta{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:11.5px;color:var(--muted);}
@@ -110,6 +126,7 @@
     .navbar{padding:14px 16px;}
     .prop-row{flex-direction:column;gap:2px;}
     .prop-label{width:auto;padding-top:0;}
+    .prop-name{flex:none;width:120px;}
     .cu-table td{max-width:170px;}
   }
 </style>
@@ -130,19 +147,13 @@
     </div>
     <div class="cu-tools">
       <input type="text" id="searchInput" placeholder="이름·연락처·메모 검색" autocomplete="off">
-      <button type="button" class="cu-btn" id="addPropBtn">+ 항목 추가</button>
       <span class="cu-status" id="listStatus"></span>
     </div>
-    <div class="cu-addprop" id="addPropForm">
-      <input type="text" id="newPropName" placeholder="항목 이름 (예: 상태, 다음 연락일)" maxlength="30">
-      <select id="newPropType">
-        <option value="text">텍스트</option>
-        <option value="multi_select">다중선택</option>
-        <option value="date">날짜</option>
-        <option value="created_time">생성일시</option>
-      </select>
-      <button type="button" class="cu-btn primary sm" id="newPropOk">만들기</button>
-      <button type="button" class="cu-btn sm" id="newPropCancel">취소</button>
+    <div class="cu-addbtns">
+      <button type="button" class="cu-btn sm" data-addtype="text">+ 텍스트</button>
+      <button type="button" class="cu-btn sm" data-addtype="multi_select">+ 다중선택</button>
+      <button type="button" class="cu-btn sm" data-addtype="date">+ 날짜</button>
+      <button type="button" class="cu-btn sm" data-addtype="created_time">+ 생성일시</button>
     </div>
     <div class="cu-tablewrap"><table class="cu-table" id="custTable"></table></div>
     <div class="cu-safe">
@@ -165,16 +176,23 @@
       <button type="button" class="cu-btn" id="saveNowBtn">💾 저장</button>
       <button type="button" class="cu-btn danger" id="delCustBtn">삭제</button>
     </div>
-    <input type="text" class="cu-title" id="custName" placeholder="고객 이름" autocomplete="off">
+    <div class="cu-titlerow">
+      <input type="text" class="cu-title" id="custName" placeholder="이름" autocomplete="off">
+      <div class="ref-box" id="refBox"></div>
+    </div>
 
     <div class="cu-sec" id="propsSec">
-      <h2>고객 정보</h2>
       <div id="propsPanel"></div>
-      <button type="button" class="cu-btn sm" id="detailAddPropBtn" style="margin-top:8px;">+ 항목 추가</button>
+      <div class="cu-addbtns" style="margin:8px 0 0;">
+        <button type="button" class="cu-btn sm" data-addtype="text">+ 텍스트</button>
+        <button type="button" class="cu-btn sm" data-addtype="multi_select">+ 다중선택</button>
+        <button type="button" class="cu-btn sm" data-addtype="date">+ 날짜</button>
+        <button type="button" class="cu-btn sm" data-addtype="created_time">+ 생성일시</button>
+      </div>
     </div>
 
     <div class="cu-sec" id="noteSec">
-      <h2>비고 · 특이사항 <span class="cu-status">(사진·PDF·동영상·파일 — 끌어다 놓거나 Ctrl+V로 붙여넣기)</span></h2>
+      <h2>비고 · 특이사항</h2>
       <div class="chat" id="chatList"></div>
       <div id="delNotesBox" style="display:none;margin-bottom:10px;"></div>
       <div class="composer">
@@ -231,7 +249,7 @@
   <div class="md-head"><span>🔍 직업 찾기</span><button type="button" data-close="jobModal" aria-label="닫기">✕</button></div>
   <div class="md-body">
     <input type="text" id="jobQuery" placeholder="직업이나 업무를 입력 (예: 보험, 회사원, 간호사)" autocomplete="off">
-    <div class="md-hint" id="jobHint">입력하면 비슷한 직업이 나와요. 고르면 「직업 :」 줄에 직업명이 바로 들어가요.</div>
+    <div class="md-hint" id="jobHint" style="display:none;"></div>
     <div class="md-list" id="jobResults" style="display:none;"></div>
   </div>
 </div></div>
@@ -512,9 +530,12 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var table = $('custTable');
     table.innerHTML = '';
     var thead = h('thead'), tr = h('tr');
-    function th(label, key, extra){
+    function th(label, key, extra, pid){
       var arrow = (sortKey === key) ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-      var el = h('th', { text: label + arrow, onclick: function(){ if(sortKey === key){ sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortKey = key; sortDir = 'asc'; } renderList(); } });
+      var el = h('th', { onclick: function(){ if(sortKey === key){ sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortKey = key; sortDir = 'asc'; } renderList(); } });
+      if(label) el.appendChild(document.createTextNode(label + arrow));
+      else { el.appendChild(h('span', { class: 'ph', text: '제목없음' })); if(arrow) el.appendChild(document.createTextNode(arrow)); }
+      if(pid) el.setAttribute('data-pid', pid);
       if(extra) el.appendChild(extra);
       tr.appendChild(el);
     }
@@ -522,7 +543,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     th('소개자', '__ref');
     props.forEach(function(p){
       var menu = h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } });
-      th(p.name, p.id, menu);
+      th(p.name, p.id, menu, p.id);
     });
     thead.appendChild(tr); table.appendChild(thead);
 
@@ -564,24 +585,39 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
 
   /* ---------------- 항목(속성) 관리 ---------------- */
   async function createProp(name, type){
-    name = (name || '').trim();
-    if(!name){ showToast('항목 이름을 입력해 주세요'); return false; }
     var pos = props.length ? Math.max.apply(null, props.map(function(p){ return p.position || 0; })) + 1 : 0;
     try{
-      var res = must(await sb.from('customer_props').insert({ user_id: uid, name: name, type: type, options: [], position: pos }).select().single());
+      var res = must(await sb.from('customer_props').insert({ user_id: uid, name: name || '', type: type, options: [], position: pos }).select().single());
       props.push(res.data);
-      return true;
-    }catch(e){ showToast('항목을 만들지 못했어요: ' + errText(e)); return false; }
+      return res.data;
+    }catch(e){ showToast('항목을 만들지 못했어요: ' + errText(e)); return null; }
   }
-  async function renameProp(id){
-    var p = getProp(id); if(!p) return;
-    var n = prompt('항목 이름', p.name); if(n == null) return; n = n.trim(); if(!n) return;
-    try{ must(await sb.from('customer_props').update({ name: n }).eq('id', id)); p.name = n; refreshViews(); }
+  async function savePropName(p, v){
+    v = (v || '').trim();
+    if(v === (p.name || '')) return;
+    try{ must(await sb.from('customer_props').update({ name: v }).eq('id', p.id)); p.name = v; }
     catch(e){ showToast('이름을 바꾸지 못했어요: ' + errText(e)); }
+  }
+  // 목록 머리글에서 항목 제목을 바로 쓴다
+  function editHeader(id){
+    var th = document.querySelector('#custTable th[data-pid="' + id + '"]'), p = getProp(id);
+    if(!th || !p) return;
+    th.innerHTML = '';
+    var inp = h('input', { type: 'text', class: 'th-input', placeholder: '제목없음', maxlength: '30' });
+    inp.value = p.name || '';
+    inp.addEventListener('click', function(e){ e.stopPropagation(); });
+    var done = false;
+    inp.addEventListener('blur', async function(){ if(done) return; done = true; await savePropName(p, inp.value); renderList(); });
+    inp.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); inp.blur(); } else if(e.key === 'Escape'){ inp.value = p.name || ''; inp.blur(); } });
+    th.appendChild(inp); inp.focus();
+  }
+  function renameProp(id){
+    if(curId){ var el = document.querySelector('[data-propname="' + id + '"]'); if(el) el.focus(); }
+    else editHeader(id);
   }
   async function deleteProp(id){
     var p = getProp(id); if(!p) return;
-    if(!confirm('「' + p.name + '」 항목을 삭제할까요?\n(입력한 값은 지워지지 않고 숨겨지기만 해요. 필요하면 복구할 수 있어요.)')) return;
+    if(!confirm('「' + (p.name || '제목없음') + '」 항목을 삭제할까요?')) return;
     try{ must(await sb.from('customer_props').update({ deleted_at: new Date().toISOString() }).eq('id', id)); props = props.filter(function(x){ return x.id !== id; }); refreshViews(); }
     catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
   }
@@ -669,10 +705,14 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function renderProps(){
     var c = getCust(curId); if(!c) return;
     var panel = $('propsPanel'); panel.innerHTML = '';
-    panel.appendChild(referrerRow(c));
-    if(!props.length){ panel.appendChild(h('div', { class: 'cu-status', style: 'margin-top:8px;', text: '「+ 항목 추가」로 텍스트, 다중선택, 날짜, 생성일시 항목을 더 만들 수 있어요.' })); return; }
     props.forEach(function(p){
-      var label = h('div', { class: 'prop-label' }, [p.name, h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } })]);
+      var nameIn = h('input', { type: 'text', class: 'prop-name', placeholder: '제목없음', maxlength: '30', 'data-propname': p.id });
+      nameIn.value = p.name || '';
+      var nameT = null;
+      nameIn.addEventListener('input', function(){ clearTimeout(nameT); nameT = setTimeout(function(){ savePropName(p, nameIn.value); }, 600); });
+      nameIn.addEventListener('blur', function(){ clearTimeout(nameT); savePropName(p, nameIn.value); });
+      nameIn.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); nameIn.blur(); } });
+      var label = h('div', { class: 'prop-label' }, [nameIn, h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } })]);
       var val = h('div', { class: 'prop-val' });
       var cur = c.props[p.id];
       if(p.type === 'text'){
@@ -680,21 +720,24 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         ta.value = cur || '';
         ta.addEventListener('input', function(){ if(ta.value) c.props[p.id] = ta.value; else delete c.props[p.id]; autosize(ta); markDirty(c); });
         val.appendChild(ta);
-        val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '복사', onclick: function(){ copyText(ta.value, p.name); } }));
+        val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '복사', onclick: function(){ copyText(ta.value, p.name || '내용'); } }));
         setTimeout(function(){ autosize(ta); }, 0);
       } else if(p.type === 'date'){
         var di = h('input', { type: 'date' }); di.value = cur || '';
         di.addEventListener('input', function(){ if(di.value) c.props[p.id] = di.value; else delete c.props[p.id]; markDirty(c); });
         val.appendChild(di);
-        val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '복사', onclick: function(){ copyText(di.value, p.name); } }));
+        val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '복사', onclick: function(){ copyText(di.value, p.name || '날짜'); } }));
       } else if(p.type === 'created_time'){
         val.appendChild(h('div', { class: 'ro', text: fmtDateTime(c.created_at) }));
       } else if(p.type === 'multi_select'){
         var wrap = h('div', { class: 'ms-wrap' });
         var draw = function(){
           wrap.innerHTML = '';
-          (c.props[p.id] || []).forEach(function(id){ var i = optIndex(p, id); if(i >= 0) wrap.appendChild(chipEl(p.options[i], i)); });
-          var btn = h('button', { type: 'button', class: 'cu-btn sm', text: '＋ 선택' });
+          (c.props[p.id] || []).forEach(function(id){
+            var i = optIndex(p, id); if(i < 0) return;
+            wrap.appendChild(h('span', { class: 'chip-x' }, [chipEl(p.options[i], i), h('b', { class: 'x', text: '×', title: '삭제', onclick: function(e){ e.stopPropagation(); c.props[p.id] = (c.props[p.id] || []).filter(function(x){ return x !== id; }); markDirty(c); draw(); } })]));
+          });
+          var btn = h('button', { type: 'button', class: 'cu-btn sm', text: '＋' });
           btn.addEventListener('click', function(e){ e.stopPropagation(); openMultiPicker(p, c, btn, draw); });
           wrap.appendChild(btn);
         };
@@ -703,66 +746,75 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       panel.appendChild(h('div', { class: 'prop-row' }, [label, val]));
     });
   }
-  /* 소개자: 내 고객 중에서 이름으로 찾아 고르거나, 목록에 없으면 이름만 적어 둔다 */
-  function referrerRow(c){
-    var label = h('div', { class: 'prop-label', text: '소개자' });
-    var val = h('div', { class: 'prop-val' });
+  /* 소개자: 제목 오른쪽. 이름을 치면 내 고객 중에서 찾아 고르고, 개척·돌방·DB·병원근무는 눌러서 체크 */
+  var QUICK = ['개척', '돌방', 'DB', '병원근무'];
+  function renderReferrer(){
+    var c = getCust(curId), box = $('refBox'); if(!box) return;
+    box.innerHTML = ''; if(!c) return;
     var ri = refInfo(c);
+    var main = h('div', { class: 'ref-main' });
     if(ri.text){
-      var chip = h('span', { class: 'chip', style: 'background:#e8f0fe;color:#1d4ed8;font-size:13px;padding:4px 12px;', text: ri.text + (ri.id ? '' : ' (목록에 없음)') });
-      val.appendChild(chip);
-      if(ri.id) val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '열기', onclick: function(){ location.hash = '#/c/' + ri.id; } }));
-      val.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '바꾸기', onclick: function(){ c.referrer_id = null; c.referrer_text = ''; markDirty(c); renderProps(); setTimeout(function(){ var i = document.getElementById('refInput'); if(i) i.focus(); }, 30); } }));
-      return h('div', { class: 'prop-row' }, [label, val]);
-    }
-    var wrap = h('div', { style: 'position:relative;flex:1;min-width:180px;' });
-    var inp = h('input', { type: 'text', id: 'refInput', placeholder: '소개해 준 분 이름을 입력', maxlength: '40', autocomplete: 'off', style: 'width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;' });
-    var pop = h('div', { class: 'ref-pop', style: 'display:none;' });
-    var items = [], hi = -1, blurT = null;
-    function choose(t){ c.referrer_id = t.id; c.referrer_text = dispName(t); markDirty(c); renderProps(); }
-    function freeText(q){ c.referrer_id = null; c.referrer_text = q; markDirty(c); renderProps(); }
-    function draw(){
-      var q = inp.value.trim(), ql = q.toLowerCase();
-      pop.innerHTML = ''; items = []; hi = -1;
-      if(!q){ pop.style.display = 'none'; return; }
-      var ms = customers.filter(function(t){ return t.id !== c.id && dispName(t).toLowerCase().indexOf(ql) >= 0; });
-      ms.sort(function(a, b){ var x = dispName(a).toLowerCase().indexOf(ql) === 0 ? 0 : 1, y = dispName(b).toLowerCase().indexOf(ql) === 0 ? 0 : 1; return x - y; });
-      ms.slice(0, 8).forEach(function(t){
-        items.push({ t: t });
-        var row = h('div', { class: 'ref-opt', text: nameWithTag(t) });
-        row.addEventListener('mousedown', function(e){ e.preventDefault(); });
-        row.addEventListener('click', function(){ choose(t); });
-        pop.appendChild(row);
+      main.appendChild(h('span', { class: 'chip', style: 'background:#e8f0fe;color:#1d4ed8;font-size:14px;padding:5px 12px;', text: ri.text }));
+      if(ri.id) main.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '열기', onclick: function(){ location.hash = '#/c/' + ri.id; } }));
+      main.appendChild(h('button', { type: 'button', class: 'cu-btn sm', text: '✕', title: '지우기', onclick: function(){ c.referrer_id = null; c.referrer_text = ''; markDirty(c); renderReferrer(); } }));
+    } else {
+      var wrap = h('div', { style: 'position:relative;flex:1;min-width:0;' });
+      var inp = h('input', { type: 'text', id: 'refInput', placeholder: '소개자', maxlength: '40', autocomplete: 'off', style: 'width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;' });
+      var pop = h('div', { class: 'ref-pop', style: 'display:none;' });
+      var items = [], hi = -1, blurT = null;
+      var choose = function(t){ c.referrer_id = t.id; c.referrer_text = dispName(t); markDirty(c); renderReferrer(); };
+      var freeText = function(q){ c.referrer_id = null; c.referrer_text = q; markDirty(c); renderReferrer(); };
+      var draw = function(){
+        var q = inp.value.trim(), ql = q.toLowerCase();
+        pop.innerHTML = ''; items = []; hi = -1;
+        if(!q){ pop.style.display = 'none'; return; }
+        var ms = customers.filter(function(t){ return t.id !== c.id && dispName(t).toLowerCase().indexOf(ql) >= 0; });
+        ms.sort(function(a, b){ var x = dispName(a).toLowerCase().indexOf(ql) === 0 ? 0 : 1, y = dispName(b).toLowerCase().indexOf(ql) === 0 ? 0 : 1; return x - y; });
+        ms.slice(0, 8).forEach(function(t){
+          items.push({ t: t });
+          var row = h('div', { class: 'ref-opt', text: nameWithTag(t) });
+          row.addEventListener('mousedown', function(e){ e.preventDefault(); });
+          row.addEventListener('click', function(){ choose(t); });
+          pop.appendChild(row);
+        });
+        items.push({ free: q });
+        var fr = h('div', { class: 'ref-opt free', text: '「' + q + '」 그대로 적기' });
+        fr.addEventListener('mousedown', function(e){ e.preventDefault(); });
+        fr.addEventListener('click', function(){ freeText(q); });
+        pop.appendChild(fr);
+        pop.style.display = 'block';
+      };
+      inp.addEventListener('input', draw);
+      inp.addEventListener('focus', function(){ clearTimeout(blurT); draw(); });
+      inp.addEventListener('blur', function(){ blurT = setTimeout(function(){ pop.style.display = 'none'; }, 250); });
+      inp.addEventListener('keydown', function(e){
+        if(pop.style.display === 'none') return;
+        var rows = pop.querySelectorAll('.ref-opt');
+        if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+          e.preventDefault();
+          hi = e.key === 'ArrowDown' ? Math.min(items.length - 1, hi + 1) : Math.max(0, hi - 1);
+          for(var i = 0; i < rows.length; i++) rows[i].classList.toggle('on', i === hi);
+        } else if(e.key === 'Enter'){
+          e.preventDefault();
+          if(hi >= 0){ var it = items[hi]; if(it.t) choose(it.t); else freeText(it.free); return; }
+          var q = inp.value.trim().toLowerCase();
+          var exact = items.filter(function(x){ return x.t && dispName(x.t).toLowerCase() === q; });
+          if(exact.length === 1) choose(exact[0].t);
+          else if(!exact.length) freeText(inp.value.trim());
+        } else if(e.key === 'Escape'){ pop.style.display = 'none'; }
       });
-      items.push({ free: q });
-      var fr = h('div', { class: 'ref-opt free', text: '「' + q + '」 이름만 적어 두기 (목록에 없는 분)' });
-      fr.addEventListener('mousedown', function(e){ e.preventDefault(); });
-      fr.addEventListener('click', function(){ freeText(q); });
-      pop.appendChild(fr);
-      pop.style.display = 'block';
+      wrap.appendChild(inp); wrap.appendChild(pop); main.appendChild(wrap);
     }
-    inp.addEventListener('input', draw);
-    inp.addEventListener('focus', function(){ clearTimeout(blurT); draw(); });
-    inp.addEventListener('blur', function(){ blurT = setTimeout(function(){ pop.style.display = 'none'; }, 250); });
-    inp.addEventListener('keydown', function(e){
-      if(pop.style.display === 'none') return;
-      var rows = pop.querySelectorAll('.ref-opt');
-      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
-        e.preventDefault();
-        hi = e.key === 'ArrowDown' ? Math.min(items.length - 1, hi + 1) : Math.max(0, hi - 1);
-        for(var i = 0; i < rows.length; i++) rows[i].classList.toggle('on', i === hi);
-      } else if(e.key === 'Enter'){
-        e.preventDefault();
-        if(hi >= 0){ var it = items[hi]; if(it.t) choose(it.t); else freeText(it.free); return; }
-        var q = inp.value.trim().toLowerCase();
-        var exact = items.filter(function(x){ return x.t && dispName(x.t).toLowerCase() === q; });
-        if(exact.length === 1) choose(exact[0].t);
-        else if(!exact.length) freeText(inp.value.trim());
-        // 이름이 같은 사람이 여러 명이면 목록에서 직접 고르게 둔다
-      } else if(e.key === 'Escape'){ pop.style.display = 'none'; }
+    box.appendChild(main);
+    var quick = h('div', { class: 'ref-quick' });
+    QUICK.forEach(function(q){
+      var on = !c.referrer_id && (c.referrer_text || '') === q;
+      quick.appendChild(h('button', { type: 'button', class: on ? 'on' : '', text: (on ? '✓ ' : '') + q, onclick: function(){
+        if(on){ c.referrer_id = null; c.referrer_text = ''; } else { c.referrer_id = null; c.referrer_text = q; }
+        markDirty(c); renderReferrer();
+      } }));
     });
-    wrap.appendChild(inp); wrap.appendChild(pop); val.appendChild(wrap);
-    return h('div', { class: 'prop-row' }, [label, val]);
+    box.appendChild(quick);
   }
   function fillBoxes(c){
     TEXT_FIELDS.forEach(function(f){
@@ -786,9 +838,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('viewDetail').style.display = 'block';
     window.scrollTo(0, 0);
     $('custName').value = c.name || '';
-    $('custName').placeholder = parsePersonalName(c.personal_text) ? '고객 이름 (비워 두면 인적사항의 이름 「' + parsePersonalName(c.personal_text) + '」이 쓰여요)' : '고객 이름 (비워 두면 인적사항의 이름이 쓰여요)';
+    $('custName').placeholder = parsePersonalName(c.personal_text) || '이름';
     fillBoxes(c);
     renderProps();
+    renderReferrer();
     $('noteText').value = '';
     $('chatList').innerHTML = '';
     setStatus('', anyDirty() ? '저장 대기 중…' : '');
@@ -965,7 +1018,6 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function renderTrash(){
     var box = $('trashBox'); box.innerHTML = '';
-    box.appendChild(h('div', { class: 'cu-status', text: '삭제한 고객은 여기에 보관돼요. 「복원」하면 목록으로 돌아옵니다.' }));
     if(!trash.length){ box.appendChild(h('div', { class: 'cu-empty', text: '휴지통이 비어 있어요.' })); return; }
     trash.forEach(function(t){
       var row = h('div', { class: 'cu-delrow' }, [
@@ -1005,7 +1057,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function showBackupInfo(){
     var el = $('backupInfo'), t = 0;
     try{ t = parseInt(localStorage.getItem(BK_KEY) || '0', 10) || 0; }catch(e){}
-    if(!t){ el.className = 'cu-status warn'; el.textContent = '아직 백업 받은 적이 없어요. 가끔 받아 두면 더 안전해요.'; return; }
+    if(!t){ el.className = 'cu-status warn'; el.textContent = '백업 기록 없음'; return; }
     var days = Math.floor((Date.now() - t) / 86400000);
     el.className = 'cu-status' + (days >= 14 ? ' warn' : '');
     el.textContent = '마지막 백업: ' + (days === 0 ? '오늘' : days + '일 전');
@@ -1137,9 +1189,9 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var q = $('jobQuery').value, box = $('jobResults');
     box.innerHTML = '';
     var toks = q.toLowerCase().split(/\s+/).filter(Boolean);
-    if(!toks.length){ box.style.display = 'none'; $('jobHint').style.display = 'block'; return; }
+    if(!toks.length){ box.style.display = 'none'; $('jobHint').style.display = 'none'; return; }
     var list = jobSearch(q);
-    if(!list.length){ box.style.display = 'none'; $('jobHint').style.display = 'block'; $('jobHint').textContent = '비슷한 직업이 없어요. 다른 말로 찾아보시거나 인적사항에 직접 적어 주세요.'; return; }
+    if(!list.length){ box.style.display = 'none'; $('jobHint').style.display = 'block'; $('jobHint').textContent = '검색 결과가 없어요'; return; }
     $('jobHint').style.display = 'none';
     box.style.display = 'block';
     list.forEach(function(j){
@@ -1167,8 +1219,8 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var emb = $('addrEmbed'); emb.style.display = 'block'; emb.innerHTML = '';
     $('addrMsg').textContent = '불러오는 중…';
     loadPostcode(function(ok){
-      if(!ok){ $('addrMsg').textContent = '주소 검색 서비스에 연결하지 못했어요. 인터넷을 확인하시거나 인적사항에 직접 적어 주세요.'; return; }
-      $('addrMsg').textContent = '도로명·지번·건물명으로 검색하세요.';
+      if(!ok){ $('addrMsg').textContent = '주소 검색 서비스에 연결하지 못했어요'; return; }
+      $('addrMsg').textContent = '';
       new window.daum.Postcode({
         width: '100%', height: '100%',
         oncomplete: function(data){
@@ -1188,7 +1240,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function wireFinders(){
     $('jobFindBtn').addEventListener('click', function(){
-      $('jobQuery').value = ''; $('jobHint').textContent = '입력하면 비슷한 직업이 나와요. 고르면 「직업 :」 줄에 직업명이 바로 들어가요.'; renderJobResults();
+      $('jobQuery').value = ''; renderJobResults();
       openModal('jobModal'); setTimeout(function(){ $('jobQuery').focus(); }, 50);
     });
     $('jobQuery').addEventListener('input', renderJobResults);
@@ -1217,22 +1269,18 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     window.addEventListener('beforeunload', function(e){ if(anyDirty()){ e.preventDefault(); e.returnValue = ''; return ''; } });
     showBackupInfo();
     $('searchInput').addEventListener('input', function(){ search = this.value; renderList(); });
-    function toggleAdd(show){
-      var f = $('addPropForm'); f.style.display = show ? 'flex' : 'none';
-      if(show){ $('newPropName').value = ''; $('newPropName').focus(); }
+    var addBtns = document.querySelectorAll('[data-addtype]');
+    for(var ab = 0; ab < addBtns.length; ab++){
+      (function(btn){
+        btn.addEventListener('click', async function(){
+          var np = await createProp('', btn.getAttribute('data-addtype'));
+          if(!np) return;
+          refreshViews();
+          if(curId){ var el = document.querySelector('[data-propname="' + np.id + '"]'); if(el){ el.scrollIntoView({ block: 'center' }); el.focus(); } }
+          else editHeader(np.id);
+        });
+      })(addBtns[ab]);
     }
-    $('addPropBtn').addEventListener('click', function(){ toggleAdd(true); });
-    $('newPropCancel').addEventListener('click', function(){ toggleAdd(false); });
-    $('newPropOk').addEventListener('click', async function(){
-      if(await createProp($('newPropName').value, $('newPropType').value)){ toggleAdd(false); refreshViews(); }
-    });
-    $('detailAddPropBtn').addEventListener('click', async function(){
-      var name = prompt('새 항목 이름 (예: 상태, 다음 연락일)'); if(name == null) return;
-      var t = prompt('유형을 입력하세요: 1=텍스트  2=다중선택  3=날짜  4=생성일시', '1'); if(t == null) return;
-      var type = { '1': 'text', '2': 'multi_select', '3': 'date', '4': 'created_time' }[String(t).trim()];
-      if(!type){ showToast('1~4 중에서 입력해 주세요'); return; }
-      if(await createProp(name, type)) refreshViews();
-    });
     $('backBtn').addEventListener('click', function(){ location.hash = '#/'; });
     $('saveNowBtn').addEventListener('click', async function(){
       var btn = this; btn.disabled = true;
@@ -1252,7 +1300,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
             // 제목을 비워 뒀거나 인적사항 이름을 그대로 따라 쓰던 중이면, 인적사항의 이름 변화를 제목에 반영
             var prev = parsePersonalName(c.personal_text), next = parsePersonalName(ta.value);
             if(!(c.name || '').trim() || c.name === prev){ c.name = next; $('custName').value = next; }
-            $('custName').placeholder = next ? '고객 이름 (비워 두면 인적사항의 이름 「' + next + '」이 쓰여요)' : '고객 이름 (비워 두면 인적사항의 이름이 쓰여요)';
+            $('custName').placeholder = next || '이름';
           }
           c[f] = ta.value; autosize(ta); markDirty(c);
         });
