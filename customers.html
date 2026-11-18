@@ -29,12 +29,14 @@
   .cu-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   /* 이름·기고객 칸은 내용만큼만 차지해서 기고객이 이름 바로 옆에 붙도록 */
   .cu-table th:nth-child(-n+2),.cu-table td:nth-child(-n+2){width:1%;white-space:nowrap;}
-  .cu-table td:nth-child(2){padding-left:6px;}
-  .cu-table th:nth-child(2){padding-left:6px;}
+  .cu-table td:nth-child(2),.cu-table th:nth-child(2){padding-left:6px;padding-right:34px;}
+  .cu-table td:nth-child(3),.cu-table th:nth-child(3){padding-left:16px;}
   @media (max-width:640px){
     /* 폰에서는 가족·등록일 칸을 숨겨 한 화면에 보이게 */
     .cu-table th:nth-child(4),.cu-table td:nth-child(4),.cu-table th:nth-child(5),.cu-table td:nth-child(5){display:none;}
     .cu-table th,.cu-table td{padding-left:9px;padding-right:9px;}
+    .cu-table td:nth-child(2),.cu-table th:nth-child(2){padding-right:26px;}
+    .cu-table td:nth-child(3),.cu-table th:nth-child(3){padding-left:12px;}
   }
   .cu-table tr.row{cursor:pointer;}
   .cu-table tr.row:hover td{background:#f7f9fd;}
