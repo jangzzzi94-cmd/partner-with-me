@@ -3279,7 +3279,7 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
           lastSpan = addRun(text, null, red);
         }
         if(al.shrinkToFit && lastSpan) shrinkers.push({ txt: txt, td: inner });
-        else if(lastSpan) fitters.push({ txt: txt, inner: inner, wrap: !!al.wrapText, hasNewline: /\n/.test(txt.textContent), len: txt.textContent.length });
+        else if(lastSpan && opts.fitRows && opts.fitRows[r]) fitters.push({ txt: txt, inner: inner, wrap: !!al.wrapText, hasNewline: /\n/.test(txt.textContent), len: txt.textContent.length });
         if(!al.wrapText && !al.shrinkToFit && lastSpan && mg.r2 === r && mg.c2 === c){
           const nb = (ha === "right") ? (c > area.c1 ? evalCell(ws, r, c - 1) : "x") : (ha === "center") ? "" : evalCell(ws, r, c + 1);
           const nb2 = (ha === "center") ? (c > area.c1 ? evalCell(ws, r, c - 1) : "x") : "";
@@ -3339,12 +3339,13 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
     res.fitters.forEach(f=>{
       const spans = Array.prototype.slice.call(f.txt.querySelectorAll("span")); if(!spans.length) return;
       const orig = spans.map(x=>parseFloat(x.style.fontSize));
-      const over = ()=> f.txt.getBoundingClientRect().height > f.inner.clientHeight + 1 || f.txt.scrollWidth > f.inner.clientWidth - 5;
+      const over = ()=> f.txt.getBoundingClientRect().height > f.inner.clientHeight + 1 || f.txt.scrollWidth > f.inner.clientWidth + 1;
       if(!over()) return;
       const setScale = k=>spans.forEach((x,i)=>{ x.style.fontSize = (orig[i] * k) + "px"; });
       if(f.wrap && !f.hasNewline && f.len <= 24){ // 짧은 글은 한 줄로 먼저 맞춰 본다
         f.txt.style.whiteSpace = "pre";
-        for(let k = 1; k >= 0.69; k -= 0.05){ setScale(k); if(!over()) return; }
+        const textW = ()=> spans.reduce((a, x)=>a + x.getBoundingClientRect().width, 0);
+        for(let k = 1; k >= 0.69; k -= 0.05){ setScale(k); if(textW() <= f.inner.clientWidth - 8) return; }
         f.txt.style.whiteSpace = "pre-wrap"; setScale(1);
       }
       for(let k = 1; k >= 0.5; k -= 0.05){ setScale(k); if(!over()) return; }
@@ -3516,8 +3517,8 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
   async function makeImageFromWorkbook(key, wb){
     const R = window.__wpXlsxRender; if(!R) throw new Error("그리기 도구 없음");
     const isGrid = (key === "before" || key === "after");
-    // 보장분석표(전)/(후): 보험기간 줄을 조금 더 키우고, 상품 칸의 계약정보(회사~계약자)는 모두 가운데 정렬
-    const res = R.renderSheet(wb, SHEET_NAME[key], isGrid ? { minRowPt: { 5: 38 }, centerCell: (r, c)=> r >= 3 && r <= 8 && c >= 5 } : {});
+    // 보장분석표(전)/(후): 보험기간 줄(5행)만 칸을 키우고 가운데 정렬, 보험료 줄(7행)은 칸에 안 들어가는 글만 한 줄로 줄인다
+    const res = R.renderSheet(wb, SHEET_NAME[key], isGrid ? { minRowPt: { 5: 38 }, centerCell: (r, c)=> r === 5 && c >= 5, fitRows: { 7: true } } : {});
     document.body.appendChild(res.root);
     const px = window.pageXOffset, py = window.pageYOffset;
     window.scrollTo(0, 0);
