@@ -1618,7 +1618,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var c = cells[i]; kind[i] = '';
       if(!c) continue;
       var compact = c.replace(/\s/g, '');
+      var pm = f.phone === undefined ? /^(01\d[-\s.]?\d{3,4}[-\s.]?\d{4})(?:\s+|(?=[\(（\[]))(\S.*)$/.exec(c) : null;
       if(IMP_RRN.test(c) && f.rrn === undefined){ f.rrn = c; kind[i] = 'rrn'; }
+      else if(pm){ // 「010-0000-0000 (아빠: 김OO)」처럼 메모가 붙은 번호
+        var note = pm[2], o = (note.match(/[\(（]/g) || []).length, cl = (note.match(/[\)）]/g) || []).length;
+        if(o > cl) note += ')';
+        f.phone = impFmtPhone(pm[1].trim()) + ' ' + note; kind[i] = 'phone';
+      }
       else if(IMP_PHONE.test(c) && f.phone === undefined){ f.phone = c; kind[i] = 'phone'; }
       else if(IMP_ACCT.test(c) && (c.replace(/\D/g, '').length >= 8) && f.bankNo === undefined){ f.bankNo = c.replace(/\s/g, ''); kind[i] = 'acct'; acctIdx = i; }
       else if(IMP_CARRIER.test(c) && f.carrier === undefined){ f.carrier = c; kind[i] = 'carrier'; }
@@ -1647,7 +1653,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     return { f: f, extras: extras, bank: [], ref: ref };
   }
   function parseCustomerText(text){
-    var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    var lines0 = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    // 칸 안에서 줄이 바뀐 경우(다음 줄이 탭으로 시작)는 앞 줄에 이어 붙인다
+    var lines = [];
+    lines0.forEach(function(l){
+      if(/^\t/.test(l) && lines.length && lines[lines.length - 1].indexOf('\t') >= 0) lines[lines.length - 1] += l;
+      else lines.push(l);
+    });
     var people = [], cur = null;
     function fresh(){ return { f: {}, extras: [], bank: [], hasAny: false }; }
     lines.forEach(function(raw){
