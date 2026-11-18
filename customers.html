@@ -1593,11 +1593,66 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(d.length === 10 && d.indexOf('01') === 0) return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
     return v;
   }
+
+  /* 한 줄(탭으로 구분)로 붙여넣은 고객: ★이름님 / 주민번호 / 전화 / 주소 / 직업 / (통신사) / 운전 / 은행 / 계좌 / 소개자님 */
+  var IMP_RRN = /^\d{6}[-\s]?\d{7}$/, IMP_PHONE = /^01\d[-\s.]?\d{3,4}[-\s.]?\d{4}$/, IMP_ACCT = /^[\d\-\s]{8,}$/;
+  var IMP_ADDR = /(특별시|광역시|특별자치|^(경기|서울|인천|부산|대구|광주|대전|울산|세종|강원|충북|충남|전북|전남|경북|경남|제주)|[가-힣]+(시|군|구)\s|\d+\s*(호|동)\b|[가-힣]\S*(로|길)\s*\d)/;
+  var IMP_BANK = /^(농협|국민|신한|우리|하나|기업|카카오|토스|케이|새마을|우체국|수협|부산|대구|경남|광주|전북|제주|SC|제일|씨티|신협|산림|저축|IBK|KB|NH)[가-힣A-Za-z]{0,5}$/i;
+  var IMP_CARRIER = /^(SKT|SK|SK텔레콤|SKB|KT|KT알뜰|LG|LGT|LGU\+?|LG\s?U\+|LG유플러스|유플러스|엘지|엘지유플러스|에스케이|에스케이텔레콤|케이티|알뜰[가-힣A-Za-z]*|MVNO)$/i;
+  var IMP_DRIVE = /^(O|X|o|x|ㅇ|ㅌ|예|아니오|있음|없음|함|안함)$/;
+  function impNameClean(v){ return String(v || '').replace(/^[\s★☆♥♡●○◆◇■□▶▷※*·\-]+/, '').replace(/\s*님\s*$/, '').trim(); }
+  function impRowCells(raw){
+    var line = String(raw).replace(/\r/g, '');
+    var cells = null;
+    if((line.match(/\t/g) || []).length >= 3) cells = line.split('\t');
+    else if(IMP_RRN.test('') === false && /\d{6}-?\d{7}/.test(line) && line.split(/\s{3,}/).length >= 5) cells = line.split(/\s{3,}/);
+    if(!cells) return null;
+    cells = cells.map(function(c){ var t = c.trim(); return /^[-–—]+$/.test(t) ? '' : t; });
+    if(!cells[0] || /[:：]/.test(cells[0])) return null;
+    return cells;
+  }
+  function impRowPerson(cells){
+    var f = { name: impNameClean(cells[0]) }, extras = [], left = [], bankIdx = -1, acctIdx = -1, ref = '';
+    var kind = [];
+    for(var i = 1; i < cells.length; i++){
+      var c = cells[i]; kind[i] = '';
+      if(!c) continue;
+      var compact = c.replace(/\s/g, '');
+      if(IMP_RRN.test(c) && f.rrn === undefined){ f.rrn = c; kind[i] = 'rrn'; }
+      else if(IMP_PHONE.test(c) && f.phone === undefined){ f.phone = c; kind[i] = 'phone'; }
+      else if(IMP_ACCT.test(c) && (c.replace(/\D/g, '').length >= 8) && f.bankNo === undefined){ f.bankNo = c.replace(/\s/g, ''); kind[i] = 'acct'; acctIdx = i; }
+      else if(IMP_CARRIER.test(c) && f.carrier === undefined){ f.carrier = c; kind[i] = 'carrier'; }
+      else if(IMP_DRIVE.test(c) && f.drive === undefined){ f.drive = /^[ox]$/i.test(c) ? c.toUpperCase() : c; kind[i] = 'drive'; }
+      else if(IMP_ADDR.test(c) && f.addr === undefined){ f.addr = c; kind[i] = 'addr'; }
+      else if(IMP_BANK.test(compact) && f.bankName === undefined && compact.length <= 9){ f.bankName = c; kind[i] = 'bank'; bankIdx = i; }
+      else { kind[i] = 'left'; left.push(i); }
+    }
+    // 계좌번호 바로 앞 칸이 은행명
+    if(acctIdx > 0 && f.bankName === undefined){
+      var pi = acctIdx - 1;
+      while(pi > 0 && !cells[pi]) pi--;
+      if(pi > 0 && kind[pi] === 'left' && !/\d/.test(cells[pi]) && cells[pi].length <= 10){ f.bankName = cells[pi]; bankIdx = pi; kind[pi] = 'bank'; left = left.filter(function(x){ return x !== pi; }); }
+    }
+    var after = Math.max(bankIdx, acctIdx);
+    // 소개자: 「님」이 붙은 칸, 아니면 은행·계좌 뒤쪽(또는 맨 끝) 이름처럼 생긴 칸
+    var refIdx = -1;
+    left.forEach(function(i){ if(refIdx < 0 && /님\s*$/.test(cells[i])) refIdx = i; });
+    if(refIdx < 0 && left.length){
+      var last = left[left.length - 1];
+      if(/^[가-힣]{2,5}$/.test(cells[last]) && ((after >= 0 && last > after) || left.length >= 2)) refIdx = last;
+    }
+    if(refIdx >= 0){ ref = impNameClean(cells[refIdx]); left = left.filter(function(x){ return x !== refIdx; }); }
+    if(left.length){ f.job = cells[left[0]]; for(var k = 1; k < left.length; k++) extras.push(cells[left[k]]); }
+    if(ref && !/^[가-힣]{2,5}$/.test(ref)) { extras.push('소개 : ' + ref); ref = ''; }
+    return { f: f, extras: extras, bank: [], ref: ref };
+  }
   function parseCustomerText(text){
     var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
     var people = [], cur = null;
     function fresh(){ return { f: {}, extras: [], bank: [], hasAny: false }; }
     lines.forEach(function(raw){
+      var rc = impRowCells(raw);
+      if(rc){ if(cur){ people.push(cur); cur = null; } people.push(impRowPerson(rc)); return; }
       var line = raw.replace(/[​﻿]/g, '').replace(/^[\s\-–•·*▪▶▷◆◇■□●○✅☑✔]+/, '').trim();
       if(!line) return;
       var m = /^([^:：=]{1,24}?)\s*[:：]\s*(.*)$/.exec(line);
@@ -1633,7 +1688,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var bank = (f.bankName !== undefined || f.bankNo !== undefined || p.bank.length)
         ? ['은행명 : ' + (f.bankName || ''), '계좌번호 : ' + (f.bankNo || '')].concat(p.bank).join('\n') : TEMPLATES.bank_text;
       var d = rrn.replace(/\D/g, '');
-      return { name: name, job: f.job || '', rrn: rrn, birth: d.length >= 6 ? d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6) : '', phone: phone, personal: pl.join('\n'), bank: bank, dup: false, on: true, saved: false };
+      return { name: name, ref: p.ref || '', job: f.job || '', rrn: rrn, birth: d.length >= 6 ? d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6) : '', phone: phone, personal: pl.join('\n'), bank: bank, dup: false, on: true, saved: false };
     });
   }
   var impPeople = [], impBusy = false;
@@ -1666,7 +1721,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       if(p.saved) nm.appendChild(h('span', { class: 'tag', style: 'color:#1f7a3f;', text: '저장됨' }));
       else if(p.dup) nm.appendChild(h('span', { class: 'tag', text: '이미 등록된 이름 · 체크하면 새로 추가' }));
       info.appendChild(nm);
-      var bits = [p.job, p.birth ? p.birth + '생' : '', p.phone].filter(Boolean);
+      var bits = [p.job, p.birth ? p.birth + '생' : '', p.phone, p.ref ? '소개: ' + p.ref : ''].filter(Boolean);
       if(bits.length) info.appendChild(h('div', { class: 'sub', text: bits.join(' · ') }));
       row.appendChild(cb); row.appendChild(info);
       row.addEventListener('click', function(e){ if(e.target === row && !p.saved && !impBusy){ cb.checked = !cb.checked; p.on = cb.checked; impUpdateBar(); } });
@@ -1685,6 +1740,18 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     impPeople = parseCustomerText($('impText').value);
     impMarkDup(); impRender();
   }
+  // 소개자 정하기: 이미 있는 고객 중 딱 한 명이면 연결, 같은 글 안에 있으면 저장 후 연결,
+  // 아무도 없으면 이름만 글자로 기재, 동명이인 등 불명확하면 비워 둔다
+  function impRefPlan(p, todo, row){
+    if(!p.ref) return '';
+    var lc = p.ref.toLowerCase();
+    var ex = customers.filter(function(c){ return !c.deleted_at && dispName(c).toLowerCase() === lc; });
+    var inb = todo.filter(function(o){ return o !== p && o.name.toLowerCase() === lc; });
+    if(ex.length + inb.length > 1) return 'none';
+    if(ex.length === 1){ row.referrer_id = ex[0].id; row.referrer_text = dispName(ex[0]); return 'existing'; }
+    if(inb.length === 1) return 'batch';
+    row.referrer_text = p.ref; return 'text';
+  }
   async function impSave(){
     var todo = impPeople.filter(function(p){ return p.on && !p.saved; });
     if(!todo.length || impBusy) return;
@@ -1697,11 +1764,21 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
           var r = { user_id: uid, name: p.name, props: {} };
           TEXT_FIELDS.forEach(function(f){ r[f] = TEMPLATES[f]; });
           r.personal_text = p.personal; r.bank_text = p.bank;
+          p.refMode = impRefPlan(p, todo, r);
           return r;
         });
         var res = must(await sb.from('customers').insert(rows).select());
-        (res.data || []).forEach(function(c){ c.props = c.props || {}; c.family_ids = c.family_ids || []; customers.unshift(c); });
+        (res.data || []).forEach(function(c, k){ c.props = c.props || {}; c.family_ids = c.family_ids || []; customers.unshift(c); if(chunk[k]) chunk[k].row = c; });
         chunk.forEach(function(p){ p.saved = true; }); done += chunk.length;
+      }
+      // 같은 글 안의 다른 사람이 소개자인 경우: 모두 저장된 뒤 연결
+      for(var j = 0; j < todo.length; j++){
+        var q = todo[j];
+        if(q.refMode !== 'batch' || !q.row) continue;
+        var hits = customers.filter(function(c){ return c.id !== q.row.id && !c.deleted_at && dispName(c).toLowerCase() === q.ref.toLowerCase(); });
+        if(hits.length !== 1) continue;
+        must(await sb.from('customers').update({ referrer_id: hits[0].id, referrer_text: dispName(hits[0]) }).eq('id', q.row.id));
+        q.row.referrer_id = hits[0].id; q.row.referrer_text = dispName(hits[0]);
       }
     }catch(e){ console.error(e); failed = errText(e); }
     impBusy = false; ncache = null;
