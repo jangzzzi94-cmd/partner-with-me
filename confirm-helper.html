@@ -15,6 +15,19 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   .ch-wrap{max-width:640px;margin:0 auto;padding:22px 16px 140px;}
+  .ch-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;}
+  .ch-head h2{margin:0 !important;}
+  .ch-mb{position:fixed;inset:0;background:rgba(10,26,48,.55);z-index:80;display:none;align-items:flex-start;justify-content:center;padding:6vh 14px 14px;}
+  .ch-mc{background:#fff;border-radius:14px;width:100%;max-width:460px;max-height:84vh;display:flex;flex-direction:column;overflow:hidden;}
+  .ch-mh{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--navy-100);font-weight:800;font-size:15px;color:var(--navy-950);}
+  .ch-mh button{background:none;border:0;font-size:18px;cursor:pointer;color:var(--muted);}
+  .ch-mbd{padding:12px 14px 14px;overflow:auto;}
+  .ch-mbd input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit;}
+  .ch-ml{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .ch-mi{padding:11px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:15px;font-weight:600;color:var(--ink);}
+  .ch-mi:hover{border-color:var(--navy-600);background:#f6f9fd;}
+  .ch-mi small{font-weight:500;color:var(--muted);margin-left:6px;font-size:12.5px;}
+  .ch-mmsg{margin-top:10px;font-size:13px;color:var(--muted);}
   .ch-wrap h1{font-size:22px;color:var(--navy-950);margin:0 0 4px;}
   .ch-wrap p.lead{margin:0 0 18px;color:var(--muted);font-size:13px;}
   .ch-block{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;margin-bottom:14px;}
@@ -67,9 +80,13 @@
 <div class="ch-wrap">
   <h1>3종확인서 입력 도우미</h1>
   <p class="lead">인적사항과 청약 문자를 붙여넣으면 AFG 앱 「확인서 생성」에 넣을 값을 항목별로 뽑아드립니다. 입력한 내용은 자동으로 저장되어, 폰·PC 어디서 열어도 최근 내역이 그대로 뜹니다. 내 계정에만 보이며 7일 뒤 자동 삭제됩니다.</p>
+  <div id="installRow" style="display:none;margin:-6px 0 16px;">
+    <button type="button" class="ch-btn primary" id="installBtn" style="padding:10px 16px;font-size:14px;">📲 홈 화면에 앱으로 설치</button>
+    <div id="installHint" style="display:none;margin-top:8px;font-size:12.5px;color:var(--muted);line-height:1.6;"></div>
+  </div>
 
   <div class="ch-block">
-    <h2>① 인적사항</h2>
+    <div class="ch-head"><h2>① 인적사항</h2><button type="button" class="ch-btn" id="loadCustBtn">👥 인적사항 불러오기</button></div>
     <p class="hint">여러 명을 이어서 붙여넣어도 됩니다. (이름·연락처·생년월일만 뽑습니다)</p>
     <textarea id="t1" placeholder="인적사항을 붙여넣으세요" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
   </div>
@@ -105,6 +122,14 @@
     <button type="button" class="ch-btn primary" id="nextBtn">다음 복사</button>
   </div>
 </div>
+<div class="ch-mb" id="custMb"><div class="ch-mc">
+  <div class="ch-mh"><span>👥 인적사항 불러오기</span><button type="button" id="custMbClose" aria-label="닫기">✕</button></div>
+  <div class="ch-mbd">
+    <input type="text" id="custMbQ" placeholder="고객 이름 검색" autocomplete="off">
+    <div class="ch-ml" id="custMbList"></div>
+    <div class="ch-mmsg" id="custMbMsg"></div>
+  </div>
+</div></div>
 <div class="ch-toast" id="toast">복사되었습니다</div>
 <div class="ch-err" id="errBox"></div>
 
@@ -902,6 +927,76 @@ var CH = (function(){
   nextBtn.addEventListener('click', function(){ var nx = nextRow(); if(nx) doCopy(nx); });
   hook(t1, function(){ state.t1 = t1.value; });
 
+  /* ---- 고객리스트에서 인적사항 불러오기 ---- */
+  (function(){
+    var mb = $('custMb'), qEl = $('custMbQ'), listEl = $('custMbList'), msgEl = $('custMbMsg');
+    var custs = null, loading = false;
+    function parseName(t){ var m = /^[ \t]*이름[ \t]*[:：][ \t]*(.*)$/m.exec(t || ''); return m ? m[1].trim() : ''; }
+    function dispName(c){ return ((c.name || '').trim()) || parseName(c.personal_text); }
+    function birthOf(c){
+      var t = c.personal_text || '', m, d;
+      m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+      if(m){ d = m[1].replace(/\D/g, ''); if(d.length === 8) d = d.slice(2); if(d.length === 6) return d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6); }
+      m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+      if(m){ d = m[1].replace(/\D/g, ''); if(d.length >= 6) return d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6); }
+      return '';
+    }
+    function setMsg(t){ msgEl.textContent = t || ''; }
+    function load(){
+      var c = getClient();
+      if(!c){ setMsg('서버에 연결하지 못했어요'); return Promise.resolve(); }
+      loading = true; setMsg('불러오는 중…');
+      var rows = [];
+      function page(from){
+        return c.from('customers').select('id,name,personal_text,created_at').is('deleted_at', null).order('created_at', { ascending: false }).range(from, from + 999).then(function(res){
+          if(res.error) throw res.error;
+          rows = rows.concat(res.data || []);
+          if(res.data && res.data.length === 1000) return page(from + 1000);
+        });
+      }
+      return page(0).then(function(){ custs = rows; setMsg(''); }).catch(function(e){ setMsg('고객 목록을 불러오지 못했어요'); }).then(function(){ loading = false; });
+    }
+    function render(){
+      listEl.innerHTML = '';
+      if(!custs) return;
+      var q = qEl.value.trim().toLowerCase();
+      var counts = {}; custs.forEach(function(c){ var k = dispName(c).toLowerCase(); if(k) counts[k] = (counts[k] || 0) + 1; });
+      var shown = custs.filter(function(c){ var n = dispName(c); return n && (!q || n.toLowerCase().indexOf(q) >= 0); }).slice(0, 30);
+      shown.forEach(function(c){
+        var it = document.createElement('div'); it.className = 'ch-mi';
+        it.appendChild(document.createTextNode(dispName(c)));
+        if(counts[dispName(c).toLowerCase()] > 1){
+          var sm = document.createElement('small'), b = birthOf(c);
+          sm.textContent = b ? b + '생' : '등록 ' + String(c.created_at).slice(0, 10);
+          it.appendChild(sm);
+        }
+        it.addEventListener('click', function(){ pick(c); });
+        listEl.appendChild(it);
+      });
+      if(!shown.length) setMsg(q ? '맞는 고객이 없어요' : '저장된 고객이 없어요'); else setMsg('');
+    }
+    function pick(c){
+      var txt = (c.personal_text || '').replace(/\s+$/, '');
+      if(!txt.replace(/\s/g, '')){ showToast('이 고객은 인적사항이 비어 있어요'); return; }
+      var cur = t1.value.replace(/\s+$/, '');
+      t1.value = cur ? cur + '\n\n' + txt : txt;
+      state.t1 = t1.value;
+      clearTimeout(timer);
+      update(true);
+      mb.style.display = 'none';
+      showToast((dispName(c) || '고객') + '님 인적사항을 불러왔어요');
+    }
+    $('loadCustBtn').addEventListener('click', function(){
+      mb.style.display = 'flex'; qEl.value = ''; listEl.innerHTML = '';
+      setTimeout(function(){ qEl.focus(); }, 50);
+      if(custs) render(); else if(!loading) load().then(render);
+    });
+    qEl.addEventListener('input', render);
+    $('custMbClose').addEventListener('click', function(){ mb.style.display = 'none'; });
+    mb.addEventListener('click', function(e){ if(e.target === mb) mb.style.display = 'none'; });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') mb.style.display = 'none'; });
+  })();
+
   // 「저장」 버튼 -- 자동저장이 실패했을 때 확실히 저장하고 결과를 바로 알려준다.
   $('saveBtn').addEventListener('click', function(){
     if(isEmptyState()){ showToast('저장할 내용이 없어요'); return; }
@@ -937,6 +1032,35 @@ var CH = (function(){
 
   // 홈 화면에 추가했을 때 앱처럼 열리도록 (캐시는 쓰지 않는 최소 서비스워커)
   try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){}
+
+  // 「홈 화면에 앱으로 설치」 -- 크롬의 설치 창을 한 번에 띄운다. (설치 자체는 브라우저 규칙상 확인 창에서 「설치」를 눌러야 한다)
+  var installRow = $('installRow'), installBtn = $('installBtn'), installHint = $('installHint');
+  var deferredInstall = null;
+  function isStandalone(){
+    try{
+      return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    }catch(e){ return false; }
+  }
+  if(!isStandalone()){ installRow.style.display = 'block'; } // 이미 앱으로 열었다면 버튼을 숨긴다
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault(); deferredInstall = e; installRow.style.display = 'block';
+  });
+  window.addEventListener('appinstalled', function(){
+    deferredInstall = null; installRow.style.display = 'none'; showToast('설치되었습니다. 홈 화면의 아이콘으로 열어보세요');
+  });
+  installBtn.addEventListener('click', function(){
+    if(deferredInstall){
+      var ev = deferredInstall; deferredInstall = null;
+      ev.prompt();
+      if(ev.userChoice && ev.userChoice.then){
+        ev.userChoice.then(function(c){ if(c && c.outcome !== 'accepted') installRow.style.display = 'block'; });
+      }
+      return;
+    }
+    // 설치 창을 띄울 수 없는 경우(이미 설치됨, 다른 브라우저 등): 수동 방법 안내
+    installHint.style.display = 'block';
+    installHint.textContent = '이 브라우저에서는 설치 창이 바로 안 떠요. 크롬(또는 삼성 인터넷) 오른쪽 위/아래 메뉴(⋮ 또는 ≡)에서 「홈 화면에 추가」 또는 「앱 설치」를 눌러주세요. 이미 설치했다면 홈 화면의 3종확인서 아이콘으로 열면 됩니다.';
+  });
 })();
 </script>
 </body>

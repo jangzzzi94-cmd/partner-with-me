@@ -109,6 +109,7 @@
   .fold .arr{font-size:12px;width:14px;}
   .fold .dot{width:7px;height:7px;border-radius:50%;background:#1d4ed8;display:none;}
   .box.folded textarea{display:none;}
+  .box.folded .cv-grid,.box.folded .cv-none{display:none !important;}
   .chat:empty{display:none;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -298,7 +299,7 @@
         <textarea id="majorText" data-field="major_text"></textarea>
       </div>
       <div class="box" id="cvBox">
-        <div class="box-head"><label style="margin:0;">🔎보장분석표🔎</label></div>
+        <div class="box-head"><div class="fold" id="cvFold" role="button" tabindex="0"><span class="arr">▶</span> 🔎보장분석표🔎 <span class="dot" title="저장된 이미지 있음"></span></div></div>
         <div class="cv-grid" id="cvGrid"></div>
         <div class="cv-none" id="cvNone" style="display:none;">저장된 보장분석표가 없어요</div>
       </div>
@@ -949,10 +950,19 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
 
   /* ---- 🔎보장분석표🔎 : 보장분석표 페이지에서 저장한 이미지 4장 ---- */
   var covList = [], covIdx = 0, covName = '', covFull = false;
+  function setCovFold(folded){
+    var box = $('cvBox'), f = $('cvFold');
+    box.classList.toggle('folded', folded);
+    f.querySelector('.arr').textContent = folded ? '▶' : '▼';
+  }
+  $('cvFold').addEventListener('click', function(){ setCovFold(!$('cvBox').classList.contains('folded')); });
+  $('cvFold').addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('cvFold').click(); } });
   async function renderCoverage(c){
     var items = ((c && c.coverage_images) || []).filter(function(x){ return x && x.path; });
     covList = items; covName = dispName(c) || '고객';
     var grid = $('cvGrid'); grid.innerHTML = '';
+    setCovFold(true);
+    $('cvFold').querySelector('.dot').style.display = items.length ? 'inline-block' : 'none';
     $('cvNone').style.display = items.length ? 'none' : 'block';
     if(!items.length) return;
     var id = c.id;
