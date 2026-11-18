@@ -72,8 +72,10 @@
   .md-list .jo:last-child{border-bottom:none;}
   .md-list .jo:hover{background:var(--navy-100);}
   .md-list .jo mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px;}
-  .md-list .jn{font-weight:700;color:var(--navy-950);}
-  .md-list .jd{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45;font-weight:400;}
+  .md-list .jo{display:grid;grid-template-columns:38% 1fr;column-gap:10px;align-items:start;}
+  .md-list .jn{font-weight:700;color:var(--navy-950);font-size:15px;line-height:1.4;}
+  .md-list .jd{font-size:10px;color:var(--muted);line-height:1.5;font-weight:400;padding-top:3px;word-break:keep-all;}
+  .md-list .jo.nodesc{grid-template-columns:1fr;}
   .md-hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
   #addrEmbed{width:100%;height:min(460px,64vh);}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
@@ -1029,6 +1031,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     list.forEach(function(j){
       var row = h('div', { class: 'jo' });
       var main = h('div', { class: 'jn' }); main.appendChild(markText(j.name, toks)); row.appendChild(main);
+      if(!j.desc) row.className = 'jo nodesc';
       if(j.desc){ var sub = h('div', { class: 'jd' }); sub.appendChild(markText(j.desc, toks)); row.appendChild(sub); }
       row.addEventListener('click', function(){ setPersonalLine('직업', j.name); closeModal('jobModal'); });
       box.appendChild(row);
