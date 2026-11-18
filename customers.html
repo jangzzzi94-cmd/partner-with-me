@@ -94,6 +94,22 @@
   .md-head button{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);padding:0 6px;}
   .md-body{padding:12px 14px;overflow-y:auto;flex:1;min-height:0;overscroll-behavior:contain;}
   .md-back{overscroll-behavior:contain;}
+  .ct-cell{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;}
+  .ct-cell input{width:17px;height:17px;margin:0;cursor:pointer;accent-color:#16a34a;}
+  .lamp{width:11px;height:11px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.22);flex:none;transition:background .15s,box-shadow .15s;}
+  .lamp.on{background:#22c55e;box-shadow:0 0 0 2px rgba(34,197,94,.28),0 0 7px rgba(34,197,94,.7);}
+  .ln-card{max-width:none;width:calc(100vw - 20px);height:calc(100vh - 24px);height:calc(100dvh - 24px);max-height:none;}
+  .ln-card .md-head{gap:8px;flex-wrap:wrap;}
+  .ln-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .ln-tools .cu-btn.sm{padding:5px 10px;font-size:12.5px;}
+  .ln-tools button[data-close]{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:0 4px;}
+  .ln-view{flex:1;min-height:0;position:relative;overflow:hidden;background:#f6f8fc;touch-action:none;cursor:grab;}
+  .ln-view.drag{cursor:grabbing;}
+  .ln-stage{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform;}
+  .ln-stage svg{display:block;}
+  .ln-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-size:15px;padding:20px;line-height:1.6;}
+  .ln-foot{padding:7px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);}
+
   /* 직업 찾기: 검색창은 고정하고 목록만 스크롤한다 (한글 입력 확정 때 브라우저가 검색창으로 스크롤을 되돌리는 문제 방지) */
   #jobModal .md-body{display:flex;flex-direction:column;overflow:hidden;}
   #jobModal #jobQuery,#jobModal .md-hint{flex:none;}
@@ -199,7 +215,7 @@
   <div id="viewList">
     <div class="cu-head">
       <h1>👥 고객리스트</h1>
-      <span style="display:flex;gap:8px;"><button type="button" class="cu-btn" id="impBtn">📋 텍스트로 추가</button><button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button></span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="cu-btn" id="lnCtBtn">⭐ 기고객계보도</button><button type="button" class="cu-btn" id="lnAllBtn">🌳 전체고객계보도</button><button type="button" class="cu-btn" id="impBtn">📋 텍스트로 추가</button><button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button></span>
     </div>
     <div class="cu-tools">
       <input type="text" id="searchInput" placeholder="이름·연락처·메모 검색" autocomplete="off">
@@ -350,6 +366,11 @@
   </div>
   <div class="cv-lb-body fit" id="cvLbBody"><img id="cvLbImg" alt=""></div>
 </div>
+<div class="md-back" id="lnModal"><div class="md-card ln-card">
+  <div class="md-head"><span id="lnTitle">🌳 전체고객계보도</span><span class="ln-tools"><button type="button" class="cu-btn sm" id="lnZoomOut" title="축소">－</button><button type="button" class="cu-btn sm" id="lnZoomIn" title="확대">＋</button><button type="button" class="cu-btn sm" id="lnFit">화면에 맞춤</button><button type="button" class="cu-btn sm primary" id="lnSave">🖼 이미지로 저장</button><button type="button" data-close="lnModal" aria-label="닫기">✕</button></span></div>
+  <div class="ln-view" id="lnView"><div class="ln-stage" id="lnStage"></div><div class="ln-empty" id="lnEmpty" style="display:none;"></div></div>
+  <div class="ln-foot" id="lnFoot"></div>
+</div></div>
 <div class="md-back" id="impModal"><div class="md-card" style="max-width:640px;">
   <div class="md-head"><span>📋 텍스트로 고객 추가</span><button type="button" data-close="impModal" aria-label="닫기">✕</button></div>
   <div class="md-body">
@@ -618,6 +639,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function sortValue(c, key){
     if(key === '__created') return c.created_at || '';
     if(key === '__name') return dispName(c).toLowerCase();
+    if(key === '__contract') return isContracted(c) ? 1 : 0;
     if(key === '__ref') return refInfo(c).plain.toLowerCase();
     if(key === '__fam') return famList(c).map(dispName).join(' ').toLowerCase();
     var p = getProp(key); if(!p) return '';
@@ -646,6 +668,22 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     return h('span', { class: 'chip', text: opt.name, style: 'background:' + col[0] + ';color:' + col[1] + ';' });
   }
   function optIndex(p, id){ var arr = p.options || []; for(var i = 0; i < arr.length; i++){ if(arr[i].id === id) return i; } return -1; }
+  function isContracted(c){ return !!(c.props && c.props.__contracted === true); }
+  function contractCell(c){
+    var td = h('td', { class: 'ctd' });
+    var lab = h('label', { class: 'ct-cell', title: '계약이 들어갔으면 체크' });
+    var cb = h('input', { type: 'checkbox' }); cb.checked = isContracted(c);
+    var lamp = h('span', { class: 'lamp' + (cb.checked ? ' on' : '') });
+    cb.addEventListener('change', function(){
+      c.props = c.props || {}; c.props.__contracted = cb.checked;
+      lamp.className = 'lamp' + (cb.checked ? ' on' : '');
+      markDirty(c);
+    });
+    lab.appendChild(cb); lab.appendChild(lamp);
+    td.addEventListener('click', function(e){ e.stopPropagation(); });
+    td.appendChild(lab);
+    return td;
+  }
   function renderList(){
     var table = $('custTable');
     table.innerHTML = '';
@@ -660,6 +698,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       tr.appendChild(el);
     }
     th('이름', '__name');
+    th('계약여부', '__contract');
     th('소개자', '__ref');
     th('가족', '__fam');
     th('등록일', '__created');
@@ -681,6 +720,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     list.forEach(function(c){
       var row = h('tr', { class: 'row', onclick: function(){ location.hash = '#/c/' + c.id; } });
       row.appendChild(h('td', { class: 'name', text: nameWithTag(c) }));
+      row.appendChild(contractCell(c));
       row.appendChild(h('td', { text: refInfo(c).text }));
       row.appendChild(h('td', { text: famText(c) }));
       row.appendChild(h('td', { text: fmtDateOnly(c.created_at) }));
@@ -1413,13 +1453,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         download('customers_backup_' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
       } else {
         var live = all.props.filter(function(p){ return !p.deleted_at; });
-        var head = ['이름', '소개자', '가족', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)', '병력(치아)', '병력(중대질환)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
+        var head = ['이름', '계약여부', '소개자', '가족', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)', '병력(치아)', '병력(중대질환)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
         var byCust = {};
         all.notes.forEach(function(n){ if(n.deleted_at) return; (byCust[n.customer_id] = byCust[n.customer_id] || []).push(fmtDateTime(n.created_at) + ' ' + (n.body || '') + ((n.attachments || []).length ? ' [첨부 ' + n.attachments.map(function(a){ return a.name; }).join(', ') + ']' : '')); });
         var rows = [head];
         all.customers.filter(function(c){ return !c.deleted_at; }).forEach(function(c){
           var pr = c.props || {};
-          var r = [dispName(c), refInfo(c).plain, (c.family_ids || []).map(function(id){ var t = null; all.customers.forEach(function(x){ if(x.id === id) t = x; }); return t ? dispName(t) : ''; }).filter(Boolean).join(', '), fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text, c.dental_text, c.major_text];
+          var r = [dispName(c), (pr.__contracted === true ? '계약' : ''), refInfo(c).plain, (c.family_ids || []).map(function(id){ var t = null; all.customers.forEach(function(x){ if(x.id === id) t = x; }); return t ? dispName(t) : ''; }).filter(Boolean).join(', '), fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text, c.dental_text, c.major_text];
           live.forEach(function(p){
             var v = pr[p.id];
             if(p.type === 'multi_select'){ r.push((v || []).map(function(id){ var i = optIndex(p, id); var o = null; (p.options || []).forEach(function(x){ if(x.id === id) o = x; }); return o ? o.name : ''; }).filter(Boolean).join(', ')); }
@@ -1513,7 +1553,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
   function closeModal(id){
     $(id).style.display = 'none';
-    var open = false; ['jobModal', 'addrModal', 'impModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
     if(!open) document.documentElement.style.overflow = '';
   }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
@@ -1861,6 +1901,278 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('impText').addEventListener('paste', function(){ clearTimeout(t); t = setTimeout(impParse, 30); });
     $('impSave').addEventListener('click', impSave);
   }
+
+  /* ---------------- 고객 계보도 (본인 → 개척·돌방·DB·병원근무·가족 → 소개받은 사람들 …) ---------------- */
+  var LN_ROOTS = ['개척', '돌방', 'DB', '병원근무', '가족'];
+  var LN_COLORS = ['#4f46e5', '#0d9488', '#d97706', '#e11d48', '#7c3aed'];
+  var LN_FONT = "'Pretendard','Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo','Nanum Gothic',sans-serif";
+  var lnMe = '', lnMode = 'all', lnSvg = '', lnSize = { w: 0, h: 0 }, lnView = { s: 1, x: 0, y: 0 };
+  function lnRootIdx(t){
+    var n = String(t || '').replace(/\s+/g, '').toLowerCase();
+    if(n === '디비') n = 'db';
+    for(var i = 0; i < LN_ROOTS.length; i++){ if(LN_ROOTS[i].replace(/\s+/g, '').toLowerCase() === n) return i; }
+    return -1;
+  }
+  function lnEsc(v){ return String(v).replace(/[&<>"]/g, function(ch){ return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]; }); }
+  function lnMix(hex, w){ // hex 색을 흰색과 섞는다 (w=0 원색, 1 흰색)
+    var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    function m(v){ return Math.round(v + (255 - v) * w); }
+    return 'rgb(' + m(r) + ',' + m(g) + ',' + m(b) + ')';
+  }
+  var lnCtx = null;
+  function lnTextW(t, px, weight){
+    if(!lnCtx) lnCtx = document.createElement('canvas').getContext('2d');
+    lnCtx.font = weight + ' ' + px + 'px ' + LN_FONT;
+    return Math.ceil(lnCtx.measureText(t).width);
+  }
+  // 소개 관계 만들기: 부모 = 소개자(연결된 고객) 또는 뿌리(개척 등). 이름만 적힌 소개자는 같은 이름 고객이 딱 한 명일 때만 연결
+  function lnBuild(mode){
+    var byName = {};
+    customers.forEach(function(c){ if(c.deleted_at) return; var k = refKey(dispName(c)); if(k) (byName[k] = byName[k] || []).push(c); });
+    var kids = {}, rootKids = LN_ROOTS.map(function(){ return []; });
+    customers.forEach(function(c){
+      if(c.deleted_at) return;
+      var par = null, ri = -1;
+      if(c.referrer_id){ var pc = getCust(c.referrer_id); if(pc && !pc.deleted_at && pc.id !== c.id) par = pc; }
+      if(!par){
+        var tx = (c.referrer_text || '').trim();
+        ri = lnRootIdx(tx);
+        if(ri < 0 && tx){
+          var cand = (byName[refKey(tx.replace(/\s*(님|씨)\s*$/, ''))] || []).filter(function(x){ return x.id !== c.id; });
+          if(cand.length === 1) par = cand[0];
+        }
+      }
+      if(par) (kids[par.id] = kids[par.id] || []).push(c);
+      else if(ri >= 0) rootKids[ri].push(c);
+    });
+    function byKo(a, b){ var x = dispName(a), y = dispName(b); return x < y ? -1 : (x > y ? 1 : 0); }
+    var seen = {}, total = 0, shown = 0;
+    function mk(c, ci, depth){
+      if(seen[c.id]) return null; seen[c.id] = 1;
+      var n = { id: c.id, label: dispName(c) || '(이름 없음)', ci: ci, depth: depth, ok: isContracted(c), ch: [] };
+      (kids[c.id] || []).slice().sort(byKo).forEach(function(k){ var m = mk(k, ci, depth + 1); if(m) n.ch.push(m); });
+      return n;
+    }
+    var roots = LN_ROOTS.map(function(name, i){
+      var r = { label: name, ci: i, depth: 1, root: true, ch: [] };
+      rootKids[i].slice().sort(byKo).forEach(function(c){ var m = mk(c, i, 2); if(m) r.ch.push(m); });
+      return r;
+    });
+    function count(n){ var k = 0; n.ch.forEach(function(c){ k += 1 + count(c); }); return k; }
+    roots.forEach(function(r){ total += count(r); });
+    if(mode === 'contract'){ // 계약이 들어간 사람 + 그 사람까지 이어주는 소개자(계약 없어도 연결용으로 포함)
+      var keep = function(n){
+        n.ch = n.ch.filter(keep);
+        n.ghost = !n.root && !n.ok;
+        return n.root ? true : (n.ok || n.ch.length > 0);
+      };
+      roots.forEach(function(r){ r.ch = r.ch.filter(keep); });
+    }
+    roots.forEach(function(r){ shown += count(r); });
+    var okCnt = 0; roots.forEach(function(r){ (function w(n){ n.ch.forEach(function(c){ if(c.ok) okCnt++; w(c); }); })(r); });
+    return { roots: roots, total: total, shown: shown, contracted: okCnt };
+  }
+  function lnLayout(data, me){
+    var GX = 46, GY = 7, PADX = 12;
+    function size(n){
+      if(n.root){ n.fs = 15; n.fw = 800; n.h = 34; }
+      else if(n.depth === 2){ n.fs = 14; n.fw = 700; n.h = 28; }
+      else { n.fs = 13; n.fw = 600; n.h = 25; }
+      n.w = lnTextW(n.label, n.fs, n.fw) + PADX * 2 + (n.depth >= 2 && n.ok ? 12 : 0);
+      n.ch.forEach(size);
+    }
+    data.roots.forEach(size);
+    function ext(n){
+      var e = n.h + GY;
+      if(n.ch.length){ var t = 0; n.ch.forEach(function(c){ t += ext(c); }); if(t > e) e = t; }
+      n.e = e; return e;
+    }
+    data.roots.forEach(ext);
+    // 좌우에 균형 있게 나누기
+    var order = data.roots.map(function(r, i){ return { r: r, i: i }; }).sort(function(a, b){ return b.r.e - a.r.e; });
+    var side = { L: [], R: [] }, tot = { L: 0, R: 0 };
+    order.forEach(function(o){ var k = tot.R <= tot.L ? 'R' : 'L'; side[k].push(o); tot[k] += o.r.e; });
+    ['L', 'R'].forEach(function(k){ side[k].sort(function(a, b){ return a.i - b.i; }); });
+    var meW = lnTextW(me, 20, 800) + 44, meH = 46;
+    var nodes = [];
+    ['L', 'R'].forEach(function(k){
+      var dir = k === 'R' ? 1 : -1, list = side[k];
+      var colW = [];
+      list.forEach(function(o){ (function walk(n){ colW[n.depth] = Math.max(colW[n.depth] || 0, n.w); n.ch.forEach(walk); })(o.r); });
+      var off = [], acc = meW / 2 + 70;
+      for(var d = 1; d < colW.length; d++){ off[d] = acc; acc += (colW[d] || 0) + GX; }
+      var H = 0; list.forEach(function(o){ H += o.r.e; });
+      var y0 = -H / 2;
+      function place(n, top){
+        var cy;
+        if(n.ch.length){
+          var t = top, first = null, last = null;
+          n.ch.forEach(function(c){ place(c, t); t += c.e; });
+          first = n.ch[0]; last = n.ch[n.ch.length - 1];
+          cy = (first.y + last.y) / 2;
+        } else cy = top + n.e / 2;
+        n.y = cy;
+        n.x = dir === 1 ? off[n.depth] : -off[n.depth] - n.w;
+        n.side = dir; nodes.push(n);
+      }
+      var t0 = y0;
+      list.forEach(function(o){ place(o.r, t0); t0 += o.r.e; });
+    });
+    return { nodes: nodes, meW: meW, meH: meH };
+  }
+  function lnRender(data, me, mode){
+    var L = lnLayout(data, me), nodes = L.nodes;
+    var minX = -L.meW / 2, maxX = L.meW / 2, minY = -L.meH / 2, maxY = L.meH / 2;
+    nodes.forEach(function(n){ minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x + n.w); minY = Math.min(minY, n.y - n.h / 2); maxY = Math.max(maxY, n.y + n.h / 2); });
+    var PAD = 56, HEAD = 78;
+    var W = Math.ceil(maxX - minX + PAD * 2), Hh = Math.ceil(maxY - minY + PAD * 2 + HEAD);
+    W = Math.max(W, 640);
+    var ox = PAD - minX + (W - (maxX - minX + PAD * 2)) / 2, oy = PAD + HEAD - minY;
+    var out = [];
+    out.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + Hh + '" viewBox="0 0 ' + W + ' ' + Hh + '" font-family="' + LN_FONT.replace(/"/g, "'") + '">');
+    out.push('<defs>');
+    LN_COLORS.forEach(function(c, i){ out.push('<linearGradient id="g' + i + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + lnMix(c, 0.12) + '"/><stop offset="1" stop-color="' + c + '"/></linearGradient>'); });
+    out.push('<linearGradient id="gm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e3a8a"/><stop offset="1" stop-color="#0b1b3a"/></linearGradient>');
+    out.push('<filter id="sh" x="-20%" y="-30%" width="140%" height="180%"><feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity=".18"/></filter>');
+    out.push('</defs>');
+    out.push('<rect width="100%" height="100%" fill="#ffffff"/>');
+    out.push('<rect x="0" y="0" width="100%" height="' + HEAD + '" fill="#f1f5f9"/>');
+    out.push('<text x="' + PAD + '" y="38" font-size="22" font-weight="800" fill="#0f172a">' + lnEsc(mode === 'contract' ? '기고객 계보도' : '전체 고객 계보도') + '</text>');
+    var d = new Date(), ds = d.getFullYear() + '.' + pad2(d.getMonth() + 1) + '.' + pad2(d.getDate());
+    var sub = (mode === 'contract' ? ('계약 ' + data.contracted + '명 · 연결 포함 ' + data.shown + '명') : ('연결된 고객 ' + data.shown + '명' + (data.contracted ? ' · 계약 ' + data.contracted + '명' : ''))) + ' · ' + ds + ' 기준';
+    out.push('<text x="' + PAD + '" y="62" font-size="13" fill="#64748b">' + lnEsc(sub) + '</text>');
+    // 범례
+    var lx = W - PAD;
+    var t1 = '계약 들어감', t2 = '계약 없음 (연결용)', w1 = lnTextW(t1, 12, 400), w2 = lnTextW(t2, 12, 400);
+    out.push('<g font-size="12" fill="#475569" text-anchor="end">');
+    out.push('<circle cx="' + (lx - w1 - 12) + '" cy="30" r="5" fill="#22c55e"/><text x="' + lx + '" y="34">' + t1 + '</text>');
+    if(mode === 'contract') out.push('<rect x="' + (lx - w2 - 28) + '" y="49" width="16" height="10" rx="5" fill="#fff" stroke="#94a3b8" stroke-dasharray="3 2"/><text x="' + lx + '" y="58">' + t2 + '</text>');
+    out.push('</g>');
+    // 선
+    function ex(n){ return n.side === 1 ? n.x : n.x + n.w; }
+    function edge(px, py, n, col, wd, op){
+      var x2 = ex(n), y2 = n.y, dx = (x2 - px) / 2;
+      out.push('<path d="M' + (px + ox) + ',' + (py + oy) + ' C' + (px + dx + ox) + ',' + (py + oy) + ' ' + (x2 - dx + ox) + ',' + (y2 + oy) + ' ' + (x2 + ox) + ',' + (y2 + oy) + '" fill="none" stroke="' + col + '" stroke-width="' + wd + '" stroke-opacity="' + op + '" stroke-linecap="round"/>');
+    }
+    nodes.forEach(function(n){
+      var col = LN_COLORS[n.ci % LN_COLORS.length];
+      if(n.root) edge(n.side === 1 ? L.meW / 2 - 6 : -L.meW / 2 + 6, 0, n, col, 2.6, 0.75);
+      n.ch.forEach(function(c){ edge(n.side === 1 ? n.x + n.w : n.x, n.y, c, col, c.depth <= 2 ? 1.9 : 1.5, c.ghost ? 0.35 : 0.55); });
+    });
+    // 중앙(나)
+    out.push('<g filter="url(#sh)"><rect x="' + (-L.meW / 2 + ox) + '" y="' + (-L.meH / 2 + oy) + '" width="' + L.meW + '" height="' + L.meH + '" rx="' + (L.meH / 2) + '" fill="url(#gm)"/><text x="' + ox + '" y="' + (oy + 7) + '" font-size="20" font-weight="800" fill="#fff" text-anchor="middle">' + lnEsc(me) + '</text></g>');
+    // 노드
+    nodes.forEach(function(n){
+      var col = LN_COLORS[n.ci % LN_COLORS.length], x = n.x + ox, y = n.y + oy - n.h / 2, tx = x + n.w / 2 + (n.ok && n.depth >= 2 ? 5 : 0);
+      if(n.root){
+        out.push('<g filter="url(#sh)"><rect x="' + x + '" y="' + y + '" width="' + n.w + '" height="' + n.h + '" rx="' + (n.h / 2) + '" fill="url(#g' + n.ci + ')"/><text x="' + (x + n.w / 2) + '" y="' + (y + n.h / 2 + 5.3) + '" font-size="15" font-weight="800" fill="#fff" text-anchor="middle">' + lnEsc(n.label) + '</text></g>');
+        return;
+      }
+      var fill = n.depth === 2 ? lnMix(col, 0.88) : '#ffffff', stroke = n.depth === 2 ? col : lnMix(col, 0.45), tcol = '#0f172a', dash = '';
+      if(n.ghost){ fill = '#ffffff'; stroke = '#94a3b8'; tcol = '#64748b'; dash = ' stroke-dasharray="4 3"'; }
+      out.push('<rect x="' + x + '" y="' + y + '" width="' + n.w + '" height="' + n.h + '" rx="' + (n.h / 2) + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + (n.depth === 2 ? 1.5 : 1.2) + '"' + dash + '/>');
+      if(n.ok) out.push('<circle cx="' + (x + 12) + '" cy="' + (y + n.h / 2) + '" r="4.2" fill="#22c55e" stroke="#fff" stroke-width="1"/>');
+      out.push('<text x="' + tx + '" y="' + (y + n.h / 2 + (n.fs * 0.36)) + '" font-size="' + n.fs + '" font-weight="' + n.fw + '" fill="' + tcol + '" text-anchor="middle">' + lnEsc(n.label) + '</text>');
+    });
+    out.push('</svg>');
+    return { svg: out.join(''), w: W, h: Hh };
+  }
+  function lnApply(){ var st = $('lnStage'); st.style.transform = 'translate(' + lnView.x + 'px,' + lnView.y + 'px) scale(' + lnView.s + ')'; }
+  function lnFit(){
+    var v = $('lnView'), vw = v.clientWidth, vh = v.clientHeight;
+    if(!lnSize.w) return;
+    var s = Math.min(vw / lnSize.w, vh / lnSize.h, 1.2);
+    lnView.s = s; lnView.x = (vw - lnSize.w * s) / 2; lnView.y = (vh - lnSize.h * s) / 2;
+    lnApply();
+  }
+  function lnZoomAt(f, cx, cy){
+    var s2 = Math.max(0.05, Math.min(6, lnView.s * f)); f = s2 / lnView.s;
+    lnView.x = cx - (cx - lnView.x) * f; lnView.y = cy - (cy - lnView.y) * f; lnView.s = s2; lnApply();
+  }
+  async function lnMyName(){
+    if(lnMe) return lnMe;
+    try{
+      var r = await sb.from('profiles').select('name, nickname').eq('id', uid).single();
+      var d = r && r.data; lnMe = ((d && (d.name || d.nickname)) || '').trim();
+    }catch(e){ console.error(e); }
+    return lnMe || '나';
+  }
+  async function openLineage(mode){
+    lnMode = mode;
+    $('lnTitle').textContent = mode === 'contract' ? '⭐ 기고객계보도' : '🌳 전체고객계보도';
+    $('lnStage').innerHTML = ''; $('lnEmpty').style.display = 'none'; $('lnFoot').textContent = '';
+    openModal('lnModal');
+    var me = await lnMyName();
+    var data = lnBuild(mode);
+    lnSvg = ''; lnSize = { w: 0, h: 0 };
+    var any = data.shown > 0;
+    $('lnSave').disabled = !any;
+    if(!any){
+      var em = $('lnEmpty'); em.style.display = 'flex';
+      em.textContent = mode === 'contract' ? '계약여부에 체크된 고객이 아직 없어요. 고객리스트의 「계약여부」 칸을 체크하면 여기에 나타나요.' : '소개자가 연결된 고객이 아직 없어요. 고객의 소개자를 개척·돌방·DB·병원근무·가족 또는 다른 고객으로 지정하면 여기에 나타나요.';
+      return;
+    }
+    var r = lnRender(data, me, mode);
+    lnSvg = r.svg; lnSize = { w: r.w, h: r.h };
+    $('lnStage').innerHTML = r.svg;
+    $('lnFoot').textContent = '드래그로 이동 · 휠/두 손가락으로 확대·축소 · 열 때마다 최신 정보로 다시 그려져요';
+    lnFit();
+  }
+  function lnSaveImage(){
+    if(!lnSvg) return;
+    var w = lnSize.w, h = lnSize.h;
+    var sc = Math.min(2, 16000 / Math.max(w, h), Math.sqrt(120e6 / (w * h)));
+    var img = new Image();
+    var url = URL.createObjectURL(new Blob([lnSvg], { type: 'image/svg+xml;charset=utf-8' }));
+    img.onload = function(){
+      var cv = document.createElement('canvas'); cv.width = Math.round(w * sc); cv.height = Math.round(h * sc);
+      var g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      cv.toBlob(function(b){
+        if(!b){ showToast('이미지를 만들지 못했어요'); return; }
+        var a = document.createElement('a'), d = new Date();
+        a.href = URL.createObjectURL(b);
+        a.download = (lnMode === 'contract' ? '기고객계보도_' : '전체고객계보도_') + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '.png';
+        document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+      }, 'image/png');
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); showToast('이미지를 만들지 못했어요'); };
+    img.src = url;
+  }
+  function wireLineage(){
+    $('lnAllBtn').addEventListener('click', function(){ openLineage('all'); });
+    $('lnCtBtn').addEventListener('click', function(){ openLineage('contract'); });
+    $('lnSave').addEventListener('click', lnSaveImage);
+    $('lnFit').addEventListener('click', lnFit);
+    $('lnZoomIn').addEventListener('click', function(){ var v = $('lnView'); lnZoomAt(1.3, v.clientWidth / 2, v.clientHeight / 2); });
+    $('lnZoomOut').addEventListener('click', function(){ var v = $('lnView'); lnZoomAt(1 / 1.3, v.clientWidth / 2, v.clientHeight / 2); });
+    var v = $('lnView'), pts = {}, last = null;
+    v.addEventListener('wheel', function(e){
+      e.preventDefault();
+      var r = v.getBoundingClientRect();
+      lnZoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    v.addEventListener('pointerdown', function(e){
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      try{ v.setPointerCapture(e.pointerId); }catch(x){}
+      v.classList.add('drag'); last = null;
+    });
+    v.addEventListener('pointermove', function(e){
+      var p = pts[e.pointerId]; if(!p) return;
+      var ids = Object.keys(pts);
+      if(ids.length >= 2){
+        var o = pts[ids[0] === String(e.pointerId) ? ids[1] : ids[0]], d0 = Math.hypot(p.x - o.x, p.y - o.y);
+        p.x = e.clientX; p.y = e.clientY;
+        var d1 = Math.hypot(p.x - o.x, p.y - o.y);
+        if(d0 > 0 && d1 > 0){ var r = v.getBoundingClientRect(); lnZoomAt(d1 / d0, (p.x + o.x) / 2 - r.left, (p.y + o.y) / 2 - r.top); }
+        return;
+      }
+      lnView.x += e.clientX - p.x; lnView.y += e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; lnApply();
+    });
+    function up(e){ delete pts[e.pointerId]; if(!Object.keys(pts).length) v.classList.remove('drag'); }
+    v.addEventListener('pointerup', up); v.addEventListener('pointercancel', up);
+    window.addEventListener('resize', function(){ if($('lnModal').style.display === 'flex') lnFit(); });
+  }
   function wireFinders(){
     $('jobFindBtn').addEventListener('click', function(){
       $('jobQuery').value = ''; renderJobResults(true);
@@ -1881,7 +2193,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
     ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
     ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); } });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); closeModal('lnModal'); } });
   }
 
   /* ---------------- 이벤트 연결 ---------------- */
@@ -1889,6 +2201,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('newBtn').addEventListener('click', createCustomer);
     wireFinders();
     wireImport();
+    wireLineage();
     wireFolds();
     $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
     $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
