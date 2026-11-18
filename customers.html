@@ -869,6 +869,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   /* 소개자: 제목 오른쪽. 이름을 치면 내 고객 중에서 찾아 고르고, 개척·돌방·DB·병원근무는 눌러서 체크 */
   var QUICK = ['개척', '돌방', 'DB', '병원근무'];
+  function refKey(v){ return String(v || '').toLowerCase().replace(/\s+/g, ''); }
+  function refTokens(q){
+    return String(q || '').split(/[,，、\/·;]+/).map(function(x){ return refKey(x.replace(/^[\s★☆]+/, '').replace(/\s*(님|씨)\s*$/, '')); }).filter(Boolean);
+  }
   function renderReferrer(){
     var c = getCust(curId), box = $('refBox'); if(!box) return;
     box.innerHTML = ''; if(!c) return;
@@ -890,9 +894,14 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         var q = inp.value.trim(), ql = q.toLowerCase();
         pop.innerHTML = ''; items = []; hi = -1;
         if(!q){ pop.style.display = 'none'; return; }
-        var ms = customers.filter(function(t){ return t.id !== c.id && dispName(t).toLowerCase().indexOf(ql) >= 0; });
-        ms.sort(function(a, b){ var x = dispName(a).toLowerCase().indexOf(ql) === 0 ? 0 : 1, y = dispName(b).toLowerCase().indexOf(ql) === 0 ? 0 : 1; return x - y; });
-        ms.slice(0, 8).forEach(function(t){
+        // 「김순희님」「김 순희」「김순희님,박준신」처럼 써도 찾는다: 님·공백 무시, 쉼표 등으로 나누어 각각 검색
+        var toks = refTokens(q), ms = [], seen = {};
+        toks.forEach(function(tk){
+          var part = customers.filter(function(t){ return t.id !== c.id && !seen[t.id] && refKey(dispName(t)).indexOf(tk) >= 0; });
+          part.sort(function(a, b){ var x = refKey(dispName(a)).indexOf(tk) === 0 ? 0 : 1, y = refKey(dispName(b)).indexOf(tk) === 0 ? 0 : 1; return x - y; });
+          part.slice(0, toks.length > 1 ? 4 : 8).forEach(function(t){ seen[t.id] = 1; ms.push(t); });
+        });
+        ms.slice(0, 10).forEach(function(t){
           items.push({ t: t });
           var row = h('div', { class: 'ref-opt', text: nameWithTag(t) });
           row.addEventListener('mousedown', function(e){ e.preventDefault(); });
@@ -919,8 +928,8 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         } else if(e.key === 'Enter'){
           e.preventDefault();
           if(hi >= 0){ var it = items[hi]; if(it.t) choose(it.t); else freeText(it.free); return; }
-          var q = inp.value.trim().toLowerCase();
-          var exact = items.filter(function(x){ return x.t && dispName(x.t).toLowerCase() === q; });
+          var tk1 = refTokens(inp.value.trim()), q = tk1.length === 1 ? tk1[0] : inp.value.trim().toLowerCase();
+          var exact = items.filter(function(x){ return x.t && refKey(dispName(x.t)) === q; });
           if(exact.length === 1) choose(exact[0].t);
           else if(!exact.length) freeText(inp.value.trim());
         } else if(e.key === 'Escape'){ pop.style.display = 'none'; }
@@ -972,9 +981,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       pop.innerHTML = ''; items = []; hi = -1;
       if(!q){ pop.style.display = 'none'; return; }
       var have = c.family_ids || [];
-      var ms = customers.filter(function(t){ return t.id !== c.id && have.indexOf(t.id) < 0 && dispName(t).toLowerCase().indexOf(ql) >= 0; });
-      ms.sort(function(a, b){ var x = dispName(a).toLowerCase().indexOf(ql) === 0 ? 0 : 1, y = dispName(b).toLowerCase().indexOf(ql) === 0 ? 0 : 1; return x - y; });
-      ms.slice(0, 8).forEach(function(t){
+      var toks = refTokens(q), ms = [], seen = {};
+      toks.forEach(function(tk){
+        var part = customers.filter(function(t){ return t.id !== c.id && !seen[t.id] && have.indexOf(t.id) < 0 && refKey(dispName(t)).indexOf(tk) >= 0; });
+        part.sort(function(a, b){ var x = refKey(dispName(a)).indexOf(tk) === 0 ? 0 : 1, y = refKey(dispName(b)).indexOf(tk) === 0 ? 0 : 1; return x - y; });
+        part.slice(0, toks.length > 1 ? 4 : 8).forEach(function(t){ seen[t.id] = 1; ms.push(t); });
+      });
+      ms.slice(0, 10).forEach(function(t){
         items.push(t);
         var row = h('div', { class: 'ref-opt', text: nameWithTag(t) });
         row.addEventListener('mousedown', function(e){ e.preventDefault(); });
