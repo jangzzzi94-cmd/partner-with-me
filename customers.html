@@ -8,8 +8,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   .cu-wrap{max-width:1100px;margin:0 auto;padding:20px 14px 90px;}
-  .cu-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
-  .cu-head h1{font-size:22px;margin:0;color:var(--navy-950);}
+  .cu-head{display:flex;align-items:center;justify-content:space-between;gap:8px 10px;flex-wrap:wrap;margin-bottom:12px;}
+  .cu-head h1{font-size:22px;margin:0;color:var(--navy-950);white-space:nowrap;}
   .cu-btn{background:#fff;border:1px solid var(--line);color:var(--navy-800);padding:8px 13px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;}
   .cu-btn:hover{border-color:var(--navy-600);}
   .cu-btn:disabled{opacity:.5;cursor:not-allowed;}
@@ -164,6 +164,18 @@
   .cv-lb-body.fit{align-items:center;}
   .cv-lb-body.fit img{max-height:calc(100vh - 90px);width:auto;object-fit:contain;}
   .cv-lb-body.full img{max-width:none;cursor:zoom-out;}
+  .imp-ta{width:100%;min-height:150px;max-height:40vh;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;line-height:1.55;resize:vertical;}
+  .imp-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .imp-row{display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px;}
+  .imp-row.dup{background:#fff8ec;border-color:#f0c79a;}
+  .imp-row.done{background:#e8f6ee;border-color:#9bd3b0;}
+  .imp-row input{margin-top:3px;flex:none;}
+  .imp-row .nm{font-weight:800;color:var(--navy-950);}
+  .imp-row .sub{font-size:12.5px;color:var(--muted);margin-top:2px;word-break:break-all;}
+  .imp-row .tag{display:inline-block;margin-left:6px;font-size:11.5px;font-weight:700;color:#b45309;}
+  .imp-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--line);}
+  .imp-msg{font-size:13px;color:var(--muted);min-width:0;word-break:keep-all;}
+  .imp-msg.err{color:#c0392b;}
   .ch-toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:rgba(10,26,48,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;display:none;z-index:120;max-width:90%;text-align:center;}
   .cu-err{position:fixed;left:0;right:0;bottom:0;background:#fdecea;color:#c0392b;font-size:12px;padding:8px 12px;display:none;z-index:130;word-break:break-all;}
   @media (max-width:640px){
@@ -187,7 +199,7 @@
   <div id="viewList">
     <div class="cu-head">
       <h1>👥 고객리스트</h1>
-      <button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button>
+      <span style="display:flex;gap:8px;"><button type="button" class="cu-btn" id="impBtn">📋 텍스트로 추가</button><button type="button" class="cu-btn primary" id="newBtn">+ 새로 만들기</button></span>
     </div>
     <div class="cu-tools">
       <input type="text" id="searchInput" placeholder="이름·연락처·메모 검색" autocomplete="off">
@@ -338,6 +350,14 @@
   </div>
   <div class="cv-lb-body fit" id="cvLbBody"><img id="cvLbImg" alt=""></div>
 </div>
+<div class="md-back" id="impModal"><div class="md-card" style="max-width:640px;">
+  <div class="md-head"><span>📋 텍스트로 고객 추가</span><button type="button" data-close="impModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <textarea id="impText" class="imp-ta" placeholder="고객 정보를 붙여넣으세요 (여러 명도 한꺼번에)" autocomplete="off" spellcheck="false"></textarea>
+    <div id="impList" class="imp-list"></div>
+  </div>
+  <div class="imp-bar"><span id="impMsg" class="imp-msg"></span><button type="button" class="cu-btn primary" id="impSave" disabled>저장</button></div>
+</div></div>
 <div class="md-back" id="jobModal"><div class="md-card">
   <div class="md-head"><span>🔍 직업 찾기</span><button type="button" data-close="jobModal" aria-label="닫기">✕</button></div>
   <div class="md-body">
@@ -1462,7 +1482,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
   function closeModal(id){
     $(id).style.display = 'none';
-    var open = false; ['jobModal', 'addrModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    var open = false; ['jobModal', 'addrModal', 'impModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
     if(!open) document.documentElement.style.overflow = '';
   }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
@@ -1544,6 +1564,162 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       }).embed(emb);
     });
   }
+
+  /* ---------------- 텍스트로 고객 추가 (노션 등에서 복사한 인적사항 붙여넣기) ---------------- */
+  var IMP_LABELS = {
+    name: ['이름', '성명', '성함', '고객명', '고객이름'],
+    job: ['직업', '업종', '직종', '하는일'],
+    rrn: ['주민등록번호', '주민번호', '주민', '주민등록', '등록번호'],
+    phone: ['휴대폰번호', '휴대폰', '핸드폰번호', '핸드폰', '휴대전화번호', '휴대전화', '연락처', '전화번호', '전화', '폰번호', '폰'],
+    carrier: ['통신사', '통신'],
+    addr: ['집주소', '주소', '거주지', '자택주소', '자택'],
+    drive: ['운전여부', '운전', '운전자', '운전유무'],
+    bankName: ['은행명', '은행'],
+    bankNo: ['계좌번호', '계좌']
+  };
+  function impKey(label){
+    var n = label.replace(/[\(（][^\)）]*[\)）]/g, '').replace(/[\s\/·_\-]+/g, '').toLowerCase();
+    for(var k in IMP_LABELS){ if(IMP_LABELS[k].indexOf(n) >= 0) return k; }
+    return '';
+  }
+  function impFmtRrn(v){
+    var d = v.replace(/\D/g, '');
+    return d.length === 13 && /^[\d\s\-]+$/.test(v) ? d.slice(0, 6) + '-' + d.slice(6) : v;
+  }
+  function impFmtPhone(v){
+    if(!/^[\d\s\-\.]+$/.test(v)) return v;
+    var d = v.replace(/\D/g, '');
+    if(d.length === 11 && d.indexOf('01') === 0) return d.slice(0, 3) + '-' + d.slice(3, 7) + '-' + d.slice(7);
+    if(d.length === 10 && d.indexOf('01') === 0) return d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+    return v;
+  }
+  function parseCustomerText(text){
+    var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    var people = [], cur = null;
+    function fresh(){ return { f: {}, extras: [], bank: [], hasAny: false }; }
+    lines.forEach(function(raw){
+      var line = raw.replace(/[​﻿]/g, '').replace(/^[\s\-–•·*▪▶▷◆◇■□●○✅☑✔]+/, '').trim();
+      if(!line) return;
+      var m = /^([^:：=]{1,24}?)\s*[:：]\s*(.*)$/.exec(line);
+      if(!m){
+        if(/인적\s*사항|고객\s*정보/.test(line) && line.length <= 14) return; // 머리말 줄
+        if(!cur) return;
+        cur.extras.push(line); return; // 라벨 없는 줄은 버리지 않고 그대로 보관
+      }
+      var label = m[1].trim(), val = m[2].trim(), key = impKey(label);
+      if(key === 'name'){
+        if(cur && cur.f.name) { people.push(cur); cur = null; }
+        if(!cur){ cur = fresh(); people.length && 0; }
+        cur.f.name = val; return;
+      }
+      if(!cur) cur = fresh();
+      if(key === 'bankName' || key === 'bankNo'){
+        if(cur.f[key] === undefined) cur.f[key] = val; else cur.bank.push(label + ' : ' + val);
+        return;
+      }
+      if(key){
+        if(cur.f[key] === undefined || cur.f[key] === ''){ cur.f[key] = val; }
+        else if(val) cur.extras.push(label.replace(/\s+/g, ' ') + ' : ' + val);
+        return;
+      }
+      if(/^(예금주|계좌주)$/.test(label.replace(/\s/g, ''))){ if(val) cur.bank.push(label + ' : ' + val); return; }
+      if(val) cur.extras.push(label.replace(/\s+/g, ' ') + ' : ' + val); // 키/몸무게, 생년월일 등 다른 항목도 그대로 보관
+    });
+    if(cur) people.push(cur);
+    return people.filter(function(p){ return p.f.name || p.f.rrn || p.f.phone || p.extras.length || p.f.job || p.f.addr; }).map(function(p){
+      var f = p.f, name = (f.name || '').trim();
+      var rrn = impFmtRrn(f.rrn || ''), phone = impFmtPhone(f.phone || '');
+      var pl = ['✅인적사항✅', '이름 : ' + name, '직업 : ' + (f.job || ''), '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '통신사 : ' + (f.carrier || ''), '집주소 : ' + (f.addr || ''), '운전여부 : ' + (f.drive || '')].concat(p.extras);
+      var bank = (f.bankName !== undefined || f.bankNo !== undefined || p.bank.length)
+        ? ['은행명 : ' + (f.bankName || ''), '계좌번호 : ' + (f.bankNo || '')].concat(p.bank).join('\n') : TEMPLATES.bank_text;
+      var d = rrn.replace(/\D/g, '');
+      return { name: name, job: f.job || '', rrn: rrn, birth: d.length >= 6 ? d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6) : '', phone: phone, personal: pl.join('\n'), bank: bank, dup: false, on: true, saved: false };
+    });
+  }
+  var impPeople = [], impBusy = false;
+  function impMarkDup(){
+    var seen = {};
+    impPeople.forEach(function(p){
+      if(p.saved) return;
+      var key = p.name.toLowerCase() + '|' + p.birth;
+      var hit = false;
+      if(p.name){
+        for(var i = 0; i < customers.length; i++){
+          var c = customers[i];
+          if(dispName(c).toLowerCase() !== p.name.toLowerCase()) continue;
+          var b = birthOf(c);
+          if(!p.birth || !b || b === p.birth){ hit = true; break; }
+        }
+        if(seen[key]) hit = true; seen[key] = true;
+      }
+      p.dup = hit; p.on = !hit;
+    });
+  }
+  function impRender(){
+    var box = $('impList'); box.innerHTML = '';
+    impPeople.forEach(function(p, i){
+      var row = h('div', { class: 'imp-row' + (p.saved ? ' done' : (p.dup ? ' dup' : '')) });
+      var cb = h('input', { type: 'checkbox' }); cb.checked = p.on && !p.saved; cb.disabled = p.saved || impBusy;
+      cb.addEventListener('change', function(){ p.on = cb.checked; impUpdateBar(); });
+      var info = h('div', { style: 'min-width:0;' });
+      var nm = h('div', { class: 'nm', text: p.name || '(이름 없음)' });
+      if(p.saved) nm.appendChild(h('span', { class: 'tag', style: 'color:#1f7a3f;', text: '저장됨' }));
+      else if(p.dup) nm.appendChild(h('span', { class: 'tag', text: '이미 등록된 이름 · 체크하면 새로 추가' }));
+      info.appendChild(nm);
+      var bits = [p.job, p.birth ? p.birth + '생' : '', p.phone].filter(Boolean);
+      if(bits.length) info.appendChild(h('div', { class: 'sub', text: bits.join(' · ') }));
+      row.appendChild(cb); row.appendChild(info);
+      row.addEventListener('click', function(e){ if(e.target === row && !p.saved && !impBusy){ cb.checked = !cb.checked; p.on = cb.checked; impUpdateBar(); } });
+      box.appendChild(row);
+    });
+    impUpdateBar();
+  }
+  function impUpdateBar(){
+    var n = impPeople.filter(function(p){ return p.on && !p.saved; }).length;
+    var dups = impPeople.filter(function(p){ return p.dup && !p.saved; }).length;
+    var msg = $('impMsg'); msg.className = 'imp-msg';
+    msg.textContent = impPeople.length ? (impPeople.length + '명 인식' + (dups ? ' · ' + dups + '명은 이미 있는 이름' : '')) : '';
+    var b = $('impSave'); b.disabled = impBusy || n === 0; b.textContent = n ? n + '명 저장' : '저장';
+  }
+  function impParse(){
+    impPeople = parseCustomerText($('impText').value);
+    impMarkDup(); impRender();
+  }
+  async function impSave(){
+    var todo = impPeople.filter(function(p){ return p.on && !p.saved; });
+    if(!todo.length || impBusy) return;
+    impBusy = true; impUpdateBar();
+    var done = 0, failed = '';
+    try{
+      for(var i = 0; i < todo.length; i += 50){
+        var chunk = todo.slice(i, i + 50);
+        var rows = chunk.map(function(p){
+          var r = { user_id: uid, name: p.name, props: {} };
+          TEXT_FIELDS.forEach(function(f){ r[f] = TEMPLATES[f]; });
+          r.personal_text = p.personal; r.bank_text = p.bank;
+          return r;
+        });
+        var res = must(await sb.from('customers').insert(rows).select());
+        (res.data || []).forEach(function(c){ c.props = c.props || {}; c.family_ids = c.family_ids || []; customers.unshift(c); });
+        chunk.forEach(function(p){ p.saved = true; }); done += chunk.length;
+      }
+    }catch(e){ console.error(e); failed = errText(e); }
+    impBusy = false; ncache = null;
+    renderList(); impRender();
+    var msg = $('impMsg');
+    if(failed){ msg.className = 'imp-msg err'; msg.textContent = done + '명 저장 후 멈췄어요: ' + failed; }
+    else { closeModal('impModal'); $('impText').value = ''; impPeople = []; showToast(done + '명을 추가했어요'); }
+  }
+  function wireImport(){
+    $('impBtn').addEventListener('click', function(){
+      $('impText').value = ''; impPeople = []; impRender(); openModal('impModal');
+      setTimeout(function(){ $('impText').focus(); }, 50);
+    });
+    var t = null;
+    $('impText').addEventListener('input', function(){ clearTimeout(t); t = setTimeout(impParse, 250); });
+    $('impText').addEventListener('paste', function(){ clearTimeout(t); t = setTimeout(impParse, 30); });
+    $('impSave').addEventListener('click', impSave);
+  }
   function wireFinders(){
     $('jobFindBtn').addEventListener('click', function(){
       $('jobQuery').value = ''; renderJobResults(true);
@@ -1562,15 +1738,16 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('addrDetailInput').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); putAddr(); } });
     var closers = document.querySelectorAll('[data-close]');
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
-    ['jobModal', 'addrModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
-    ['jobModal', 'addrModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); } });
+    ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
+    ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); } });
   }
 
   /* ---------------- 이벤트 연결 ---------------- */
   function wire(){
     $('newBtn').addEventListener('click', createCustomer);
     wireFinders();
+    wireImport();
     wireFolds();
     $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
     $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
