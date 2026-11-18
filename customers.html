@@ -32,6 +32,10 @@
   .cu-table td.name{font-weight:700;color:var(--navy-950);}
   .cu-empty{padding:28px 14px;text-align:center;color:var(--muted);font-size:14px;}
   .chip{display:inline-block;padding:2px 9px;border-radius:12px;font-size:12px;font-weight:600;margin:1px 4px 1px 0;white-space:nowrap;}
+  .cu-safe{margin-top:14px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px;}
+  .cu-safe-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .cu-delrow{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13px;}
+  .cu-delrow span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .cu-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
   .cu-bar .sp{flex:1;}
   .cu-title{width:100%;font-size:22px;font-weight:800;color:var(--navy-950);border:none;border-bottom:2px solid var(--line);padding:6px 2px;background:transparent;font-family:inherit;margin-bottom:12px;}
@@ -54,6 +58,9 @@
   .cu-pop input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:14px;margin-top:6px;font-family:inherit;}
   .cu-pop .mi{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:14px;}
   .cu-pop .mi:hover{background:var(--navy-100);}
+  .cu-sec.dragover{outline:3px dashed var(--navy-600);outline-offset:-3px;background:#eef3fc;}
+  .pendfiles .pf img{height:34px;width:34px;object-fit:cover;border-radius:6px;display:block;}
+  .att video{max-width:280px;max-height:220px;border-radius:8px;border:1px solid var(--line);display:block;background:#000;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .chat:empty::before{content:"아직 기록이 없어요. 아래에 비고·특이사항을 적어 보내세요.";color:var(--muted);font-size:13px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -116,6 +123,15 @@
       <button type="button" class="cu-btn sm" id="newPropCancel">취소</button>
     </div>
     <div class="cu-tablewrap"><table class="cu-table" id="custTable"></table></div>
+    <div class="cu-safe">
+      <div class="cu-safe-row">
+        <button type="button" class="cu-btn sm" id="backupBtn">⬇ 전체 백업 받기</button>
+        <button type="button" class="cu-btn sm" id="csvBtn">⬇ 엑셀(CSV)로 받기</button>
+        <button type="button" class="cu-btn sm" id="trashBtn">🗑 휴지통</button>
+        <span class="cu-status" id="backupInfo"></span>
+      </div>
+      <div id="trashBox" style="display:none;margin-top:10px;"></div>
+    </div>
   </div>
 
   <!-- ============ 고객 상세 ============ -->
@@ -135,9 +151,10 @@
       <button type="button" class="cu-btn sm" id="detailAddPropBtn" style="margin-top:8px;">+ 항목 추가</button>
     </div>
 
-    <div class="cu-sec">
-      <h2>비고 · 특이사항 <span class="cu-status">(사진·PDF·파일 첨부 가능)</span></h2>
+    <div class="cu-sec" id="noteSec">
+      <h2>비고 · 특이사항 <span class="cu-status">(사진·PDF·동영상·파일 — 끌어다 놓거나 Ctrl+V로 붙여넣기)</span></h2>
       <div class="chat" id="chatList"></div>
+      <div id="delNotesBox" style="display:none;margin-bottom:10px;"></div>
       <div class="composer">
         <textarea id="noteText" placeholder="내용을 입력하세요"></textarea>
         <div class="pendfiles" id="pendFiles"></div>
@@ -162,7 +179,8 @@
       <div class="box">
         <label for="bankText">계좌</label>
         <textarea id="bankText" data-field="bank_text"></textarea>
-        <div class="btns"><button type="button" class="cu-btn sm" data-copy="bank">계좌 복사</button></div>
+        <div class="btns"><button type="button" class="cu-btn sm" data-copy="bank">계좌 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+bank">인적사항+계좌 복사</button></div>
       </div>
       <div class="box">
         <label for="simpleText">병력사항(간편)</label>
@@ -210,7 +228,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var sb = null, uid = null;
-  var props = [], customers = [], notes = [];
+  var props = [], customers = [], notes = [], delNotes = [], trash = [], showTrash = false;
   var curId = null;
   var search = '', sortKey = '__created', sortDir = 'desc';
   var dirty = {}, saveTimers = {}, saving = {};
@@ -284,13 +302,24 @@
 
   /* ---------------- 데이터 읽기 ---------------- */
   function must(res){ if(res && res.error) throw res.error; return res; }
+  // Supabase는 한 번에 1000줄까지만 주므로, 나눠서 끝까지 모두 가져온다
+  async function fetchAll(build){
+    var all = [], from = 0, step = 1000;
+    for(;;){
+      var res = must(await build().range(from, from + step - 1));
+      var rows = res.data || [];
+      all = all.concat(rows);
+      if(rows.length < step) break;
+      from += step;
+    }
+    return all;
+  }
   async function loadProps(){
-    var res = must(await sb.from('customer_props').select('*').order('position', { ascending: true }).order('created_at', { ascending: true }));
-    props = res.data || [];
+    props = await fetchAll(function(){ return sb.from('customer_props').select('*').is('deleted_at', null).order('position', { ascending: true }).order('created_at', { ascending: true }); });
   }
   async function loadCustomers(){
-    var res = must(await sb.from('customers').select('*').order('created_at', { ascending: false }).limit(3000));
-    customers = (res.data || []).map(function(c){ c.props = c.props || {}; return c; });
+    var rows = await fetchAll(function(){ return sb.from('customers').select('*').is('deleted_at', null).order('created_at', { ascending: false }); });
+    customers = rows.map(function(c){ c.props = c.props || {}; return c; });
   }
   function getCust(id){ for(var i = 0; i < customers.length; i++){ if(customers[i].id === id) return customers[i]; } return null; }
   function getProp(id){ for(var i = 0; i < props.length; i++){ if(props[i].id === id) return props[i]; } return null; }
@@ -452,8 +481,8 @@
   }
   async function deleteProp(id){
     var p = getProp(id); if(!p) return;
-    if(!confirm('「' + p.name + '」 항목을 삭제할까요?\n모든 고객의 이 항목 값이 화면에서 사라집니다.')) return;
-    try{ must(await sb.from('customer_props').delete().eq('id', id)); props = props.filter(function(x){ return x.id !== id; }); refreshViews(); }
+    if(!confirm('「' + p.name + '」 항목을 삭제할까요?\n(입력한 값은 지워지지 않고 숨겨지기만 해요. 필요하면 복구할 수 있어요.)')) return;
+    try{ must(await sb.from('customer_props').update({ deleted_at: new Date().toISOString() }).eq('id', id)); props = props.filter(function(x){ return x.id !== id; }); refreshViews(); }
     catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
   }
   function refreshViews(){ if(curId) renderProps(); renderList(); }
@@ -584,6 +613,12 @@
     var c = getCust(id);
     if(!c){ try{ await loadCustomers(); }catch(e){} c = getCust(id); }
     if(!c){ showToast('고객을 찾을 수 없어요'); location.hash = '#/'; return; }
+    if(!dirty[id]){
+      try{
+        var fr = must(await sb.from('customers').select('*').eq('id', id).single());
+        if(fr.data && !fr.data.deleted_at){ fr.data.props = fr.data.props || {}; for(var i = 0; i < customers.length; i++){ if(customers[i].id === id) customers[i] = fr.data; } c = fr.data; }
+      }catch(e){}
+    }
     curId = id; pendingFiles = []; renderPending();
     $('viewList').style.display = 'none';
     $('viewDetail').style.display = 'block';
@@ -608,18 +643,21 @@
   }
   async function loadNotes(id){
     try{
-      var res = must(await sb.from('customer_notes').select('*').eq('customer_id', id).order('created_at', { ascending: true }));
+      var all = await fetchAll(function(){ return sb.from('customer_notes').select('*').eq('customer_id', id).order('created_at', { ascending: true }); });
       if(curId !== id) return;
-      notes = res.data || [];
+      notes = all.filter(function(n){ return !n.deleted_at; });
+      delNotes = all.filter(function(n){ return n.deleted_at; });
       var paths = [];
-      notes.forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
+      all.forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
       await ensureSigned(paths);
       renderChat(true);
+      renderDelNotes();
     }catch(e){
       $('chatList').textContent = '';
       showToast('비고를 불러오지 못했어요: ' + errText(e));
     }
   }
+  function isVideo(a){ return /^video\//.test(a.type || '') || /\.(mp4|mov|m4v|webm|3gp)$/i.test(a.name || ''); }
   function isImage(a){ return /^image\//.test(a.type || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(a.name || ''); }
   function renderChat(scroll){
     var box = $('chatList'); box.innerHTML = '';
@@ -630,7 +668,10 @@
         var att = h('div', { class: 'att' });
         n.attachments.forEach(function(a){
           var url = signed[a.path];
-          if(isImage(a) && url){
+          if(isVideo(a) && url){
+            att.appendChild(h('video', { src: url, controls: 'controls', preload: 'metadata', playsinline: 'playsinline' }));
+            att.appendChild(h('a', { class: 'file', href: url, target: '_blank', rel: 'noopener' }, ['🎬 ' + a.name + (a.size ? ' (' + fmtSize(a.size) + ')' : '')]));
+          } else if(isImage(a) && url){
             att.appendChild(h('img', { src: url, alt: a.name, loading: 'lazy', onclick: function(){ window.open(url, '_blank'); } }));
           } else {
             att.appendChild(h('a', { class: 'file', href: url || '#', target: '_blank', rel: 'noopener' }, ['📄 ' + a.name + (a.size ? ' (' + fmtSize(a.size) + ')' : '')]));
@@ -647,25 +688,51 @@
     if(scroll) box.scrollTop = box.scrollHeight;
   }
   async function deleteNote(id){
-    if(!confirm('이 기록을 삭제할까요? 첨부한 파일도 함께 삭제됩니다.')) return;
+    if(!confirm('이 기록을 삭제할까요?\n(바로 지워지지 않고 「삭제한 기록」으로 옮겨져요. 첨부 파일도 그대로 보관돼요.)')) return;
     var n = null; notes.forEach(function(x){ if(x.id === id) n = x; });
     try{
-      var paths = n ? (n.attachments || []).map(function(a){ return a.path; }) : [];
-      if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
-      must(await sb.from('customer_notes').delete().eq('id', id));
+      var ts = new Date().toISOString();
+      must(await sb.from('customer_notes').update({ deleted_at: ts }).eq('id', id));
+      if(n){ n.deleted_at = ts; delNotes.push(n); }
       notes = notes.filter(function(x){ return x.id !== id; });
-      renderChat(false);
+      renderChat(false); renderDelNotes();
     }catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
+  }
+  async function restoreNote(id){
+    var n = null; delNotes.forEach(function(x){ if(x.id === id) n = x; });
+    try{
+      must(await sb.from('customer_notes').update({ deleted_at: null }).eq('id', id));
+      if(n){ n.deleted_at = null; notes.push(n); notes.sort(function(a, b){ return a.created_at < b.created_at ? -1 : 1; }); }
+      delNotes = delNotes.filter(function(x){ return x.id !== id; });
+      renderChat(false); renderDelNotes(); showToast('복원했어요');
+    }catch(e){ showToast('복원하지 못했어요: ' + errText(e)); }
+  }
+  function renderDelNotes(){
+    var box = $('delNotesBox'); box.innerHTML = '';
+    if(!delNotes.length){ box.style.display = 'none'; return; }
+    box.style.display = 'block';
+    var list = h('div', { style: 'display:none;margin-top:6px;' });
+    var tgl = h('button', { type: 'button', class: 'cu-btn sm', text: '🗑 삭제한 기록 ' + delNotes.length + '개 보기', onclick: function(){ list.style.display = list.style.display === 'none' ? 'block' : 'none'; } });
+    delNotes.forEach(function(n){
+      var label = (n.body || '').slice(0, 60) || ('첨부 ' + (n.attachments || []).length + '개');
+      list.appendChild(h('div', { class: 'cu-delrow' }, [h('span', { text: fmtDateTime(n.created_at) + ' · ' + label }), h('button', { type: 'button', class: 'cu-btn sm', text: '복원', onclick: function(){ restoreNote(n.id); } })]));
+    });
+    box.appendChild(tgl); box.appendChild(list);
   }
   function renderPending(){
     var box = $('pendFiles'); box.innerHTML = '';
     pendingFiles.forEach(function(f, i){
-      box.appendChild(h('span', { class: 'pf' }, [f.name + ' (' + fmtSize(f.size) + ')', h('b', { text: '✕', onclick: function(){ pendingFiles.splice(i, 1); renderPending(); } })]));
+      var kids = [];
+      if(/^image\//.test(f.type || '')){ try{ kids.push(h('img', { src: URL.createObjectURL(f), alt: '' })); }catch(e){} }
+      kids.push(f.name + ' (' + fmtSize(f.size) + ')');
+      kids.push(h('b', { text: '✕', onclick: function(){ pendingFiles.splice(i, 1); renderPending(); } }));
+      box.appendChild(h('span', { class: 'pf' }, kids));
     });
   }
   function addFiles(list){
     for(var i = 0; i < list.length; i++){
       var f = list[i];
+      if(!f || f.size === 0) continue; // 폴더 등 파일이 아닌 것은 건너뜀
       if(f.size > MAX_FILE){ showToast('「' + f.name + '」은 50MB를 넘어서 올릴 수 없어요'); continue; }
       pendingFiles.push(f);
     }
@@ -723,6 +790,113 @@
     }
   }
 
+  /* ---------------- 휴지통 ---------------- */
+  async function toggleTrash(){
+    var box = $('trashBox');
+    if(box.style.display === 'block'){ box.style.display = 'none'; return; }
+    box.style.display = 'block'; box.textContent = '불러오는 중…';
+    try{
+      trash = await fetchAll(function(){ return sb.from('customers').select('id,name,deleted_at,created_at').not('deleted_at', 'is', null).order('deleted_at', { ascending: false }); });
+      renderTrash();
+    }catch(e){ box.textContent = '휴지통을 불러오지 못했어요: ' + errText(e); }
+  }
+  function renderTrash(){
+    var box = $('trashBox'); box.innerHTML = '';
+    box.appendChild(h('div', { class: 'cu-status', text: '삭제한 고객은 여기에 보관돼요. 「복원」하면 목록으로 돌아옵니다.' }));
+    if(!trash.length){ box.appendChild(h('div', { class: 'cu-empty', text: '휴지통이 비어 있어요.' })); return; }
+    trash.forEach(function(t){
+      var row = h('div', { class: 'cu-delrow' }, [
+        h('span', { text: (t.name || '(이름 없음)') + ' · 삭제 ' + fmtDateTime(t.deleted_at) }),
+        h('span', { style: 'display:flex;gap:6px;flex:none;overflow:visible;' }, [
+          h('button', { type: 'button', class: 'cu-btn sm', text: '복원', onclick: async function(){
+            try{
+              must(await sb.from('customers').update({ deleted_at: null }).eq('id', t.id));
+              trash = trash.filter(function(x){ return x.id !== t.id; });
+              await loadCustomers(); renderList(); renderTrash(); showToast('복원했어요');
+            }catch(e){ showToast('복원하지 못했어요: ' + errText(e)); }
+          } }),
+          h('button', { type: 'button', class: 'cu-btn sm danger', text: '영구삭제', onclick: function(){ purgeCustomer(t); } })
+        ])
+      ]);
+      box.appendChild(row);
+    });
+  }
+  async function purgeCustomer(t){
+    if(!confirm('「' + (t.name || '이름 없음') + '」 고객을 영구 삭제할까요?\n비고와 첨부 파일이 완전히 지워지며 되돌릴 수 없습니다.')) return;
+    var typed = prompt('정말 삭제하려면 「삭제」라고 입력하세요.', '');
+    if(typed == null || typed.trim() !== '삭제'){ showToast('취소했어요'); return; }
+    try{
+      var paths = [];
+      var notesAll = await fetchAll(function(){ return sb.from('customer_notes').select('attachments').eq('customer_id', t.id); });
+      notesAll.forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
+      if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
+      must(await sb.from('customers').delete().eq('id', t.id));
+      trash = trash.filter(function(x){ return x.id !== t.id; });
+      var p = pendGet(); delete p[t.id]; pendSet(p);
+      renderTrash(); showToast('영구 삭제했어요');
+    }catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
+  }
+
+  /* ---------------- 백업 내려받기 ---------------- */
+  var BK_KEY = 'wp_customers_lastbackup_v1';
+  function showBackupInfo(){
+    var el = $('backupInfo'), t = 0;
+    try{ t = parseInt(localStorage.getItem(BK_KEY) || '0', 10) || 0; }catch(e){}
+    if(!t){ el.className = 'cu-status warn'; el.textContent = '아직 백업 받은 적이 없어요. 가끔 받아 두면 더 안전해요.'; return; }
+    var days = Math.floor((Date.now() - t) / 86400000);
+    el.className = 'cu-status' + (days >= 14 ? ' warn' : '');
+    el.textContent = '마지막 백업: ' + (days === 0 ? '오늘' : days + '일 전');
+  }
+  function download(name, text, mime){
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  }
+  function stamp(){ var d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '_' + pad2(d.getHours()) + pad2(d.getMinutes()); }
+  async function loadEverything(){
+    var out = {};
+    out.props = await fetchAll(function(){ return sb.from('customer_props').select('*').order('position', { ascending: true }); });
+    out.customers = await fetchAll(function(){ return sb.from('customers').select('*').order('created_at', { ascending: true }); });
+    out.notes = await fetchAll(function(){ return sb.from('customer_notes').select('*').order('created_at', { ascending: true }); });
+    return out;
+  }
+  async function doBackup(kind){
+    var btn = kind === 'json' ? $('backupBtn') : $('csvBtn'); btn.disabled = true;
+    try{
+      await flushAll();
+      var all = await loadEverything();
+      if(kind === 'json'){
+        var data = { exportedAt: new Date().toISOString(), note: '첨부 파일 자체는 포함되지 않고 파일 이름·경로만 들어 있어요.', props: all.props, customers: all.customers, notes: all.notes };
+        download('customers_backup_' + stamp() + '.json', JSON.stringify(data, null, 1), 'application/json');
+      } else {
+        var live = all.props.filter(function(p){ return !p.deleted_at; });
+        var head = ['이름', '생성일시', '인적사항', '계좌', '병력(간편)', '병력(표준체)'].concat(live.map(function(p){ return p.name; })).concat(['비고(모음)']);
+        var byCust = {};
+        all.notes.forEach(function(n){ if(n.deleted_at) return; (byCust[n.customer_id] = byCust[n.customer_id] || []).push(fmtDateTime(n.created_at) + ' ' + (n.body || '') + ((n.attachments || []).length ? ' [첨부 ' + n.attachments.map(function(a){ return a.name; }).join(', ') + ']' : '')); });
+        var rows = [head];
+        all.customers.filter(function(c){ return !c.deleted_at; }).forEach(function(c){
+          var pr = c.props || {};
+          var r = [c.name, fmtDateTime(c.created_at), c.personal_text, c.bank_text, c.simple_text, c.standard_text];
+          live.forEach(function(p){
+            var v = pr[p.id];
+            if(p.type === 'multi_select'){ r.push((v || []).map(function(id){ var i = optIndex(p, id); var o = null; (p.options || []).forEach(function(x){ if(x.id === id) o = x; }); return o ? o.name : ''; }).filter(Boolean).join(', ')); }
+            else if(p.type === 'created_time'){ r.push(fmtDateTime(c.created_at)); }
+            else r.push(v || '');
+          });
+          r.push((byCust[c.id] || []).join('\n'));
+          rows.push(r);
+        });
+        var csv = rows.map(function(r){ return r.map(function(x){ return '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+        download('customers_' + stamp() + '.csv', '\ufeff' + csv, 'text/csv;charset=utf-8');
+      }
+      try{ localStorage.setItem(BK_KEY, String(Date.now())); }catch(e){}
+      showBackupInfo(); showToast('백업 파일을 내려받았어요');
+    }catch(e){ showToast('백업하지 못했어요: ' + errText(e)); }
+    finally{ btn.disabled = false; }
+  }
+
   /* ---------------- 새로 만들기 / 삭제 ---------------- */
   async function createCustomer(){
     var btn = $('newBtn'); btn.disabled = true;
@@ -739,25 +913,25 @@
   }
   async function deleteCustomer(){
     var c = getCust(curId); if(!c) return;
-    if(!confirm('「' + (c.name || '이름 없음') + '」 고객을 삭제할까요?\n비고와 첨부 파일도 모두 삭제되며 되돌릴 수 없습니다.')) return;
+    if(!confirm('「' + (c.name || '이름 없음') + '」 고객을 삭제할까요?\n바로 지워지지 않고 「휴지통」으로 옮겨지며, 언제든 복원할 수 있어요.')) return;
     try{
-      var paths = [];
-      try{
-        var r = await sb.from('customer_notes').select('attachments').eq('customer_id', c.id);
-        ((r && r.data) || []).forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
-      }catch(e){}
-      if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
-      must(await sb.from('customers').delete().eq('id', c.id));
+      await flushAll();
+      must(await sb.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', c.id));
       customers = customers.filter(function(x){ return x.id !== c.id; });
       delete dirty[c.id]; var p = pendGet(); delete p[c.id]; pendSet(p);
       location.hash = '#/';
-      showToast('삭제했어요');
+      showToast('휴지통으로 옮겼어요');
     }catch(e){ showToast('삭제하지 못했어요: ' + errText(e)); }
   }
 
   /* ---------------- 이벤트 연결 ---------------- */
   function wire(){
     $('newBtn').addEventListener('click', createCustomer);
+    $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
+    $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
+    $('trashBtn').addEventListener('click', toggleTrash);
+    window.addEventListener('beforeunload', function(e){ if(anyDirty()){ e.preventDefault(); e.returnValue = ''; return ''; } });
+    showBackupInfo();
     $('searchInput').addEventListener('input', function(){ search = this.value; renderList(); });
     function toggleAdd(show){
       var f = $('addPropForm'); f.style.display = show ? 'flex' : 'none';
@@ -798,9 +972,9 @@
           var k = btn.getAttribute('data-copy');
           var map = { personal: c.personal_text, bank: c.bank_text, simple: c.simple_text, standard: c.standard_text };
           var text;
-          if(k === 'personal+simple') text = (c.personal_text || '').replace(/\s+$/, '') + '\n\n' + (c.simple_text || '');
-          else if(k === 'personal+standard') text = (c.personal_text || '').replace(/\s+$/, '') + '\n\n' + (c.standard_text || '');
-          else text = map[k];
+          var keys = k.split('+');
+          if(keys.length === 1) text = map[k];
+          else text = keys.map(function(x, i){ var t = map[x] || ''; return i < keys.length - 1 ? t.replace(/\s+$/, '') : t; }).join('\n\n');
           copyText(text, btn.textContent.replace(/\s*복사$/, ''));
         });
       })(copyBtns[j]);
@@ -810,6 +984,38 @@
     $('fileInput').addEventListener('change', function(){ addFiles(this.files); this.value = ''; });
     $('cameraInput').addEventListener('change', function(){ addFiles(this.files); this.value = ''; });
     $('sendBtn').addEventListener('click', sendNote);
+    // Ctrl+V 로 복사한 이미지(스크린샷·캡처·웹 이미지)·파일 붙여넣기
+    $('noteText').addEventListener('paste', function(e){
+      var cd = e.clipboardData; if(!cd) return;
+      var files = [];
+      if(cd.files && cd.files.length){ for(var i = 0; i < cd.files.length; i++) files.push(cd.files[i]); }
+      else if(cd.items){ for(var j = 0; j < cd.items.length; j++){ if(cd.items[j].kind === 'file'){ var f = cd.items[j].getAsFile(); if(f) files.push(f); } } }
+      if(!files.length) return; // 글자만 붙여넣을 때는 평소처럼
+      e.preventDefault();
+      var d = new Date(), stamp2 = d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
+      var named = files.map(function(f, idx){
+        if(f.name && !/^image\.(png|jpe?g|gif|webp)$/i.test(f.name)) return f;
+        var ext = (/\/(png|jpe?g|gif|webp)/i.exec(f.type) || [])[1] || 'png';
+        try{ return new File([f], '붙여넣기_' + stamp2 + (files.length > 1 ? '_' + (idx + 1) : '') + '.' + ext.replace('jpeg', 'jpg'), { type: f.type }); }catch(err){ return f; }
+      });
+      addFiles(named);
+      showToast('이미지를 붙여넣었어요 · 「보내기」를 누르면 올라가요');
+    });
+    // 파일 끌어다 놓기 (비고 영역)
+    var zone = $('noteSec'), dragDepth = 0;
+    function hasFiles(ev){ var t = ev.dataTransfer && ev.dataTransfer.types; if(!t) return false; for(var i = 0; i < t.length; i++){ if(t[i] === 'Files') return true; } return false; }
+    zone.addEventListener('dragenter', function(ev){ if(!hasFiles(ev)) return; ev.preventDefault(); dragDepth++; zone.classList.add('dragover'); });
+    zone.addEventListener('dragover', function(ev){ if(!hasFiles(ev)) return; ev.preventDefault(); ev.dataTransfer.dropEffect = 'copy'; });
+    zone.addEventListener('dragleave', function(ev){ if(!hasFiles(ev)) return; dragDepth = Math.max(0, dragDepth - 1); if(!dragDepth) zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(ev){
+      if(!hasFiles(ev)) return;
+      ev.preventDefault(); dragDepth = 0; zone.classList.remove('dragover');
+      addFiles(ev.dataTransfer.files);
+      if(pendingFiles.length) showToast('파일을 담았어요 · 「보내기」를 누르면 올라가요');
+    });
+    // 다른 곳에 잘못 놓아도 파일이 브라우저에서 열려 페이지가 바뀌지 않게 막는다
+    window.addEventListener('dragover', function(ev){ if(hasFiles(ev)) ev.preventDefault(); });
+    window.addEventListener('drop', function(ev){ if(hasFiles(ev)) ev.preventDefault(); });
     $('noteText').addEventListener('keydown', function(e){ if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); sendNote(); } });
     window.addEventListener('hashchange', route);
     window.addEventListener('online', function(){ if(anyDirty()) flushAll(); });
