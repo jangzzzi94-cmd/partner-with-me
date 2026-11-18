@@ -99,11 +99,16 @@
   .ref-opt:last-child{border-bottom:none;}
   .ref-opt:hover,.ref-opt.on{background:var(--navy-100);}
   .ref-opt.free{color:var(--muted);font-size:13px;}
-  .fold{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--navy-900);margin-bottom:5px;cursor:pointer;user-select:none;padding:4px 0;}
+  .box-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .box-head .btns{margin:0;}
+  .box-head label{margin:0;}
+  .box-head .btns{display:flex;gap:6px;flex-wrap:wrap;}
+  @media (max-width:640px){.box-head{gap:6px;}.box-head .cu-btn.sm{padding:4px 7px;font-size:12px;}}
+  .box.folded .box-head{margin-bottom:0;}
+  .fold{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--navy-900);cursor:pointer;user-select:none;padding:4px 0;}
   .fold .arr{font-size:12px;width:14px;}
   .fold .dot{width:7px;height:7px;border-radius:50%;background:#1d4ed8;display:none;}
   .box.folded textarea{display:none;}
-  .box.folded .fold{margin-bottom:0;}
   .chat:empty{display:none;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -221,47 +226,61 @@
           <button type="button" class="cu-btn sm" id="jobFindBtn">🔍 직업 찾기</button>
           <button type="button" class="cu-btn sm" id="addrFindBtn">📍 주소 찾기</button>
         </div>
-        <label for="personalText">인적사항</label>
+        <div class="box-head">
+          <label for="personalText">인적사항</label>
+          <div class="btns"><button type="button" class="cu-btn sm" data-copy="personal">인적사항 복사</button></div>
+        </div>
         <textarea id="personalText" data-field="personal_text"></textarea>
-        <div class="btns"><button type="button" class="cu-btn sm" data-copy="personal">인적사항 복사</button></div>
       </div>
       <div class="box">
-        <label for="bankText">계좌</label>
+        <div class="box-head">
+          <label for="bankText">계좌</label>
+          <div class="btns">
+            <button type="button" class="cu-btn sm" data-copy="bank">계좌 복사</button>
+            <button type="button" class="cu-btn sm" data-copy="personal+bank">인적사항+계좌 복사</button>
+          </div>
+        </div>
         <textarea id="bankText" data-field="bank_text"></textarea>
-        <div class="btns"><button type="button" class="cu-btn sm" data-copy="bank">계좌 복사</button>
-          <button type="button" class="cu-btn sm" data-copy="personal+bank">인적사항+계좌 복사</button></div>
       </div>
       <div class="box">
+        <div class="box-head">
         <div class="fold" data-fold="simpleText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(간편) <span class="dot" title="내용 있음"></span></div>
-        <textarea id="simpleText" data-field="simple_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="simple">병력(간편) 복사</button>
           <button type="button" class="cu-btn sm" data-copy="personal+simple">인적사항+간편 복사</button>
         </div>
+        </div>
+        <textarea id="simpleText" data-field="simple_text"></textarea>
       </div>
       <div class="box">
+        <div class="box-head">
         <div class="fold" data-fold="standardText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(표준체) <span class="dot" title="내용 있음"></span></div>
-        <textarea id="standardText" data-field="standard_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="standard">병력(표준체) 복사</button>
           <button type="button" class="cu-btn sm" data-copy="personal+standard">인적사항+표준체 복사</button>
         </div>
+        </div>
+        <textarea id="standardText" data-field="standard_text"></textarea>
       </div>
       <div class="box">
+        <div class="box-head">
         <div class="fold" data-fold="dentalText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(치아) <span class="dot" title="내용 있음"></span></div>
-        <textarea id="dentalText" data-field="dental_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="dental">병력(치아) 복사</button>
           <button type="button" class="cu-btn sm" data-copy="personal+dental">인적사항+치아 복사</button>
         </div>
+        </div>
+        <textarea id="dentalText" data-field="dental_text"></textarea>
       </div>
       <div class="box">
+        <div class="box-head">
         <div class="fold" data-fold="majorText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(중대질환) <span class="dot" title="내용 있음"></span></div>
-        <textarea id="majorText" data-field="major_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="major">병력(중대질환) 복사</button>
           <button type="button" class="cu-btn sm" data-copy="personal+major">인적사항+중대질환 복사</button>
         </div>
+        </div>
+        <textarea id="majorText" data-field="major_text"></textarea>
       </div>
     </div>
   </div>
@@ -849,7 +868,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   function setFold(id, folded){
     var f = document.querySelector('[data-fold="' + id + '"]'); if(!f) return;
-    var box = f.parentNode;
+    var box = f.closest('.box');
     box.classList.toggle('folded', folded);
     f.querySelector('.arr').textContent = folded ? '▶' : '▼';
     if(!folded) autosize($(id));
@@ -857,7 +876,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function wireFolds(){
     FOLD_IDS.forEach(function(id){
       var f = document.querySelector('[data-fold="' + id + '"]');
-      f.addEventListener('click', function(){ setFold(id, !f.parentNode.classList.contains('folded')); });
+      f.addEventListener('click', function(){ setFold(id, !f.closest('.box').classList.contains('folded')); });
       f.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); f.click(); } });
       $(id).addEventListener('input', function(){ updateDot(id); });
     });
