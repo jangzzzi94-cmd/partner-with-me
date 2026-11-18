@@ -3184,7 +3184,7 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
     const defW = (ws.properties && ws.properties.defaultColWidth) || 9, defH = (ws.properties && ws.properties.defaultRowHeight) || 16.5;
     const colPx = {}, rowPx = {};
     for(let c = area.c1; c <= area.c2; c++){ const col = ws.getColumn(c); colPx[c] = col.hidden ? 0 : Math.round((col.width || defW) * PX); }
-    for(let r = area.r1; r <= area.r2; r++){ const row = ws.getRow(r); rowPx[r] = row.hidden ? 0 : Math.round((row.height || defH) * 96 / 72); }
+    for(let r = area.r1; r <= area.r2; r++){ const row = ws.getRow(r); rowPx[r] = row.hidden ? 0 : Math.round(Math.max(row.height || defH, (opts.minRowPt && opts.minRowPt[r]) || 0) * 96 / 72); }
     const totalW = Object.keys(colPx).reduce((a,k)=>a+colPx[k], 0), totalH = Object.keys(rowPx).reduce((a,k)=>a+rowPx[k], 0);
 
     // 병합 (숨겨진 줄/칸이 맨 앞에 끼어 있으면 보이는 첫 칸이 대신 병합 칸이 된다)
@@ -3211,7 +3211,7 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
     table.appendChild(cg);
     const tb = document.createElement("tbody"); table.appendChild(tb);
 
-    const shrinkers = [], overflowers = [];
+    const shrinkers = [], overflowers = [], fitters = [];
     const colX0 = c => { let x = 0; for(let k = area.c1; k < c; k++) x += (colPx[k] || 0); return x; };
     const rowY0 = r => { let y = 0; for(let k = area.r1; k < r; k++) y += (rowPx[k] || 0); return y; };
     for(let r = area.r1; r <= area.r2; r++){
@@ -3242,7 +3242,8 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
 
         // 내용
         let v = evalCell(ws, mg.sr, mg.sc);
-        const al = cell.alignment || {};
+        let al = cell.alignment || {};
+        if(opts.centerCell && opts.centerCell(r, c)) al = Object.assign({}, al, { horizontal:"center", vertical:"middle" });
         const baseFont = cell.font || {};
         const inner = document.createElement("div");
         const innerH = h - bw(eB) - bw(eT), innerW = w - bw(eR) - bw(eL);
@@ -3278,6 +3279,7 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
           lastSpan = addRun(text, null, red);
         }
         if(al.shrinkToFit && lastSpan) shrinkers.push({ txt: txt, td: inner });
+        else if(lastSpan) fitters.push({ txt: txt, inner: inner, wrap: !!al.wrapText, hasNewline: /\n/.test(txt.textContent), len: txt.textContent.length });
         if(!al.wrapText && !al.shrinkToFit && lastSpan && mg.r2 === r && mg.c2 === c){
           const nb = (ha === "right") ? (c > area.c1 ? evalCell(ws, r, c - 1) : "x") : (ha === "center") ? "" : evalCell(ws, r, c + 1);
           const nb2 = (ha === "center") ? (c > area.c1 ? evalCell(ws, r, c - 1) : "x") : "";
@@ -3309,7 +3311,7 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
         root.appendChild(el);
       }catch(e){ console.warn("그림 배치 실패", e); }
     });
-    return { root: root, width: totalW, height: totalH, shrinkers: shrinkers, overflowers: overflowers, totalW: totalW };
+    return { root: root, width: totalW, height: totalH, shrinkers: shrinkers, overflowers: overflowers, fitters: fitters, totalW: totalW };
   }
   // 화면에 붙인 뒤 한 번 호출: "칸에 맞춤" 글자 크기 줄이기
   function afterAttach(res){
@@ -3332,6 +3334,20 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
       else ov.style.cssText = st + "left:" + (o.x + 2) + "px;";
       while(o.txt.firstChild){ const ch = o.txt.firstChild; ch.style.flexShrink = "0"; ov.appendChild(ch); }
       res.root.appendChild(ov);
+    });
+    // 칸에 다 안 들어가는 글(예: "(납입완료)83,400원")은 글자 크기를 줄여서 한 번에 다 보이게 한다
+    res.fitters.forEach(f=>{
+      const spans = Array.prototype.slice.call(f.txt.querySelectorAll("span")); if(!spans.length) return;
+      const orig = spans.map(x=>parseFloat(x.style.fontSize));
+      const over = ()=> f.txt.getBoundingClientRect().height > f.inner.clientHeight + 1 || f.txt.scrollWidth > f.inner.clientWidth - 5;
+      if(!over()) return;
+      const setScale = k=>spans.forEach((x,i)=>{ x.style.fontSize = (orig[i] * k) + "px"; });
+      if(f.wrap && !f.hasNewline && f.len <= 24){ // 짧은 글은 한 줄로 먼저 맞춰 본다
+        f.txt.style.whiteSpace = "pre";
+        for(let k = 1; k >= 0.69; k -= 0.05){ setScale(k); if(!over()) return; }
+        f.txt.style.whiteSpace = "pre-wrap"; setScale(1);
+      }
+      for(let k = 1; k >= 0.5; k -= 0.05){ setScale(k); if(!over()) return; }
     });
   }
   window.__wpXlsxRender = { renderSheet: renderSheet, afterAttach: afterAttach2, evalCell: evalCell };
@@ -3499,7 +3515,9 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
   // 엑셀 서식 그대로 그린 이미지 (인쇄 영역 구간)
   async function makeImageFromWorkbook(key, wb){
     const R = window.__wpXlsxRender; if(!R) throw new Error("그리기 도구 없음");
-    const res = R.renderSheet(wb, SHEET_NAME[key]);
+    const isGrid = (key === "before" || key === "after");
+    // 보장분석표(전)/(후): 보험기간 줄을 조금 더 키우고, 상품 칸의 계약정보(회사~계약자)는 모두 가운데 정렬
+    const res = R.renderSheet(wb, SHEET_NAME[key], isGrid ? { minRowPt: { 5: 38 }, centerCell: (r, c)=> r >= 3 && r <= 8 && c >= 5 } : {});
     document.body.appendChild(res.root);
     const px = window.pageXOffset, py = window.pageYOffset;
     window.scrollTo(0, 0);
