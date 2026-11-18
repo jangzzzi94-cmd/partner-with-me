@@ -1342,10 +1342,10 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
 
 // ===== 병력정리 결과를 고객리스트(인적사항 페이지)에 저장 =====
 (function(){
-  const TPL = { simple:"✅병력사항(간편)\n", standard:"✅병력사항(표준체)\n", dental:"✅병력사항(치아)\n", major:"✅병력사항(중대질환)\n" };
+  const TPL = { simple:"💊병력사항(간편)\n", standard:"🏋️병력사항(표준체)\n", dental:"🦷병력사항(치아)\n", major:"👉병력사항(중대질환)\n" };
   const FIELD = { simple:"simple_text", standard:"standard_text", dental:"dental_text", major:"major_text" };
-  const PERSONAL_TPL = (n)=> "✅인적사항✅\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
-  const BANK_TPL = "은행명 : \n계좌번호 : ";
+  const PERSONAL_TPL = (n)=> "😄인적사항😄\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
+  const BANK_TPL = "💎계좌💎\n은행명 : \n계좌번호 : ";
   const $ = (id)=> document.getElementById(id);
   let all = null, picked = null;
 
