@@ -99,6 +99,11 @@
   .ref-opt:last-child{border-bottom:none;}
   .ref-opt:hover,.ref-opt.on{background:var(--navy-100);}
   .ref-opt.free{color:var(--muted);font-size:13px;}
+  .fold{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--navy-900);margin-bottom:5px;cursor:pointer;user-select:none;padding:4px 0;}
+  .fold .arr{font-size:12px;width:14px;}
+  .fold .dot{width:7px;height:7px;border-radius:50%;background:#1d4ed8;display:none;}
+  .box.folded textarea{display:none;}
+  .box.folded .fold{margin-bottom:0;}
   .chat:empty{display:none;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -227,7 +232,7 @@
           <button type="button" class="cu-btn sm" data-copy="personal+bank">인적사항+계좌 복사</button></div>
       </div>
       <div class="box">
-        <label for="simpleText">병력사항(간편)</label>
+        <div class="fold" data-fold="simpleText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(간편) <span class="dot" title="내용 있음"></span></div>
         <textarea id="simpleText" data-field="simple_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="simple">병력(간편) 복사</button>
@@ -235,7 +240,7 @@
         </div>
       </div>
       <div class="box">
-        <label for="standardText">병력사항(표준체)</label>
+        <div class="fold" data-fold="standardText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(표준체) <span class="dot" title="내용 있음"></span></div>
         <textarea id="standardText" data-field="standard_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="standard">병력(표준체) 복사</button>
@@ -243,7 +248,7 @@
         </div>
       </div>
       <div class="box">
-        <label for="dentalText">병력사항(치아)</label>
+        <div class="fold" data-fold="dentalText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(치아) <span class="dot" title="내용 있음"></span></div>
         <textarea id="dentalText" data-field="dental_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="dental">병력(치아) 복사</button>
@@ -251,7 +256,7 @@
         </div>
       </div>
       <div class="box">
-        <label for="majorText">병력사항(중대질환)</label>
+        <div class="fold" data-fold="majorText" role="button" tabindex="0"><span class="arr">▶</span> 병력사항(중대질환) <span class="dot" title="내용 있음"></span></div>
         <textarea id="majorText" data-field="major_text"></textarea>
         <div class="btns">
           <button type="button" class="cu-btn sm" data-copy="major">병력(중대질환) 복사</button>
@@ -834,6 +839,29 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     });
     box.appendChild(quick);
   }
+  /* 병력사항 4개 박스 접기/펴기 (▶ 접힘 · ▼ 펼침) — 고객을 열 때는 항상 접힌 상태 */
+  var FOLD_IDS = ['simpleText', 'standardText', 'dentalText', 'majorText'];
+  function foldTpl(id){ return TEMPLATES[document.getElementById(id).getAttribute('data-field')] || ''; }
+  function updateDot(id){
+    var ta = $(id), f = document.querySelector('[data-fold="' + id + '"]'); if(!ta || !f) return;
+    var has = (ta.value || '').replace(foldTpl(id), '').trim() !== '';
+    f.querySelector('.dot').style.display = has ? 'inline-block' : 'none';
+  }
+  function setFold(id, folded){
+    var f = document.querySelector('[data-fold="' + id + '"]'); if(!f) return;
+    var box = f.parentNode;
+    box.classList.toggle('folded', folded);
+    f.querySelector('.arr').textContent = folded ? '▶' : '▼';
+    if(!folded) autosize($(id));
+  }
+  function wireFolds(){
+    FOLD_IDS.forEach(function(id){
+      var f = document.querySelector('[data-fold="' + id + '"]');
+      f.addEventListener('click', function(){ setFold(id, !f.parentNode.classList.contains('folded')); });
+      f.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); f.click(); } });
+      $(id).addEventListener('input', function(){ updateDot(id); });
+    });
+  }
   function fillBoxes(c){
     TEXT_FIELDS.forEach(function(f){
       var el = document.querySelector('textarea[data-field="' + f + '"]');
@@ -858,6 +886,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('custName').value = c.name || '';
     $('custName').placeholder = parsePersonalName(c.personal_text) || '이름';
     fillBoxes(c);
+    FOLD_IDS.forEach(function(id){ setFold(id, true); updateDot(id); });
     renderProps();
     renderReferrer();
     $('noteText').value = '';
@@ -1281,6 +1310,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function wire(){
     $('newBtn').addEventListener('click', createCustomer);
     wireFinders();
+    wireFolds();
     $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
     $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
     $('trashBtn').addEventListener('click', toggleTrash);
