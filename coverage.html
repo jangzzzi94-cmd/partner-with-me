@@ -3009,6 +3009,336 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
 </script>
 <script>
 /* =========================================================================
+   엑셀(원본 서식) 시트를 화면용 표로 다시 그린다 -- 「인적사항 추가」의 이미지용.
+   - 다운로드 때 만드는 것과 같은 방식으로 서식 파일에 값을 채운 뒤, 엑셀의 "인쇄 영역"에 해당하는
+     구간을 칸 너비·줄 높이·병합·색·테두리·글꼴·숫자 표기("3,000만원")·로고 그림까지 그대로 옮긴다.
+   - 서식 안의 수식(합계, 전/후 가져오기)은 엑셀이 열 때 계산해 주던 값이라, 여기서 같은 규칙으로 계산한다.
+   - 이 블록은 읽기만 한다 (엑셀 다운로드 기능은 건드리지 않는다).
+   ========================================================================= */
+(function(){
+  const PX = 7;                       // 엑셀 열 너비 1 = 약 7px
+  const FONT_STACK = '"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR","Noto Sans CJK KR","Noto Sans CJK SC","Segoe UI",sans-serif';
+
+  /* ---------- 색 ---------- */
+  function themeColors(wb){
+    const out = {};
+    try{
+      const xml = (wb._themes && (wb._themes.theme1 || Object.values(wb._themes)[0])) || "";
+      const names = ["dk1","lt1","dk2","lt2","accent1","accent2","accent3","accent4","accent5","accent6"];
+      names.forEach(n=>{
+        const m = new RegExp("<a:"+n+">([\\s\\S]*?)</a:"+n+">").exec(xml); if(!m) return;
+        const v = /(?:srgbClr val|lastClr)="([0-9A-Fa-f]{6})"/.exec(m[1]); if(v) out[n] = v[1].toUpperCase();
+      });
+    }catch(e){}
+    const d = { dk1:"000000", lt1:"FFFFFF", dk2:"44546A", lt2:"E7E6E6", accent1:"5B9BD5", accent2:"ED7D31", accent3:"A5A5A5", accent4:"FFC000", accent5:"4472C4", accent6:"70AD47" };
+    Object.keys(d).forEach(k=>{ if(!out[k]) out[k] = d[k]; });
+    return out;
+  }
+  function hexToHsl(hex){
+    let r = parseInt(hex.slice(0,2),16)/255, g = parseInt(hex.slice(2,4),16)/255, b = parseInt(hex.slice(4,6),16)/255;
+    const mx = Math.max(r,g,b), mn = Math.min(r,g,b); let h = 0, s = 0; const l = (mx+mn)/2;
+    if(mx !== mn){
+      const d = mx - mn; s = l > .5 ? d/(2-mx-mn) : d/(mx+mn);
+      if(mx === r) h = (g-b)/d + (g<b?6:0); else if(mx === g) h = (b-r)/d + 2; else h = (r-g)/d + 4;
+      h /= 6;
+    }
+    return [h,s,l];
+  }
+  function hslToHex(h,s,l){
+    function f(p,q,t){ if(t<0) t+=1; if(t>1) t-=1; if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q; if(t<2/3) return p+(q-p)*(2/3-t)*6; return p; }
+    let r,g,b;
+    if(s === 0){ r = g = b = l; } else { const q = l<.5 ? l*(1+s) : l+s-l*s, p = 2*l-q; r = f(p,q,h+1/3); g = f(p,q,h); b = f(p,q,h-1/3); }
+    return [r,g,b].map(x=>("0"+Math.round(x*255).toString(16)).slice(-2)).join("");
+  }
+  function colorCss(wb, color, tc){
+    if(!color) return null;
+    let hex = null;
+    if(color.argb){ hex = String(color.argb).slice(-6); if(String(color.argb).length === 8 && String(color.argb).slice(0,2) === "00" && color.argb !== "00000000") hex = String(color.argb).slice(-6); }
+    else if(typeof color.theme === "number"){
+      const order = ["lt1","dk1","lt2","dk2","accent1","accent2","accent3","accent4","accent5","accent6"];
+      hex = tc[order[color.theme]] || null;
+    } else if(typeof color.indexed === "number"){
+      hex = ({ 8:"000000", 9:"FFFFFF", 10:"FF0000", 64:"000000" })[color.indexed] || null;
+    }
+    if(!hex) return null;
+    if(color.tint){
+      const hsl = hexToHsl(hex); let l = hsl[2];
+      l = color.tint < 0 ? l*(1+color.tint) : l*(1-color.tint) + color.tint;
+      hex = hslToHex(hsl[0], hsl[1], Math.max(0, Math.min(1, l)));
+    }
+    return "#" + hex;
+  }
+
+  /* ---------- 값 계산 (서식 안의 수식 규칙) ---------- */
+  function colNum(s){ let n = 0; for(const ch of s) n = n*26 + (ch.charCodeAt(0) - 64); return n; }
+  function isBlank(v){ return v === null || v === undefined || v === ""; }
+  function rowNumbers(ws, r, c1, c2, mode){
+    let sum = 0;
+    const last = Math.min(c2, Math.max(ws.columnCount, c1));
+    for(let c = c1; c <= last; c++){
+      const v = evalCell(ws, r, c);
+      if(typeof v === "number"){ sum += v; }
+      else if(mode === "text" && typeof v === "string"){
+        const n = Number(v.replace(/원/g,"").replace(/,/g,"").trim());
+        if(v.trim() !== "" && Number.isFinite(n)) sum += n;
+      }
+    }
+    return sum;
+  }
+  const evalMemo = new WeakMap();
+  function evalCell(ws, r, c){
+    let memo = evalMemo.get(ws); if(!memo){ memo = new Map(); evalMemo.set(ws, memo); }
+    const key = r + ":" + c; if(memo.has(key)) return memo.get(key);
+    memo.set(key, null); // 순환 방지
+    const cell = ws.getCell(r, c); let v = cell.value, out;
+    if(v && typeof v === "object" && !(v instanceof Date) && !v.richText && !v.error && !v.hyperlink && ("formula" in v || "sharedFormula" in v || "result" in v)){
+      let f = ""; try{ f = cell.formula || ""; }catch(e){}
+      f = String(f).replace(/^=/,"").replace(/\s+/g,"");
+      let m;
+      if((m = /^IF\('([^']+)'!([A-Z]+)(\d+)="",""?,'[^']+'!\2\3\)$/.exec(f))){
+        const os = ws.workbook.getWorksheet(m[1]);
+        const x = os ? evalCell(os, Number(m[3]), colNum(m[2])) : null;
+        out = isBlank(x) ? "" : x;
+      } else if((m = /^SUM\(([A-Z]+)(\d+):([A-Z]+)(\d+)\)$/.exec(f))){
+        out = rowNumbers(ws, Number(m[2]), colNum(m[1]), colNum(m[3]), "num");
+      } else if((m = /^IF\(SUMPRODUCT\(--IFERROR\(VALUE\(SUBSTITUTE\(([A-Z]+)(\d+):([A-Z]+)(\d+),"원",""\)\),0\)\)=0,"",TEXT\(/.exec(f))){
+        const s = rowNumbers(ws, Number(m[2]), colNum(m[1]), colNum(m[3]), "text");
+        out = s === 0 ? "" : Math.round(s).toLocaleString("en-US") + "원";
+      } else {
+        console.warn("계산 규칙이 없는 수식:", f);
+        out = ("result" in v) ? v.result : null; // 모르는 수식은 파일에 저장된 값을 그대로 쓴다
+        if(out && typeof out === "object" && out.error) out = "";
+      }
+    } else out = v;
+    memo.set(key, out); return out;
+  }
+
+  /* ---------- 숫자 표기 ---------- */
+  function fmtNumber(v, fmt){
+    if(typeof v !== "number") return String(v);
+    if(!fmt || fmt === "General") return String(v);
+    const secs = fmt.split(";"); let sec = secs[0], val = v, red = false;
+    if(v < 0 && secs.length > 1){ sec = secs[1]; val = -v; red = /\[Red\]/i.test(sec); }
+    else if(v === 0 && secs.length > 2) sec = secs[2];
+    let out = "", i = 0;
+    while(i < sec.length){
+      const ch = sec[i];
+      if(ch === '"'){ const j = sec.indexOf('"', i+1); const e = j < 0 ? sec.length : j; out += sec.slice(i+1, e); i = e + 1; }
+      else if(ch === "_"){ out += " "; i += 2; }
+      else if(ch === "\\"){ out += sec[i+1] || ""; i += 2; }
+      else if(ch === "["){ const j = sec.indexOf("]", i); i = j < 0 ? sec.length : j + 1; }
+      else if(ch === "#" || ch === "0" || ch === ","){
+        let j = i; while(j < sec.length && /[#0,]/.test(sec[j])) j++;
+        const intPart = sec.slice(i, j); let dec = 0;
+        if(sec[j] === "."){ let k = j + 1; while(k < sec.length && /[#0]/.test(sec[k])) k++; dec = k - j - 1; j = k; }
+        const thousands = intPart.indexOf(",") >= 0, needDigit = intPart.indexOf("0") >= 0;
+        let s = Math.abs(val).toFixed(dec); let [ip, dp] = s.split(".");
+        if(!needDigit && Number(ip) === 0 && dec === 0) ip = "";
+        if(thousands) ip = ip.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        out += ip + (dp ? "." + dp : "");
+        i = j;
+      }
+      else { out += ch; i++; }
+    }
+    if(v < 0 && secs.length === 1) out = "-" + out;
+    return { text: out, red: red };
+  }
+  function fmtDate(d, fmt){
+    const sec = (fmt || "yyyy.mm.dd").split(";")[0];
+    const p = n=>("0"+n).slice(-2);
+    return sec.replace(/yyyy/g, d.getUTCFullYear()).replace(/mm/g, p(d.getUTCMonth()+1)).replace(/dd/g, p(d.getUTCDate()));
+  }
+
+  /* ---------- 테두리 ---------- */
+  const B_W = { thin:1, hair:1, dotted:1, dashed:1, dashDot:1, dashDotDot:1, medium:2, mediumDashed:2, mediumDashDot:2, mediumDashDotDot:2, slantDashDot:2, thick:3, double:3 };
+  function bPick(list){
+    let best = null;
+    list.forEach(b=>{ if(b && b.style && (!best || (B_W[b.style]||1) > (B_W[best.style]||1))) best = b; });
+    return best;
+  }
+  function bCss(wb, tc, b){
+    if(!b) return "none";
+    const w = B_W[b.style] || 1;
+    const st = /dot/i.test(b.style) ? "dotted" : /dash/i.test(b.style) ? "dashed" : b.style === "double" ? "double" : "solid";
+    return w + "px " + st + " " + (colorCss(wb, b.color, tc) || "#000");
+  }
+
+  /* ---------- 시트 그리기 ---------- */
+  function parseArea(ws){
+    let a = ws.pageSetup && ws.pageSetup.printArea; a = a ? String(a) : "";
+    a = a.split("!").pop().replace(/\$/g,"").split(",")[0];
+    const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(a);
+    if(m) return { r1:Number(m[2]), c1:colNum(m[1]), r2:Number(m[4]), c2:colNum(m[3]) };
+    return { r1:1, c1:1, r2:Math.max(ws.rowCount,1), c2:Math.max(ws.columnCount,1) };
+  }
+  function bufToDataUrl(buf, ext){
+    const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf.buffer ? buf.buffer : buf);
+    let s = ""; for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+    return "data:image/" + (ext === "jpg" ? "jpeg" : ext) + ";base64," + btoa(s);
+  }
+  function renderSheet(wb, sheetName, opts){
+    opts = opts || {};
+    const ws = wb.getWorksheet(sheetName); if(!ws) throw new Error("시트 없음: " + sheetName);
+    const tc = themeColors(wb);
+    const area = parseArea(ws);
+    const defW = (ws.properties && ws.properties.defaultColWidth) || 9, defH = (ws.properties && ws.properties.defaultRowHeight) || 16.5;
+    const colPx = {}, rowPx = {};
+    for(let c = area.c1; c <= area.c2; c++){ const col = ws.getColumn(c); colPx[c] = col.hidden ? 0 : Math.round((col.width || defW) * PX); }
+    for(let r = area.r1; r <= area.r2; r++){ const row = ws.getRow(r); rowPx[r] = row.hidden ? 0 : Math.round((row.height || defH) * 96 / 72); }
+    const totalW = Object.keys(colPx).reduce((a,k)=>a+colPx[k], 0), totalH = Object.keys(rowPx).reduce((a,k)=>a+rowPx[k], 0);
+
+    // 병합 (숨겨진 줄/칸이 맨 앞에 끼어 있으면 보이는 첫 칸이 대신 병합 칸이 된다)
+    const mergeAt = {}, covered = {};
+    ((ws.model && ws.model.merges) || []).forEach(rg=>{
+      const m = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(rg); if(!m) return;
+      const mr1 = Number(m[2]), mc1 = colNum(m[1]), mr2 = Number(m[4]), mc2 = colNum(m[3]);
+      let fr = null, fc = null;
+      for(let r = mr1; r <= mr2 && fr === null; r++) if(rowPx[r]) fr = r;
+      for(let c = mc1; c <= mc2 && fc === null; c++) if(colPx[c]) fc = c;
+      if(fr === null || fc === null) return;
+      mergeAt[fr + ":" + fc] = { r2:mr2, c2:mc2, sr:mr1, sc:mc1 };
+      for(let r = mr1; r <= mr2; r++) for(let c = mc1; c <= mc2; c++) if(r !== fr || c !== fc) covered[r + ":" + c] = true;
+    });
+    const bd = (r, c, side)=>{ const cell = ws.getCell(r, c); return cell.border ? cell.border[side] : null; };
+
+    const root = document.createElement("div");
+    root.className = "xr-root";
+    root.style.cssText = "position:absolute;left:0;top:0;z-index:-1;background:#fff;width:" + totalW + "px;height:" + totalH + "px;font-family:" + FONT_STACK + ";color:#000;";
+    const table = document.createElement("table");
+    table.style.cssText = "border-collapse:separate;border-spacing:0;table-layout:fixed;width:" + totalW + "px;height:" + totalH + "px;";
+    const cg = document.createElement("colgroup");
+    for(let c = area.c1; c <= area.c2; c++){ if(!colPx[c]) continue; const col = document.createElement("col"); col.style.width = colPx[c] + "px"; cg.appendChild(col); }
+    table.appendChild(cg);
+    const tb = document.createElement("tbody"); table.appendChild(tb);
+
+    const shrinkers = [], overflowers = [];
+    const colX0 = c => { let x = 0; for(let k = area.c1; k < c; k++) x += (colPx[k] || 0); return x; };
+    const rowY0 = r => { let y = 0; for(let k = area.r1; k < r; k++) y += (rowPx[k] || 0); return y; };
+    for(let r = area.r1; r <= area.r2; r++){
+      if(!rowPx[r]) continue;
+      const tr = document.createElement("tr"); tr.style.height = rowPx[r] + "px"; tb.appendChild(tr);
+      for(let c = area.c1; c <= area.c2; c++){
+        if(!colPx[c] || covered[r + ":" + c]) continue;
+        const mg = mergeAt[r + ":" + c] || { r2:r, c2:c, sr:r, sc:c };
+        const r2 = Math.min(mg.r2, area.r2), c2 = Math.min(mg.c2, area.c2);
+        let w = 0, h = 0, rs = 0, cs = 0;
+        for(let k = c; k <= c2; k++) if(colPx[k]){ w += colPx[k]; cs++; }
+        for(let k = r; k <= r2; k++) if(rowPx[k]){ h += rowPx[k]; rs++; }
+        const cell = ws.getCell(mg.sr, mg.sc);
+        const td = document.createElement("td");
+        if(rs > 1) td.rowSpan = rs; if(cs > 1) td.colSpan = cs;
+        // 테두리: 칸의 오른쪽·아래만 칠하고(맞닿은 칸과 겹치지 않게), 첫 줄/첫 칸만 위·왼쪽도 칠한다
+        const rows = []; for(let k = mg.sr; k <= r2; k++) rows.push(k);
+        const cols = []; for(let k = mg.sc; k <= c2; k++) cols.push(k);
+        const eR = bPick(rows.map(k=>bd(k, c2, "right")).concat(rows.map(k=>bd(k, c2+1, "left"))));
+        const eB = bPick(cols.map(k=>bd(r2, k, "bottom")).concat(cols.map(k=>bd(r2+1, k, "top"))));
+        const eT = r === area.r1 ? bPick(cols.map(k=>bd(mg.sr, k, "top"))) : null;
+        const eL = c === area.c1 ? bPick(rows.map(k=>bd(k, mg.sc, "left"))) : null;
+        const bw = s=>{ const b = s; return b ? (B_W[b.style] || 1) : 0; };
+        const fill = cell.fill && cell.fill.type === "pattern" && cell.fill.pattern === "solid" ? colorCss(wb, cell.fill.fgColor, tc) : null;
+        td.style.cssText = "box-sizing:border-box;padding:0;overflow:hidden;width:" + w + "px;height:" + h + "px;" +
+          "border-right:" + bCss(wb, tc, eR) + ";border-bottom:" + bCss(wb, tc, eB) + ";border-top:" + bCss(wb, tc, eT) + ";border-left:" + bCss(wb, tc, eL) + ";" +
+          (fill ? "background:" + fill + ";" : "");
+
+        // 내용
+        let v = evalCell(ws, mg.sr, mg.sc);
+        const al = cell.alignment || {};
+        const baseFont = cell.font || {};
+        const inner = document.createElement("div");
+        const innerH = h - bw(eB) - bw(eT), innerW = w - bw(eR) - bw(eL);
+        const vmap = { top:"flex-start", middle:"center", center:"center", bottom:"flex-end", distributed:"center", justify:"flex-start" };
+        inner.style.cssText = "box-sizing:border-box;width:" + innerW + "px;height:" + innerH + "px;overflow:hidden;display:flex;align-items:" + (vmap[al.vertical] || "flex-end") + ";";
+        const txt = document.createElement("div");
+        const isNum = typeof v === "number";
+        let ha = al.horizontal; if(!ha || ha === "general") ha = isNum ? "right" : "left";
+        if(ha === "centerContinuous" || ha === "distributed") ha = "center";
+        const indentPx = (al.indent || 0) * 9;
+        txt.style.cssText = "box-sizing:border-box;width:100%;min-width:0;text-align:" + (ha === "fill" || ha === "justify" ? "left" : ha) + ";padding:0 " + (ha === "right" ? 2 + indentPx : 2) + "px 0 " + (ha === "left" ? 2 + indentPx : 2) + "px;line-height:1.2;" +
+          "white-space:" + (al.wrapText ? "pre-wrap" : "pre") + ";" + (al.wrapText ? "word-break:keep-all;overflow-wrap:anywhere;" : "overflow:hidden;");
+        const addRun = (text, font, redNeg)=>{
+          const sp = document.createElement("span"); sp.textContent = text;
+          const f = font || {}; const st = [];
+          const size = f.size || baseFont.size || 11; st.push("font-size:" + (size * 96 / 72) + "px");
+          if(f.bold !== undefined ? f.bold : baseFont.bold) st.push("font-weight:700");
+          if(f.italic !== undefined ? f.italic : baseFont.italic) st.push("font-style:italic");
+          const ul = f.underline !== undefined ? f.underline : baseFont.underline, sk = f.strike !== undefined ? f.strike : baseFont.strike;
+          if(ul || sk) st.push("text-decoration:" + (ul ? "underline " : "") + (sk ? "line-through" : ""));
+          const col = colorCss(wb, f.color || baseFont.color, tc) || "#000"; st.push("color:" + (redNeg ? "#f00" : col));
+          sp.style.cssText = st.join(";");
+          txt.appendChild(sp); return sp;
+        };
+        let lastSpan = null;
+        if(v && typeof v === "object" && v.richText){
+          v.richText.forEach(run=>{ lastSpan = addRun(run.text, Object.assign({}, run.font), false); });
+        } else if(v instanceof Date){
+          lastSpan = addRun(fmtDate(v, cell.numFmt), null, false);
+        } else if(!isBlank(v) && !(typeof v === "object")){
+          let text = String(v), red = false;
+          if(typeof v === "number"){ const f = fmtNumber(v, cell.numFmt); if(typeof f === "string") text = f; else { text = f.text; red = f.red; } }
+          lastSpan = addRun(text, null, red);
+        }
+        if(al.shrinkToFit && lastSpan) shrinkers.push({ txt: txt, td: inner });
+        if(!al.wrapText && !al.shrinkToFit && lastSpan && mg.r2 === r && mg.c2 === c){
+          const nb = (ha === "right") ? (c > area.c1 ? evalCell(ws, r, c - 1) : "x") : (ha === "center") ? "" : evalCell(ws, r, c + 1);
+          const nb2 = (ha === "center") ? (c > area.c1 ? evalCell(ws, r, c - 1) : "x") : "";
+          const nb3 = (ha === "center") ? evalCell(ws, r, c + 1) : "";
+          if(isBlank(nb) && isBlank(nb2) && isBlank(nb3)) overflowers.push({ txt: txt, inner: inner, x: colX0(c), y: rowY0(r), w: w, h: h, ha: ha, va: vmap[al.vertical] || "flex-end" });
+        }
+        inner.appendChild(txt); td.appendChild(inner); tr.appendChild(td);
+      }
+    }
+    root.appendChild(table);
+
+    // 그림(로고 등)
+    let imgs = [];
+    try{ imgs = ws.getImages() || []; }catch(e){}
+    const colX = c => { let x = 0; for(let k = area.c1; k < c; k++) x += (colPx[k] || (k > area.c2 ? Math.round(defW*PX) : 0)); return x; };
+    const rowY = r => { let y = 0; for(let k = area.r1; k < r; k++) y += (rowPx[k] || 0); return y; };
+    imgs.forEach(im=>{
+      try{
+        const med = (wb.model.media || []).find(m=>m.index === im.imageId) || wb.getImage(im.imageId);
+        if(!med || !med.buffer) return;
+        const tl = im.range.tl, br = im.range.br;
+        const x = colX(tl.nativeCol + 1) + tl.nativeColOff / 9525, y = rowY(tl.nativeRow + 1) + tl.nativeRowOff / 9525;
+        let w, h;
+        if(br){ w = colX(br.nativeCol + 1) + br.nativeColOff / 9525 - x; h = rowY(br.nativeRow + 1) + br.nativeRowOff / 9525 - y; }
+        else if(im.range.ext){ w = im.range.ext.width; h = im.range.ext.height; }
+        else return;
+        const el = document.createElement("img"); el.src = bufToDataUrl(med.buffer, med.extension || "png");
+        el.style.cssText = "position:absolute;left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px;";
+        root.appendChild(el);
+      }catch(e){ console.warn("그림 배치 실패", e); }
+    });
+    return { root: root, width: totalW, height: totalH, shrinkers: shrinkers, overflowers: overflowers, totalW: totalW };
+  }
+  // 화면에 붙인 뒤 한 번 호출: "칸에 맞춤" 글자 크기 줄이기
+  function afterAttach(res){
+    res.shrinkers.forEach(s=>{
+      const sp = s.txt.querySelectorAll("span"); let guard = 0;
+      while(s.txt.scrollWidth > s.td.clientWidth + 1 && guard++ < 30){
+        sp.forEach(x=>{ const fs = parseFloat(x.style.fontSize); if(fs > 6) x.style.fontSize = (fs - .5) + "px"; });
+      }
+    });
+  }
+  // 한 줄짜리 글이 칸보다 길면, 엑셀처럼 옆의 빈 칸 위로 글이 넘쳐 보이게 한다
+  function afterAttach2(res){
+    afterAttach(res);
+    res.overflowers.forEach(o=>{
+      if(o.txt.scrollWidth <= o.inner.clientWidth + 1) return;
+      const ov = document.createElement("div");
+      const st = "position:absolute;top:" + o.y + "px;height:" + o.h + "px;display:flex;align-items:" + o.va + ";white-space:pre;line-height:1.2;";
+      if(o.ha === "right") ov.style.cssText = st + "right:" + (res.totalW - o.x - o.w + 2) + "px;";
+      else if(o.ha === "center") ov.style.cssText = st + "left:" + o.x + "px;width:" + o.w + "px;justify-content:center;";
+      else ov.style.cssText = st + "left:" + (o.x + 2) + "px;";
+      while(o.txt.firstChild){ const ch = o.txt.firstChild; ch.style.flexShrink = "0"; ov.appendChild(ch); }
+      res.root.appendChild(ov);
+    });
+  }
+  window.__wpXlsxRender = { renderSheet: renderSheet, afterAttach: afterAttach2, evalCell: evalCell };
+})();
+</script>
+<script>
+/* =========================================================================
    「인적사항 추가」 -- 보장분석표(전) · (후) · 종합 전.후 비교 · 3-1. 보장차이 를 이미지로
    만들어서 고객리스트의 해당 고객 「🔎보장분석표🔎」에 저장한다.
    - 화면의 표를 그대로 사진처럼 찍되, 입력칸/버튼 같은 조작 도구는 빼고 깔끔하게 만든다.
@@ -3130,7 +3460,63 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
     const jpg = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.92));
     return { blob: jpg || png, ext: jpg ? "jpg" : "png", type: jpg ? "image/jpeg" : "image/png" };
   }
-  async function makeImage(key){
+  const SHEET_NAME = { before:"보장분석표(전)", after:"보장분석표(후)", summary:"종합 전.후 비교", diff:"3-1. 보장차이" };
+  // 다운로드와 똑같이 서식 파일에 값을 채운 엑셀을 메모리에서 만든다 (파일로 내려받지 않고, 포인트도 쓰지 않는다)
+  async function buildReportWorkbook(){
+    if(typeof ExcelJS === "undefined") throw new Error("엑셀 도구 없음");
+    const res = await fetch("assets/coverage_template.b64.txt");
+    if(!res.ok) throw new Error("서식 파일을 불러오지 못했습니다.");
+    const b64Text = (await res.text()).replace(/\s+/g, "");
+    const binary = atob(b64Text);
+    const buf = new Uint8Array(binary.length);
+    for(let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf.buffer);
+    const wsBefore = wb.getWorksheet("보장분석표(전)");
+    wsBefore.getCell("C2").value = lastResult.customerName || lastResult.baseName || "";
+    fillSheetColumns(wsBefore, lastResult.columns, (c, field)=>{
+      if(field === "amounts") return c.amounts;
+      if(field === "text45") return (c.textTags && c.textTags.length) ? c.textTags.join("\n") : "";
+      return c.header[field];
+    });
+    applyKeptFillToMetaCells(wsBefore, lastResult.columns, c=>!!c.kept);
+    const wsAfter = wb.getWorksheet("보장분석표(후)");
+    fillSheetColumns(wsAfter, afterColumns, (c, field)=>{
+      if(field === "amounts") return c.items || {};
+      if(field === "text45") return (c.items && c.items["45"]) ? c.items["45"] : "";
+      return c[field];
+    });
+    applyKeptFillToMetaCells(wsAfter, afterColumns, c=>c.source==="carryover");
+    setPrintAreaForColumns(wsBefore, Math.max(lastResult.columns.length, 8));
+    setPrintAreaForColumns(wsAfter, Math.max(afterColumns.length, 8));
+    return wb;
+  }
+  async function captureRoot(root, w, h){
+    const scale = Math.max(1, Math.min(2, Math.sqrt(12000000 / Math.max(1, w * h))));
+    const canvas = await html2canvas(root, { scale, backgroundColor:"#ffffff", useCORS:true, logging:false, scrollX:0, scrollY:0, windowWidth: Math.max(w + 40, window.innerWidth), windowHeight: Math.max(h + 40, window.innerHeight) });
+    const out = await toBlob(canvas); out.w = canvas.width; out.h = canvas.height; return out;
+  }
+  // 엑셀 서식 그대로 그린 이미지 (인쇄 영역 구간)
+  async function makeImageFromWorkbook(key, wb){
+    const R = window.__wpXlsxRender; if(!R) throw new Error("그리기 도구 없음");
+    const res = R.renderSheet(wb, SHEET_NAME[key]);
+    document.body.appendChild(res.root);
+    const px = window.pageXOffset, py = window.pageYOffset;
+    window.scrollTo(0, 0);
+    try{
+      R.afterAttach(res);
+      await new Promise(r => setTimeout(r, 80));
+      return await captureRoot(res.root, res.width, res.height);
+    } finally { res.root.remove(); window.scrollTo(px, py); }
+  }
+  async function makeImage(key, wb){
+    if(wb){
+      try{ return await makeImageFromWorkbook(key, wb); }
+      catch(e){ console.warn("엑셀 서식 그리기 실패, 화면 표로 대체:", e); }
+    }
+    return await makeImageFromScreen(key);
+  }
+  async function makeImageFromScreen(key){
     if(typeof html2canvas !== "function") throw new Error("이미지 만드는 도구를 불러오지 못했어요. 새로고침 후 다시 시도해 주세요.");
     const root = buildRoot(key);
     document.body.appendChild(root);
@@ -3138,17 +3524,13 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
     window.scrollTo(0, 0);
     try{
       await new Promise(r => setTimeout(r, 60));
-      const w = root.offsetWidth, h = root.offsetHeight;
-      const scale = Math.max(1, Math.min(2, Math.sqrt(12000000 / Math.max(1, w * h))));
-      const canvas = await html2canvas(root, { scale, backgroundColor:"#ffffff", useCORS:true, logging:false, scrollX:0, scrollY:0, windowWidth: Math.max(w + 40, window.innerWidth), windowHeight: Math.max(h + 40, window.innerHeight) });
-      const out = await toBlob(canvas);
-      out.w = canvas.width; out.h = canvas.height;
-      return out;
+      return await captureRoot(root, root.offsetWidth, root.offsetHeight);
     } finally {
       root.remove(); window.scrollTo(px, py);
     }
   }
   window.__makeCoverageImage = makeImage; // (확인용)
+  window.__buildReportWorkbook = buildReportWorkbook;
 
   /* ---------- 고객 찾기 / 저장 ---------- */
   function setMsg(text, kind){ const el = $("cvMsg"); el.className = "cv-msg" + (kind ? " " + kind : ""); el.textContent = text || ""; }
@@ -3215,10 +3597,13 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
         cust = res.data;
       }
       const items = [];
+      setMsg("엑셀 서식 불러오는 중…");
+      let wbReport = null;
+      try{ wbReport = await buildReportWorkbook(); }catch(e){ console.warn("서식 파일을 못 읽어 화면 표로 대체:", e); }
       for(let i = 0; i < SHEETS.length; i++){
         const sh = SHEETS[i];
         setMsg("이미지 만드는 중… (" + (i + 1) + "/" + SHEETS.length + ") " + sh.label);
-        const img = await makeImage(sh.key);
+        const img = await makeImage(sh.key, wbReport);
         const path = uid + "/" + cust.id + "/cov_" + sh.key + "_" + uuid() + "." + img.ext;
         const up = await supabaseClient.storage.from(BUCKET).upload(path, img.blob, { contentType: img.type, upsert:false });
         if(up.error) throw up.error;
