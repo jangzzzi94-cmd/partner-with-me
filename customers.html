@@ -67,6 +67,19 @@
   .job-pop .jo.on,.job-pop .jo:hover{background:var(--navy-100);}
   .job-pop .jo mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px;}
   .job-pop .jh{padding:6px 12px;font-size:11.5px;color:var(--muted);background:#f7f9fd;position:sticky;top:0;}
+  .md-back{position:fixed;inset:0;background:rgba(10,26,48,.55);z-index:150;display:none;align-items:flex-start;justify-content:center;padding:max(12px,4vh) 12px 12px;}
+  .md-card{background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,.3);}
+  .md-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:800;color:var(--navy-950);font-size:15px;}
+  .md-head button{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);padding:0 6px;}
+  .md-body{padding:12px 14px;overflow-y:auto;flex:1;min-height:0;}
+  .md-body input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit;}
+  .md-list{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .md-list .jo{padding:11px 12px;font-size:14.5px;line-height:1.45;cursor:pointer;border-bottom:1px solid var(--line);word-break:keep-all;}
+  .md-list .jo:last-child{border-bottom:none;}
+  .md-list .jo:hover{background:var(--navy-100);}
+  .md-list .jo mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px;}
+  .md-hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  #addrEmbed{width:100%;height:min(460px,64vh);}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .chat:empty::before{content:"아직 기록이 없어요. 아래에 비고·특이사항을 적어 보내세요.";color:var(--muted);font-size:13px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -178,6 +191,10 @@
 
     <div class="cu-sec" id="boxesSec">
       <div class="box">
+        <div class="btns" style="margin:0 0 8px;">
+          <button type="button" class="cu-btn sm" id="jobFindBtn">🔍 직업 찾기</button>
+          <button type="button" class="cu-btn sm" id="addrFindBtn">📍 주소 찾기</button>
+        </div>
         <label for="personalText">인적사항</label>
         <textarea id="personalText" data-field="personal_text"></textarea>
         <div class="btns"><button type="button" class="cu-btn sm" data-copy="personal">인적사항 복사</button></div>
@@ -207,6 +224,30 @@
     </div>
   </div>
 </div>
+<div class="md-back" id="jobModal"><div class="md-card">
+  <div class="md-head"><span>🔍 직업 찾기</span><button type="button" data-close="jobModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <input type="text" id="jobQuery" placeholder="직업이나 업무를 입력 (예: 보험, 회사원, 간호사)" autocomplete="off">
+    <div class="md-hint" id="jobHint">입력하면 비슷한 직업이 나와요. 고르면 「직업 :」 줄에 직업명이 바로 들어가요.</div>
+    <div class="md-list" id="jobResults" style="display:none;"></div>
+  </div>
+</div></div>
+<div class="md-back" id="addrModal"><div class="md-card">
+  <div class="md-head"><span>📍 주소 찾기</span><button type="button" data-close="addrModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <div id="addrEmbed"></div>
+    <div id="addrDetail" style="display:none;">
+      <div class="md-hint" style="margin:0 0 6px;">선택한 주소</div>
+      <div id="addrPicked" style="font-weight:700;margin-bottom:10px;word-break:keep-all;"></div>
+      <input type="text" id="addrDetailInput" placeholder="상세주소 (동·호수 등, 없으면 비워 두세요)" autocomplete="off">
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button type="button" class="cu-btn primary" id="addrOk">주소 넣기</button>
+        <button type="button" class="cu-btn" id="addrBack">다시 검색</button>
+      </div>
+    </div>
+    <div class="md-hint" id="addrMsg"></div>
+  </div>
+</div></div>
 <div class="ch-toast" id="toast"></div>
 <div class="cu-err" id="errBox"></div>
 
@@ -1044,10 +1085,100 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     ta.addEventListener('focus', function(){ clearTimeout(jobBlurT); });
   }
 
+  /* ---------------- 직업 찾기 / 주소 찾기 (버튼) ---------------- */
+  // 인적사항 글 상자에서 「라벨 : 값」 줄의 값만 바꾼다. 줄이 없으면 맨 아래에 추가한다.
+  function setPersonalLine(label, value){
+    var ta = $('personalText'), c = getCust(curId); if(!c) return;
+    var lines = ta.value.split('\n'), done = false;
+    var re = new RegExp('^\\s*' + label + '\\s*[:：]');
+    for(var i = 0; i < lines.length; i++){ if(re.test(lines[i])){ lines[i] = label + ' : ' + value; done = true; break; } }
+    if(!done){ while(lines.length && lines[lines.length - 1].trim() === '') lines.pop(); lines.push(label + ' : ' + value); }
+    jobSuppress = true;
+    ta.value = lines.join('\n');
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    jobSuppress = false; hideJobPop();
+    showToast(label + '에 넣었어요');
+  }
+  function openModal(id){ hideJobPop(); $(id).style.display = 'flex'; }
+  function closeModal(id){ $(id).style.display = 'none'; }
+  function renderJobResults(){
+    var q = $('jobQuery').value, box = $('jobResults');
+    box.innerHTML = '';
+    var toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if(!toks.length){ box.style.display = 'none'; $('jobHint').style.display = 'block'; return; }
+    var list = jobSearch(q);
+    if(!list.length){ box.style.display = 'none'; $('jobHint').style.display = 'block'; $('jobHint').textContent = '비슷한 직업이 없어요. 다른 말로 찾아보시거나 인적사항에 직접 적어 주세요.'; return; }
+    $('jobHint').style.display = 'none';
+    box.style.display = 'block';
+    list.forEach(function(j){
+      var row = h('div', { class: 'jo' });
+      row.appendChild(markText(j.desc || j.name, toks));
+      row.addEventListener('click', function(){ setPersonalLine('직업', j.name); closeModal('jobModal'); });
+      box.appendChild(row);
+    });
+  }
+  var addrScriptState = 0, addrPicked = '';
+  function loadPostcode(cb){
+    if(window.daum && window.daum.Postcode){ cb(true); return; }
+    if(addrScriptState === 1){ setTimeout(function(){ loadPostcode(cb); }, 300); return; }
+    addrScriptState = 1;
+    var sc = document.createElement('script');
+    sc.src = 'https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
+    sc.onload = function(){ addrScriptState = 2; cb(true); };
+    sc.onerror = function(){ addrScriptState = 0; cb(false); };
+    document.head.appendChild(sc);
+  }
+  function startAddrSearch(){
+    $('addrDetail').style.display = 'none';
+    var emb = $('addrEmbed'); emb.style.display = 'block'; emb.innerHTML = '';
+    $('addrMsg').textContent = '불러오는 중…';
+    loadPostcode(function(ok){
+      if(!ok){ $('addrMsg').textContent = '주소 검색 서비스에 연결하지 못했어요. 인터넷을 확인하시거나 인적사항에 직접 적어 주세요.'; return; }
+      $('addrMsg').textContent = '도로명·지번·건물명으로 검색하세요.';
+      new window.daum.Postcode({
+        width: '100%', height: '100%',
+        oncomplete: function(data){
+          var addr = data.userSelectedType === 'J' ? data.jibunAddress : data.roadAddress;
+          var extra = '';
+          if(data.userSelectedType === 'R'){
+            if(data.bname && /[동로가]$/.test(data.bname)) extra += data.bname;
+            if(data.buildingName && data.apartment === 'Y') extra += (extra ? ', ' : '') + data.buildingName;
+            if(extra) extra = ' (' + extra + ')';
+          }
+          addrPicked = addr + extra;
+          $('addrPicked').textContent = addrPicked;
+          emb.style.display = 'none'; $('addrDetail').style.display = 'block'; $('addrMsg').textContent = '';
+          $('addrDetailInput').value = ''; $('addrDetailInput').focus();
+        }
+      }).embed(emb);
+    });
+  }
+  function wireFinders(){
+    $('jobFindBtn').addEventListener('click', function(){
+      $('jobQuery').value = ''; $('jobHint').textContent = '입력하면 비슷한 직업이 나와요. 고르면 「직업 :」 줄에 직업명이 바로 들어가요.'; renderJobResults();
+      openModal('jobModal'); setTimeout(function(){ $('jobQuery').focus(); }, 50);
+    });
+    $('jobQuery').addEventListener('input', renderJobResults);
+    $('addrFindBtn').addEventListener('click', function(){ openModal('addrModal'); startAddrSearch(); });
+    $('addrBack').addEventListener('click', startAddrSearch);
+    function putAddr(){
+      var d = $('addrDetailInput').value.trim();
+      setPersonalLine('집주소', addrPicked + (d ? ' ' + d : ''));
+      closeModal('addrModal');
+    }
+    $('addrOk').addEventListener('click', putAddr);
+    $('addrDetailInput').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); putAddr(); } });
+    var closers = document.querySelectorAll('[data-close]');
+    for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
+    ['jobModal', 'addrModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); } });
+  }
+
   /* ---------------- 이벤트 연결 ---------------- */
   function wire(){
     $('newBtn').addEventListener('click', createCustomer);
     wireJobs();
+    wireFinders();
     $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
     $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
     $('trashBtn').addEventListener('click', toggleTrash);
