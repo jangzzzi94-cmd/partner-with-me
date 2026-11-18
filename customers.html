@@ -26,18 +26,15 @@
   table.cu-table{border-collapse:collapse;width:100%;font-size:14px;}
   .cu-table th{position:sticky;top:0;background:var(--navy-100);color:var(--navy-950);text-align:left;padding:10px 12px;font-size:12.5px;white-space:nowrap;border-bottom:1px solid var(--line);cursor:pointer;z-index:2;}
   .cu-table th .hm{margin-left:6px;color:var(--muted);font-weight:700;cursor:pointer;padding:0 4px;}
-  .cu-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  /* 이름·기고객 칸은 내용만큼만 차지해서 기고객이 이름 바로 옆에 붙도록 */
-  .cu-table th:nth-child(-n+2),.cu-table td:nth-child(-n+2){width:1%;white-space:nowrap;}
-  .cu-table td:nth-child(2),.cu-table th:nth-child(2){padding-left:6px;padding-right:34px;}
-  .cu-table td:nth-child(3),.cu-table th:nth-child(3){padding-left:16px;}
-  @media (max-width:640px){
-    /* 폰에서는 가족·등록일 칸을 숨겨 한 화면에 보이게 */
-    .cu-table th:nth-child(4),.cu-table td:nth-child(4),.cu-table th:nth-child(5),.cu-table td:nth-child(5){display:none;}
-    .cu-table th,.cu-table td{padding-left:9px;padding-right:9px;}
-    .cu-table td:nth-child(2),.cu-table th:nth-child(2){padding-right:26px;}
-    .cu-table td:nth-child(3),.cu-table th:nth-child(3){padding-left:12px;}
-  }
+  .cu-table td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap;min-width:0;}
+  .cell-clip{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* 칸 사이 공백을 모두 같게: 표를 격자로 만들고 남는 폭을 모든 칸에 똑같이 나눈다 (화면이 좁아지면 공백이 줄어듦) */
+  table.cu-table{display:grid;width:100%;}
+  .cu-table thead,.cu-table tbody,.cu-table tr{display:contents;}
+  .fam-scroll{width:205px;max-width:205px;overflow-x:auto;white-space:nowrap;scrollbar-width:none;-ms-overflow-style:none;cursor:grab;overscroll-behavior-x:contain;}
+  .fam-scroll::-webkit-scrollbar{display:none;}
+  .fam-scroll.more{-webkit-mask-image:linear-gradient(to right,#000 80%,transparent);mask-image:linear-gradient(to right,#000 80%,transparent);}
+  .fam-scroll.drag{cursor:grabbing;user-select:none;}
   .cu-table tr.row{cursor:pointer;}
   .cu-table tr.row:hover td{background:#f7f9fd;}
   .cu-table td.name{font-weight:700;color:var(--navy-950);}
@@ -217,7 +214,7 @@
     .prop-row{flex-direction:column;gap:2px;}
     .prop-label{width:auto;padding-top:0;}
     .prop-name{flex:none;width:120px;}
-    .cu-table td{max-width:170px;}
+    .cell-clip{max-width:170px;}
   }
 </style>
 </head>
@@ -690,6 +687,31 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     return h('span', { class: 'chip', text: opt.name, style: 'background:' + col[0] + ';color:' + col[1] + ';' });
   }
   function optIndex(p, id){ var arr = p.options || []; for(var i = 0; i < arr.length; i++){ if(arr[i].id === id) return i; } return -1; }
+  // 가족 칸: 3명쯤 들어갈 폭으로 고정. 더 많으면 잘라서 보여주고, 좌우로 드래그(폰은 밀어서)해 나머지를 본다
+  function famCell(c){
+    var td = h('td', { class: 'famtd' });
+    var box = h('div', { class: 'fam-scroll', text: famText(c) });
+    var moved = false, down = null;
+    function more(){ box.classList.toggle('more', box.scrollWidth > box.clientWidth + 1 && box.scrollLeft + box.clientWidth < box.scrollWidth - 2); }
+    box.addEventListener('scroll', more);
+    box.addEventListener('pointerdown', function(e){
+      if(e.pointerType !== 'mouse' || box.scrollWidth <= box.clientWidth) return;
+      down = { x: e.clientX, l: box.scrollLeft }; moved = false;
+      try{ box.setPointerCapture(e.pointerId); }catch(x){}
+    });
+    box.addEventListener('pointermove', function(e){
+      if(!down) return;
+      var dx = e.clientX - down.x;
+      if(Math.abs(dx) > 4){ moved = true; box.classList.add('drag'); }
+      if(moved) box.scrollLeft = down.l - dx;
+    });
+    function up(){ down = null; box.classList.remove('drag'); }
+    box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+    box.addEventListener('click', function(e){ if(moved){ e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+    td.appendChild(box);
+    setTimeout(more, 0);
+    return td;
+  }
   function isContracted(c){ return !!(c.props && c.props.__contracted === true); }
   function contractCell(c){
     var td = h('td', { class: 'ctd' });
@@ -720,8 +742,9 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     th('이름', '__name');
     th('기고객', '__contract');
     th('소개자', '__ref');
-    th('가족', '__fam');
-    th('등록일', '__created');
+    var narrow = !!(window.matchMedia && window.matchMedia('(max-width:640px)').matches); // 폰: 가족·등록일 숨김
+    if(!narrow){ th('가족', '__fam'); th('등록일', '__created'); }
+    table.style.gridTemplateColumns = 'repeat(' + (3 + (narrow ? 0 : 2) + props.length) + ', auto)';
     props.forEach(function(p){
       var menu = h('span', { class: 'hm', text: '⋯', title: '항목 설정', onclick: function(e){ e.stopPropagation(); openPropMenu(p.id, e.currentTarget); } });
       th(p.name, p.id, menu, p.id);
@@ -742,8 +765,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       row.appendChild(h('td', { class: 'name', text: nameWithTag(c) }));
       row.appendChild(contractCell(c));
       row.appendChild(h('td', { text: refInfo(c).text }));
-      row.appendChild(h('td', { text: famText(c) }));
-      row.appendChild(h('td', { text: fmtDateOnly(c.created_at) }));
+      if(!narrow){
+        row.appendChild(famCell(c));
+        row.appendChild(h('td', { text: fmtDateOnly(c.created_at) }));
+      }
       props.forEach(function(p){
         var td = h('td');
         var v = c.props[p.id];
@@ -754,6 +779,12 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
           (v || []).forEach(function(id){ var i = optIndex(p, id); if(i >= 0) td.appendChild(chipEl(p.options[i], i)); });
         }
         row.appendChild(td);
+      });
+      Array.prototype.slice.call(row.children).forEach(function(td){
+        if(td.classList.contains('ctd') || td.classList.contains('famtd')) return;
+        var wrap = h('div', { class: 'cell-clip' });
+        while(td.firstChild) wrap.appendChild(td.firstChild);
+        td.appendChild(wrap);
       });
       tbody.appendChild(row);
     });
@@ -2267,6 +2298,11 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     wireFinders();
     wireImport();
     wireLineage();
+    try{
+      var mq = window.matchMedia('(max-width:640px)');
+      var onMq = function(){ if($('viewList').style.display !== 'none') renderList(); };
+      if(mq.addEventListener) mq.addEventListener('change', onMq); else if(mq.addListener) mq.addListener(onMq);
+    }catch(e){}
     wireFolds();
     $('backupBtn').addEventListener('click', function(){ doBackup('json'); });
     $('csvBtn').addEventListener('click', function(){ doBackup('csv'); });
