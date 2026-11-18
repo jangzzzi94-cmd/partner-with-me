@@ -92,7 +92,8 @@
   .md-card{background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,.3);}
   .md-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);font-weight:800;color:var(--navy-950);font-size:15px;}
   .md-head button{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);padding:0 6px;}
-  .md-body{padding:12px 14px;overflow-y:auto;flex:1;min-height:0;}
+  .md-body{padding:12px 14px;overflow-y:auto;flex:1;min-height:0;overscroll-behavior:contain;}
+  .md-back{overscroll-behavior:contain;}
   .md-body input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;font-family:inherit;}
   .md-list{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
   .md-list .jo{padding:11px 12px;font-size:14.5px;line-height:1.45;cursor:pointer;border-bottom:1px solid var(--line);word-break:keep-all;}
@@ -1452,8 +1453,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     showToast(label + '에 넣었어요');
   }
-  function openModal(id){ $(id).style.display = 'flex'; }
-  function closeModal(id){ $(id).style.display = 'none'; }
+  // 창(직업/주소 찾기)이 떠 있는 동안에는 바깥 페이지가 휠로 같이 내려가지 않게 잠근다
+  function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
+  function closeModal(id){
+    $(id).style.display = 'none';
+    var open = false; ['jobModal', 'addrModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    if(!open) document.documentElement.style.overflow = '';
+  }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
   // 폰에서 목록을 누를 때 키보드가 닫히면서 화면이 움직여, 누른 줄이 아니라 위(또는 아래) 줄이 선택되는 문제 방지:
   // 손가락을 댄 순간의 줄을 기억해 두었다가, 손가락을 뗄 때(움직이지 않았다면) 그 줄을 선택한다.
@@ -1545,6 +1551,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var closers = document.querySelectorAll('[data-close]');
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
     ['jobModal', 'addrModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
+    ['jobModal', 'addrModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
     document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); } });
   }
 
