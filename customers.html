@@ -1746,7 +1746,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(!p.ref) return '';
     var lc = p.ref.toLowerCase();
     var ex = customers.filter(function(c){ return !c.deleted_at && dispName(c).toLowerCase() === lc; });
-    var inb = todo.filter(function(o){ return o !== p && o.name.toLowerCase() === lc; });
+    var inb = todo.filter(function(o){ return o !== p && !o.saved && o.name.toLowerCase() === lc; });
     if(ex.length + inb.length > 1) return 'none';
     if(ex.length === 1){ row.referrer_id = ex[0].id; row.referrer_text = dispName(ex[0]); return 'existing'; }
     if(inb.length === 1) return 'batch';
@@ -1756,20 +1756,38 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var todo = impPeople.filter(function(p){ return p.on && !p.saved; });
     if(!todo.length || impBusy) return;
     impBusy = true; impUpdateBar();
-    var done = 0, failed = '';
+    var msg = $('impMsg'), done = 0, fails = [], CH = 10;
+    function rowOf(p){
+      // 모든 행이 같은 칸을 갖도록 (일부 행에만 소개자 칸이 있으면 일괄 저장이 거절될 수 있음)
+      var r = { user_id: uid, name: p.name, props: {}, referrer_id: null, referrer_text: '' };
+      TEXT_FIELDS.forEach(function(f){ r[f] = TEMPLATES[f]; });
+      r.personal_text = p.personal; r.bank_text = p.bank;
+      p.refMode = impRefPlan(p, todo, r);
+      return r;
+    }
+    function keep(p, c){ c.props = c.props || {}; c.family_ids = c.family_ids || []; customers.unshift(c); p.row = c; p.saved = true; p.err = ''; done++; }
     try{
-      for(var i = 0; i < todo.length; i += 50){
-        var chunk = todo.slice(i, i + 50);
-        var rows = chunk.map(function(p){
-          var r = { user_id: uid, name: p.name, props: {} };
-          TEXT_FIELDS.forEach(function(f){ r[f] = TEMPLATES[f]; });
-          r.personal_text = p.personal; r.bank_text = p.bank;
-          p.refMode = impRefPlan(p, todo, r);
-          return r;
-        });
-        var res = must(await sb.from('customers').insert(rows).select());
-        (res.data || []).forEach(function(c, k){ c.props = c.props || {}; c.family_ids = c.family_ids || []; customers.unshift(c); if(chunk[k]) chunk[k].row = c; });
-        chunk.forEach(function(p){ p.saved = true; }); done += chunk.length;
+      for(var i = 0; i < todo.length; i += CH){
+        var chunk = todo.slice(i, i + CH);
+        msg.className = 'imp-msg'; msg.textContent = '저장 중… ' + Math.min(i, todo.length) + ' / ' + todo.length;
+        var rows = chunk.map(rowOf), ok = false;
+        try{
+          var res = must(await sb.from('customers').insert(rows).select());
+          if(res.data && res.data.length === chunk.length){ res.data.forEach(function(c, k){ keep(chunk[k], c); }); ok = true; }
+          else if(res.data && res.data.length){ /* 일부만 들어왔으면 확인 불가 → 아래에서 개별 저장하지 않고 중단 */ throw new Error('저장 결과가 맞지 않아요 (' + res.data.length + '/' + chunk.length + ')'); }
+        }catch(e1){
+          if(/결과가 맞지/.test(String(e1 && e1.message))) throw e1;
+          console.error(e1);
+        }
+        if(!ok){ // 묶음 저장이 안 되면 한 명씩 저장하며 어디서 문제인지 찾는다
+          for(var k = 0; k < chunk.length; k++){
+            if(chunk[k].saved) continue;
+            try{
+              var r1 = must(await sb.from('customers').insert(rows[k]).select().single());
+              keep(chunk[k], r1.data);
+            }catch(e2){ console.error(e2); chunk[k].err = errText(e2); fails.push(chunk[k]); }
+          }
+        }
       }
       // 같은 글 안의 다른 사람이 소개자인 경우: 모두 저장된 뒤 연결
       for(var j = 0; j < todo.length; j++){
@@ -1777,15 +1795,18 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
         if(q.refMode !== 'batch' || !q.row) continue;
         var hits = customers.filter(function(c){ return c.id !== q.row.id && !c.deleted_at && dispName(c).toLowerCase() === q.ref.toLowerCase(); });
         if(hits.length !== 1) continue;
-        must(await sb.from('customers').update({ referrer_id: hits[0].id, referrer_text: dispName(hits[0]) }).eq('id', q.row.id));
-        q.row.referrer_id = hits[0].id; q.row.referrer_text = dispName(hits[0]);
+        try{
+          must(await sb.from('customers').update({ referrer_id: hits[0].id, referrer_text: dispName(hits[0]) }).eq('id', q.row.id));
+          q.row.referrer_id = hits[0].id; q.row.referrer_text = dispName(hits[0]);
+        }catch(e3){ console.error(e3); }
       }
-    }catch(e){ console.error(e); failed = errText(e); }
+    }catch(e){ console.error(e); fails.push({ name: '', err: errText(e) }); }
     impBusy = false; ncache = null;
     renderList(); impRender();
-    var msg = $('impMsg');
-    if(failed){ msg.className = 'imp-msg err'; msg.textContent = done + '명 저장 후 멈췄어요: ' + failed; }
-    else { closeModal('impModal'); $('impText').value = ''; impPeople = []; showToast(done + '명을 추가했어요'); }
+    if(fails.length){
+      msg.className = 'imp-msg err';
+      msg.textContent = done + '명 저장, ' + fails.length + '명 실패 — ' + (fails[0].name ? fails[0].name + ': ' : '') + fails[0].err + ' (실패한 사람은 체크된 채로 남아 있어요. 다시 누르면 그 사람만 저장해요)';
+    } else { closeModal('impModal'); $('impText').value = ''; impPeople = []; showToast(done + '명을 추가했어요'); }
   }
   function wireImport(){
     $('impBtn').addEventListener('click', function(){
