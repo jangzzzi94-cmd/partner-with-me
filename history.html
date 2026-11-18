@@ -126,56 +126,43 @@ button.secondary:hover{background:#e2eee2;}
     <div class="tab t3">병력정리</div>
   </div>
   <h1>병력정리 자동 매칭</h1>
-  <p class="sub">기본진료정보 + 세부진료정보 (+ 자동차사고 건) 업로드 → 매칭·정렬·하이라이트 → 병력정리 / 병력정리텍스트 자동 생성</p>
   <div class="privacy">업로드한 파일은 서버로 전송되지 않고 이 브라우저 안에서만 처리됩니다</div>
-  <div class="pdf-card" style="margin-bottom:22px;">
-    <p class="desc" style="margin:0;">📑 <strong>기본진료정보 / 세부진료정보</strong> 칸에 엑셀(.xlsx/.xlsm) 또는 PDF를 그대로 올리세요. PDF는 자동으로 표를 인식해 변환한 뒤 바로 매칭에 사용합니다. 여러 페이지짜리 PDF도 한 파일로 이어 붙여 처리합니다.</p>
-  </div>
   <div class="grid2">
     <div class="card">
       <h3><span class="n">1</span> 기본진료정보 파일</h3>
-      <p class="desc">순번·진료시작일·병의원·진단과·입원외래·주상병코드 등이 담긴 원본 자료</p>
       <label class="drop" id="drop1">
         <input type="file" id="file1" accept=".xlsx,.xls,.xlsm,.pdf">
         <div class="icon">📄</div>
         <div>클릭 또는 파일을 끌어다 놓으세요</div>
-        <div class="hint">.xlsx / .xlsm / .pdf</div>
       </label>
       <div class="filename" id="fname1"></div>
     </div>
     <div class="card">
       <h3><span class="n">2</span> 세부진료정보 파일</h3>
-      <p class="desc">날짜별 처방·수술 상세 내역이 담긴 원본 자료</p>
       <label class="drop" id="drop2">
         <input type="file" id="file2" accept=".xlsx,.xls,.xlsm,.pdf">
         <div class="icon">📄</div>
         <div>클릭 또는 파일을 끌어다 놓으세요</div>
-        <div class="hint">.xlsx / .xlsm / .pdf</div>
       </label>
       <div class="filename" id="fname2"></div>
     </div>
   </div>
-  <p class="desc" style="margin:4px 0 -14px;">🚗 <strong>자동차사고 건이 있으면</strong> 아래 3·4번 칸에 올리세요. 1·2번 병력과 합쳐서 간편/표준체 고지사항에 함께 반영되며, 자동차사고 파일만 올려도 됩니다. (1·2번과 3·4번은 각각 기본+세부를 함께 올려야 합니다)</p>
   <div class="grid2">
     <div class="card">
       <h3><span class="n">3</span> 자동차사고 기본진료정보 <span style="font-weight:400;color:var(--muted,#888);font-size:12px;">(선택)</span></h3>
-      <p class="desc">자동차보험 관련 기본진료정보 (열이 10개인 서식, PDF/엑셀)</p>
       <label class="drop" id="drop3">
         <input type="file" id="file3" accept=".xlsx,.xls,.xlsm,.pdf">
         <div class="icon">🚗</div>
         <div>클릭 또는 파일을 끌어다 놓으세요</div>
-        <div class="hint">.xlsx / .xlsm / .pdf</div>
       </label>
       <div class="filename" id="fname3"></div>
     </div>
     <div class="card">
       <h3><span class="n">4</span> 자동차사고 세부진료정보 <span style="font-weight:400;color:var(--muted,#888);font-size:12px;">(선택)</span></h3>
-      <p class="desc">자동차보험 관련 세부진료정보</p>
       <label class="drop" id="drop4">
         <input type="file" id="file4" accept=".xlsx,.xls,.xlsm,.pdf">
         <div class="icon">🚗</div>
         <div>클릭 또는 파일을 끌어다 놓으세요</div>
-        <div class="hint">.xlsx / .xlsm / .pdf</div>
       </label>
       <div class="filename" id="fname4"></div>
     </div>
@@ -1342,10 +1329,10 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
 
 // ===== 병력정리 결과를 고객리스트(인적사항 페이지)에 저장 =====
 (function(){
-  const TPL = { simple:"💊병력사항(간편)\n", standard:"🏋️병력사항(표준체)\n", dental:"🦷병력사항(치아)\n", major:"👉병력사항(중대질환)\n" };
+  const TPL = { simple:"✅병력사항(간편)\n", standard:"✅병력사항(표준체)\n", dental:"✅병력사항(치아)\n", major:"✅병력사항(중대질환)\n" };
   const FIELD = { simple:"simple_text", standard:"standard_text", dental:"dental_text", major:"major_text" };
-  const PERSONAL_TPL = (n)=> "😄인적사항😄\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
-  const BANK_TPL = "💎계좌💎\n은행명 : \n계좌번호 : ";
+  const PERSONAL_TPL = (n)=> "✅인적사항✅\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
+  const BANK_TPL = "은행명 : \n계좌번호 : ";
   const $ = (id)=> document.getElementById(id);
   let all = null, picked = null;
 
@@ -1456,9 +1443,7 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
   $("custModal").addEventListener("click", (e) => { if(e.target === $("custModal")) $("custModal").style.display = "none"; });
   document.addEventListener("keydown", (e) => { if(e.key === "Escape") $("custModal").style.display = "none"; });
 })();
-document.getElementById("footNote").textContent =
-  "※ 기본진료정보 파일은 11개 열(순번~내가 낸 의료비) 구성을 기준으로 처리하며, 그 중 I·J열은 원본 매크로와 동일하게 자동 제외됩니다. " +
-  "엑셀의 텍스트 정렬 방식과 브라우저 정렬 방식에 미세한 차이가 있을 수 있어 \"주상병명\" 정렬 결과가 원본과 완전히 동일하지 않을 수 있습니다.";
+document.getElementById("footNote").textContent = "";
 </script>
 </body>
 </html>
