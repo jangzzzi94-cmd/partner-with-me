@@ -136,6 +136,11 @@
   .st.gray{background:#e5e7eb;color:#4b5563;}
   .ctl-none{color:var(--muted);font-size:13px;padding:6px 2px;}
   .box.folded .ctl-wrap,.box.folded .ctl-none{display:none !important;}
+  .ti-prev{margin-top:10px;display:grid;grid-template-columns:104px 1fr;gap:5px 10px;font-size:13.5px;}
+  .ti-prev .k{color:var(--muted);font-weight:700;}
+  .ti-prev .v{color:var(--navy-950);word-break:break-all;}
+  .ti-prev .v.none{color:#c4cad6;}
+  .ti-extra{grid-column:1 / -1;color:#b45309;font-size:12.5px;}
   .tm-grp{font-size:12.5px;font-weight:800;color:var(--muted);margin:12px 2px 6px;}
   .tm-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;flex-wrap:wrap;}
   .tm-row .nm{font-weight:800;color:var(--navy-950);font-size:14.5px;}
@@ -334,6 +339,7 @@
         <div class="btns" style="margin:0 0 8px;">
           <button type="button" class="cu-btn sm" id="jobFindBtn">🔍 직업 찾기</button>
           <button type="button" class="cu-btn sm" id="addrFindBtn">📍 주소 찾기</button>
+          <button type="button" class="cu-btn sm" id="txtInBtn">📝 텍스트 입력</button>
         </div>
         <div class="box-head">
           <label for="personalText">😄인적사항😄</label>
@@ -415,6 +421,14 @@
   </div>
   <div class="cv-lb-body fit" id="cvLbBody"><img id="cvLbImg" alt=""></div>
 </div>
+<div class="md-back" id="tiModal"><div class="md-card" style="max-width:520px;">
+  <div class="md-head"><span>📝 텍스트로 인적사항 입력</span><button type="button" data-close="tiModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <textarea id="tiText" class="imp-ta" placeholder="이름, 직업, 주민번호, 전화, 통신사, 주소, 운전 순서대로 줄바꿈해서 붙여넣으세요" autocomplete="off" spellcheck="false"></textarea>
+    <div id="tiPrev" class="ti-prev"></div>
+  </div>
+  <div class="imp-bar"><span id="tiMsg" class="imp-msg"></span><button type="button" class="cu-btn primary" id="tiApply" disabled>인적사항에 넣기</button></div>
+</div></div>
 <div class="md-back" id="ctModal"><div class="md-card" style="max-width:600px;">
   <div class="md-head"><span>📑 계약리스트</span><button type="button" data-close="ctModal" aria-label="닫기">✕</button></div>
   <div class="md-body">
@@ -1645,7 +1659,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
   function closeModal(id){
     $(id).style.display = 'none';
-    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal', 'tiModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
     if(!open) document.documentElement.style.overflow = '';
   }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
@@ -1744,6 +1758,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var n = label.replace(/[\(（][^\)）]*[\)）]/g, '').replace(/[\s\/·_\-]+/g, '').toLowerCase();
     for(var k in IMP_LABELS){ if(IMP_LABELS[k].indexOf(n) >= 0) return k; }
     return '';
+  }
+  function impCarrier(v){
+    var t = String(v || '').trim(), u = t.toUpperCase().replace(/\s+/g, '');
+    if(/^(LGU\+?|LGT|LG유플러스|유플러스|엘지|엘지유플러스|LG)$/.test(u)) return 'LG';
+    if(/^(SKT|SK|SK텔레콤|에스케이|에스케이텔레콤)$/.test(u)) return 'SKT';
+    if(/^(KT|케이티)$/.test(u)) return 'KT';
+    return t;
   }
   function impFmtRrn(v){
     var d = v.replace(/\D/g, '');
@@ -1859,11 +1880,11 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     return people.filter(function(p){ return p.f.name || p.f.rrn || p.f.phone || p.extras.length || p.f.job || p.f.addr; }).map(function(p){
       var f = p.f, name = (f.name || '').trim();
       var rrn = impFmtRrn(f.rrn || ''), phone = impFmtPhone(f.phone || '');
-      var pl = ['✅인적사항✅', '이름 : ' + name, '직업 : ' + (f.job || ''), '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '통신사 : ' + (f.carrier || ''), '집주소 : ' + (f.addr || ''), '운전여부 : ' + (f.drive || '')].concat(p.extras);
+      var pl = ['✅인적사항✅', '이름 : ' + name, '직업 : ' + (f.job || ''), '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '통신사 : ' + impCarrier(f.carrier), '집주소 : ' + (f.addr || ''), '운전여부 : ' + (f.drive || '')].concat(p.extras);
       var bank = (f.bankName !== undefined || f.bankNo !== undefined || p.bank.length)
         ? ['은행명 : ' + (f.bankName || ''), '계좌번호 : ' + (f.bankNo || '')].concat(p.bank).join('\n') : TEMPLATES.bank_text;
       var d = rrn.replace(/\D/g, '');
-      return { name: name, ref: p.ref || '', job: f.job || '', rrn: rrn, birth: d.length >= 6 ? d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6) : '', phone: phone, personal: pl.join('\n'), bank: bank, dup: false, on: true, saved: false };
+      return { name: name, ref: p.ref || '', fields: { name: name, job: f.job || '', rrn: rrn, phone: phone, carrier: impCarrier(f.carrier), addr: f.addr || '', drive: f.drive || '' }, extras: p.extras.slice(), job: f.job || '', rrn: rrn, birth: d.length >= 6 ? d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4, 6) : '', phone: phone, personal: pl.join('\n'), bank: bank, dup: false, on: true, saved: false };
     });
   }
   var impPeople = [], impBusy = false;
@@ -2513,6 +2534,90 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('ctModal').addEventListener('drop', function(e){ e.preventDefault(); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) ctHandle(f); });
     $('ctApply').addEventListener('click', ctApply);
   }
+
+  /* ---------------- 📝 텍스트 입력: 열려 있는 고객의 인적사항에 붙여넣은 글을 항목별로 넣기 ---------------- */
+  var TI_KEYS = [['name', '이름'], ['job', '직업'], ['rrn', '주민등록번호'], ['phone', '휴대폰번호'], ['carrier', '통신사'], ['addr', '집주소'], ['drive', '운전여부']];
+  var tiFields = null;
+  // 한 줄에 다 붙여 쓴 글을 칸으로 나눈다: 슬래시/쉼표/탭이 있으면 그걸로, 없으면 띄어쓰기를 보고 주민번호·전화번호·통신사·운전 위치로 나눈다
+  function tiSplitOne(line){
+    var parts = line.split(/\s*[\/|]\s*|\t+|\s*,\s*/).map(function(x){ return x.trim(); }).filter(Boolean);
+    if(parts.length >= 3) return parts;
+    var rest = line, out = [];
+    var mR = rest.match(/(\d{6})\s*[-\s]\s*(\d{7})|\b(\d{13})\b/);
+    var pre = '', post = rest;
+    if(mR){ pre = rest.slice(0, mR.index).trim(); post = rest.slice(mR.index + mR[0].length).trim(); }
+    else { var mP0 = rest.match(/0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/); if(mP0){ pre = rest.slice(0, mP0.index).trim(); post = rest.slice(mP0.index).trim(); } else return [line]; }
+    var pt = pre.split(/\s+/).filter(Boolean);
+    if(pt.length) out.push(pt[0]);
+    if(pt.length > 1) out.push(pt.slice(1).join(' '));
+    if(mR) out.push(mR[0]);
+    var mP = post.match(/^(0\d{1,2})[-\s]?(\d{3,4})[-\s]?(\d{4})/);
+    if(mP){ out.push(mP[0]); post = post.slice(mP[0].length).trim(); }
+    var mC = post.match(/^(SKT|SK텔레콤|KT|LGU\+?|LG유플러스|LG|엘지|알뜰폰?|[가-힣A-Za-z]*모바일)(?=\s|$)/i);
+    if(mC){ out.push(mC[0]); post = post.slice(mC[0].length).trim(); }
+    var mD = post.match(/\s+([OoXx○×ㅇ])\s*$/);
+    var drive = '';
+    if(mD){ drive = mD[1]; post = post.slice(0, mD.index).trim(); }
+    if(post) out.push(post);
+    if(drive) out.push(drive);
+    return out;
+  }
+  // 「이름 : …」처럼 항목 이름이 있으면 그대로, 없으면(줄마다 이름·직업·주민번호·전화·통신사·주소·운전) 내용을 보고 분류
+  function tiParse(text){
+    var t = String(text || '').trim();
+    if(!t) return null;
+    var ps = parseCustomerText(t);
+    if(ps.length && ps[0].fields && (ps[0].fields.name || ps[0].fields.rrn || ps[0].fields.phone)) return { f: ps[0].fields, extras: ps[0].extras || [] };
+    var lines = t.replace(/\r\n?/g, '\n').split('\n').map(function(x){ return x.replace(/[​﻿]/g, '').trim(); }).filter(Boolean);
+    if(!lines.length) return null;
+    if(lines.length === 1) lines = tiSplitOne(lines[0]);
+    var person = impRowPerson(lines);
+    var f = person.f;
+    return { f: { name: f.name || '', job: f.job || '', rrn: impFmtRrn(f.rrn || ''), phone: impFmtPhone(f.phone || ''), carrier: impCarrier(f.carrier), addr: f.addr || '', drive: f.drive || '' }, extras: person.extras.slice() };
+  }
+  function tiRender(){
+    var box = $('tiPrev'); box.innerHTML = '';
+    var r = tiParse($('tiText').value); tiFields = r;
+    $('tiApply').disabled = true; $('tiMsg').textContent = '';
+    if(!r) return;
+    var n = 0;
+    TI_KEYS.forEach(function(k){
+      var v = r.f[k[0]] || '';
+      box.appendChild(h('div', { class: 'k', text: k[1] }));
+      box.appendChild(h('div', { class: 'v' + (v ? '' : ' none'), text: v || '(없음)' }));
+      if(v) n++;
+    });
+    if(r.extras && r.extras.length) box.appendChild(h('div', { class: 'ti-extra', text: '인식하지 못한 줄: ' + r.extras.join(' / ') }));
+    $('tiApply').disabled = !n;
+  }
+  function tiApply(){
+    if(!tiFields) return;
+    var c = getCust(curId); if(!c) return;
+    var ta = $('personalText'), keep = ta.value;
+    var set = 0;
+    TI_KEYS.forEach(function(k){
+      var v = tiFields.f[k[0]];
+      if(v){ setPersonalLineQuiet(k[1], v); set++; }
+    });
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    closeModal('tiModal'); $('tiText').value = ''; tiFields = null;
+    showToast('인적사항 ' + set + '개 항목을 넣었어요');
+  }
+  // setPersonalLine과 같지만 토스트·이벤트 없이 글만 바꾼다 (여러 항목을 한 번에 넣을 때)
+  function setPersonalLineQuiet(label, value){
+    var ta = $('personalText');
+    var lines = ta.value.split('\n'), done = false, re = new RegExp('^\\s*' + label + '\\s*[:：]');
+    for(var i = 0; i < lines.length; i++){ if(re.test(lines[i])){ lines[i] = label + ' : ' + value; done = true; break; } }
+    if(!done){ while(lines.length && lines[lines.length - 1].trim() === '') lines.pop(); lines.push(label + ' : ' + value); }
+    ta.value = lines.join('\n');
+  }
+  function wireTextIn(){
+    $('txtInBtn').addEventListener('click', function(){ $('tiText').value = ''; tiRender(); openModal('tiModal'); setTimeout(function(){ $('tiText').focus(); }, 50); });
+    var t = null;
+    $('tiText').addEventListener('input', function(){ clearTimeout(t); t = setTimeout(tiRender, 150); });
+    $('tiText').addEventListener('paste', function(){ clearTimeout(t); t = setTimeout(tiRender, 30); });
+    $('tiApply').addEventListener('click', tiApply);
+  }
   function wireFinders(){
     $('jobFindBtn').addEventListener('click', function(){
       $('jobQuery').value = ''; renderJobResults(true);
@@ -2533,7 +2638,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
     ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
     ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); } } });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); closeModal('tiModal'); } } });
   }
 
   /* ---------------- 이벤트 연결 ---------------- */
@@ -2543,6 +2648,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     wireImport();
     wireLineage();
     wireContracts();
+    wireTextIn();
     try{
       var mq = window.matchMedia('(max-width:640px)');
       var onMq = function(){ if($('viewList').style.display !== 'none') renderList(); };
