@@ -419,6 +419,22 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
     <div class="cv-msg" id="cvMsg"></div>
   </div>
 </div></div>
+<div class="cv-back" id="pwModal"><div class="cv-card" style="max-width:420px;">
+  <div class="cv-head"><b>🔒 PDF 비밀번호가 필요해요</b><button type="button" id="pwClose" aria-label="닫기">✕</button></div>
+  <div class="cv-body">
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;line-height:1.6;">보험사 PDF는 보통 가입자의 주민번호·생년월일·전화번호로 잠겨 있어요. 고객명을 입력하면 저장된 인적사항으로 자동으로 풀어볼게요.</div>
+    <input type="text" id="pwCustName" placeholder="고객명" autocomplete="off" maxlength="40">
+    <button type="button" id="pwAutoBtn" style="width:100%;margin-top:10px;">🔓 자동으로 풀기</button>
+    <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
+      <label style="font-size:12.5px;color:var(--ink-soft);">비밀번호를 알고 계시면 직접 입력하세요</label>
+      <div class="row" style="margin-top:6px;gap:8px;">
+        <input type="password" id="pwManual" placeholder="비밀번호" style="flex:1;min-width:0;">
+        <button type="button" id="pwManualBtn" class="secondary">열기</button>
+      </div>
+    </div>
+    <div class="cv-msg" id="pwMsg"></div>
+  </div>
+</div></div>
 <script>
 /* =========================================================================
    ENGINE (동작1 + 동작2 VBA 매크로 통합 포트) -- 보장분석표(전) 탭에서 사용
@@ -1086,9 +1102,7 @@ function colOf(x0, x1){
   for(let i=0;i<COL_BOUNDS.length-1;i++){ if(cx>=COL_BOUNDS[i] && cx<COL_BOUNDS[i+1]) return i; }
   return -1;
 }
-async function extractPdfPages(file){
-  const buf = await file.arrayBuffer();
-  const doc = await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+async function extractPagesFromDoc(doc){
   const pages = [];
   for(let p=1;p<=doc.numPages;p++){
     const page = await doc.getPage(p);
@@ -1102,6 +1116,123 @@ async function extractPdfPages(file){
   }
   return pages;
 }
+async function extractPdfPages(file){
+  const buf = await file.arrayBuffer();
+  const doc = await openPdfSmart(buf);
+  return extractPagesFromDoc(doc);
+}
+
+/* -------------------------------------------------------------------------
+   🔒 비밀번호가 걸린 PDF -- 보험사 PDF는 보통 가입자의 주민번호·생년월일·전화번호로
+   암호가 걸려 있다. 비밀번호 없이 억지로 뚫는 게 아니라, 고객리스트에 이미 저장된
+   그 고객의 인적사항에서 흔히 쓰이는 패턴(주민번호 앞 6/7자리, 생년월일, 전화번호
+   뒷자리 등)을 자동으로 넣어보고, 그래도 안 열리면 직접 입력하게 한다.
+   ------------------------------------------------------------------------- */
+function isPdfPasswordError(e){ return e && e.name === "PasswordException"; }
+function pwDigitCandidates(personalText){
+  const t = personalText || "";
+  const out = [];
+  const push = (v)=>{ if(v && !out.includes(v)) out.push(v); };
+  const digits = (s)=> (s||"").replace(/\D/g, "");
+  let m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){
+    const d = digits(m[1]);
+    if(d.length >= 6) push(d.slice(0,6));   // 생년월일 6자리
+    if(d.length >= 7) push(d.slice(0,7));   // 생년월일+성별 7자리
+    if(d.length >= 13){ push(d.slice(0,13)); push(d.slice(7,13)); push(d.slice(7,13)+d.slice(6,7)); }
+  }
+  m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){
+    const d = digits(m[1]);
+    if(d.length === 8){ push(d.slice(2)); push(d); }
+    else if(d.length === 6) push(d);
+  }
+  m = /^[ \t]*휴대폰번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){
+    const d = digits(m[1]);
+    if(d.length >= 4) push(d.slice(-4));
+    if(d.length >= 8) push(d.slice(-8));
+    if(d.length) push(d);
+  }
+  return out;
+}
+function pwParseName(t){ const m = /^[ \t]*이름[ \t]*[:：][ \t]*(.*)$/m.exec(t || ""); return m ? m[1].trim() : ""; }
+function pwDispName(c){ return ((c.name || "").trim()) || pwParseName(c.personal_text); }
+async function pwFindCustomers(name){
+  const nl = name.trim().toLowerCase(); if(!nl) return [];
+  let rows = [], from = 0;
+  for(;;){
+    const res = await supabaseClient.from("customers").select("id,name,personal_text").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
+    if(res.error) throw res.error;
+    rows = rows.concat(res.data || []);
+    if(!res.data || res.data.length < 1000) break;
+    from += 1000;
+  }
+  return rows.filter(c => pwDispName(c).toLowerCase().indexOf(nl) >= 0);
+}
+let __pwBuf = null, __pwResolve = null;
+function pwSetMsg(text, kind){ const el = document.getElementById("pwMsg"); el.className = "cv-msg" + (kind ? " " + kind : ""); el.textContent = text || ""; }
+function openPwModal(buf){
+  __pwBuf = buf;
+  const nameInp = document.getElementById("pwCustName");
+  nameInp.value = (document.getElementById("customerNameInput").value || "").trim();
+  pwSetMsg(""); document.getElementById("pwManual").value = "";
+  document.getElementById("pwModal").style.display = "flex";
+  setTimeout(()=>{ (nameInp.value ? document.getElementById("pwAutoBtn") : nameInp).focus(); }, 50);
+  return new Promise((resolve)=>{ __pwResolve = (doc)=>{ document.getElementById("pwModal").style.display = "none"; resolve(doc || null); }; });
+}
+async function pwTryList(cands){
+  for(const pw of cands){
+    try{ return await pdfjsLib.getDocument({ data: new Uint8Array(__pwBuf), password: pw }).promise; }
+    catch(e){ if(!isPdfPasswordError(e)) throw e; }
+  }
+  return null;
+}
+async function openPdfSmart(buf){
+  try{
+    return await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+  }catch(e){
+    if(!isPdfPasswordError(e)) throw e;
+    const doc = await openPwModal(buf);
+    if(!doc) throw new Error("비밀번호를 풀지 못해 가져오기를 멈췄습니다.");
+    return doc;
+  }
+}
+document.getElementById("pwAutoBtn").addEventListener("click", async ()=>{
+  const name = document.getElementById("pwCustName").value.trim();
+  if(!name){ pwSetMsg("고객명을 입력해 주세요.", "err"); return; }
+  const btn = document.getElementById("pwAutoBtn"); btn.disabled = true;
+  pwSetMsg("「" + name + "」 고객 정보를 찾는 중…");
+  try{
+    const matches = await pwFindCustomers(name);
+    if(!matches.length){ pwSetMsg("「" + name + "」 고객을 찾지 못했어요. 이름을 확인하거나 비밀번호를 직접 입력해 주세요.", "err"); return; }
+    let cands = [];
+    matches.forEach(c => pwDigitCandidates(c.personal_text).forEach(x=>{ if(!cands.includes(x)) cands.push(x); }));
+    if(!cands.length){ pwSetMsg("「" + name + "」님의 저장된 주민번호·생년월일·전화번호가 없어서 자동으로는 못 풀어요. 비밀번호를 직접 입력해 주세요.", "err"); return; }
+    pwSetMsg("비밀번호 " + cands.length + "개를 하나씩 넣어보는 중…");
+    const doc = await pwTryList(cands);
+    if(doc){ __pwResolve(doc); return; }
+    pwSetMsg("자동으로는 못 풀었어요(" + cands.length + "개 시도). 비밀번호를 직접 입력해 주세요.", "err");
+  }catch(e){ pwSetMsg("오류: " + (e && e.message ? e.message : e), "err"); }
+  finally{ btn.disabled = false; }
+});
+document.getElementById("pwManualBtn").addEventListener("click", async ()=>{
+  const pw = document.getElementById("pwManual").value;
+  if(!pw){ pwSetMsg("비밀번호를 입력해 주세요.", "err"); return; }
+  const btn = document.getElementById("pwManualBtn"); btn.disabled = true;
+  pwSetMsg("여는 중…");
+  try{
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(__pwBuf), password: pw }).promise;
+    __pwResolve(doc);
+  }catch(e){
+    if(isPdfPasswordError(e)) pwSetMsg("비밀번호가 맞지 않아요.", "err");
+    else pwSetMsg("오류: " + (e && e.message ? e.message : e), "err");
+  }finally{ btn.disabled = false; }
+});
+document.getElementById("pwManual").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwManualBtn").click(); });
+document.getElementById("pwCustName").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwAutoBtn").click(); });
+document.getElementById("pwClose").addEventListener("click", ()=>{ if(__pwResolve) __pwResolve(null); });
+document.getElementById("pwModal").addEventListener("click", (e)=>{ if(e.target === e.currentTarget && __pwResolve) __pwResolve(null); });
 function groupIntoLines(items, tol=2.2){
   const sorted = items.filter(it=>it.text.trim().length>0).slice().sort((a,b)=>a.top-b.top || a.x0-b.x0);
   const lines = [];
