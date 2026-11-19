@@ -191,7 +191,7 @@
   .fold .arr{font-size:12px;width:14px;}
   .fold .dot{width:7px;height:7px;border-radius:50%;background:#1d4ed8;display:none;}
   .box.folded textarea{display:none;}
-  .box.folded .cv-grid,.box.folded .cv-none{display:none !important;}
+  .box.folded .cv-grid,.box.folded .cv-none,.box.folded .cv-pdf{display:none !important;}
   .chat:empty{display:none;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -219,6 +219,12 @@
   .cv-th{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;object-position:top left;border:1px solid var(--line);border-radius:8px;background:#f1f4f9;cursor:pointer;}
   .cv-lab{font-size:12px;color:var(--muted);text-align:center;margin-top:4px;word-break:keep-all;}
   .cv-none{font-size:13px;color:var(--muted);}
+  .cv-pdf{margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;background:#fafbfd;padding:10px 12px;}
+  .cv-pdf .ic{font-size:26px;line-height:1;}
+  .cv-pdf .tx{flex:1;min-width:140px;}
+  .cv-pdf .tx b{display:block;font-size:13.5px;color:var(--navy-950);word-break:break-all;}
+  .cv-pdf .tx span{font-size:12px;color:var(--muted);}
+  .cv-pdf .bt{display:flex;gap:6px;}
   .cv-lb{position:fixed;inset:0;background:#0b1424;z-index:200;display:none;flex-direction:column;}
   .cv-lb-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;color:#fff;flex-wrap:wrap;}
   .cv-lb-bar .t{flex:1;font-weight:700;font-size:14px;min-width:120px;}
@@ -400,6 +406,7 @@
       <div class="box" id="cvBox">
         <div class="box-head"><div class="fold" id="cvFold" role="button" tabindex="0"><span class="arr">▶</span> 🔎보장분석표🔎 <span class="dot" title="저장된 이미지 있음"></span></div></div>
         <div class="cv-grid" id="cvGrid"></div>
+        <div class="cv-pdf" id="cvPdf" style="display:none;"></div>
         <div class="cv-none" id="cvNone" style="display:none;">저장된 보장분석표가 없어요</div>
       </div>
       <div class="box folded" id="ctBox">
@@ -1250,14 +1257,41 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   $('cvFold').addEventListener('click', function(){ setCovFold(!$('cvBox').classList.contains('folded')); });
   $('cvFold').addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('cvFold').click(); } });
   async function renderCoverage(c){
-    var items = ((c && c.coverage_images) || []).filter(function(x){ return x && x.path; });
+    var every = ((c && c.coverage_images) || []).filter(function(x){ return x && x.path; });
+    var items = every.filter(function(x){ return x.key !== 'pdf'; });
+    var pdfs = every.filter(function(x){ return x.key === 'pdf'; });
     covList = items; covName = dispName(c) || '고객';
     var grid = $('cvGrid'); grid.innerHTML = '';
+    var pbox = $('cvPdf'); pbox.innerHTML = ''; pbox.style.display = 'none';
     setCovFold(true);
-    $('cvFold').querySelector('.dot').style.display = items.length ? 'inline-block' : 'none';
-    $('cvNone').style.display = items.length ? 'none' : 'block';
-    if(!items.length) return;
+    $('cvFold').querySelector('.dot').style.display = every.length ? 'inline-block' : 'none';
+    $('cvNone').style.display = every.length ? 'none' : 'block';
+    if(!every.length) return;
     var id = c.id;
+    pdfs.forEach(function(pf){
+      var pname = pf.name || (covName + '_보장분석.pdf');
+      var kb = pf.size ? (pf.size >= 1048576 ? (pf.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(pf.size / 1024)) + 'KB') : '';
+      var pdfUrl = async function(dl){
+        var res = await sb.storage.from(BUCKET).createSignedUrl(pf.path, 300, dl ? { download: pname.replace(/[\\/:*?"<>|]/g, '_') } : undefined);
+        if(res.error || !res.data || !res.data.signedUrl) throw (res.error || new Error('주소를 만들지 못했어요'));
+        return res.data.signedUrl;
+      };
+      var openB = h('button', { type: 'button', class: 'cu-btn sm', text: '📄 열기', onclick: async function(){
+        var w = window.open('', '_blank');
+        try{ var u = await pdfUrl(false); if(w) w.location.href = u; else location.href = u; }catch(e){ if(w) w.close(); showToast('열지 못했어요: ' + errText(e)); }
+      } });
+      var saveB = h('button', { type: 'button', class: 'cu-btn sm', text: '💾 PDF 저장', onclick: async function(){
+        saveB.disabled = true;
+        try{ var u = await pdfUrl(true); var a = document.createElement('a'); a.href = u; a.download = pname; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+        catch(e){ showToast('저장하지 못했어요: ' + errText(e)); }
+        finally{ saveB.disabled = false; }
+      } });
+      pbox.appendChild(h('div', { class: 'ic', text: '📄' }));
+      pbox.appendChild(h('div', { class: 'tx' }, [h('b', { text: pname }), h('span', { text: '원본 PDF' + (kb ? ' · ' + kb : '') })]));
+      pbox.appendChild(h('div', { class: 'bt' }, [openB, saveB]));
+      pbox.style.display = 'flex';
+    });
+    if(!items.length) return;
     await ensureSigned(items.map(function(x){ return x.path; }));
     if(curId !== id) return;
     items.forEach(function(it, i){

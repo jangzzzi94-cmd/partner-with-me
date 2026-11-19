@@ -126,6 +126,174 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 .cap-root .cap-val{white-space:pre-wrap;word-break:break-word;text-align:center;line-height:1.4;font-size:12px;min-height:16px;}
 .cap-root th,.cap-root td{position:static !important;}
 .cap-root table{margin-top:0 !important;}
+
+/* ======================================================================
+   📱 모바일 화면 (폭 700px 이하) -- 카카오뱅크·토스·삼성헬스 같은 앱들이 쓰는 방식으로 정리
+   · 여백은 좌우 16px 한 겹만 (카드 안에 카드가 겹치지 않게 평평하게)
+   · 탭은 위에 고정되는 가로 스크롤 알약 버튼 (글자가 세로로 깨지지 않게)
+   · 가장 중요한 버튼 하나(가져오기)는 꽉 찬 큰 버튼, 나머지는 2칸씩
+   · 손가락 기준 최소 높이 46px, 입력 글자 16px(폰이 멋대로 확대하지 않게)
+   · 끌어다 놓기 같은 PC 전용 안내는 숨기고 "파일 고르기" 중심으로
+   · 표는 왼쪽 라벨 열을 좁게 줄여서 상품 칸이 한 칸 이상 보이게
+   ====================================================================== */
+.d-only{display:inline;}.m-only{display:none;}
+@media (max-width:700px){
+  html,body{max-width:100%;overflow-x:hidden;}
+  body{padding:0;font-size:15px;-webkit-text-size-adjust:100%;}
+  .navbar{padding:12px 16px !important;}
+  .navbar nav a{margin-left:14px !important;font-size:13.5px !important;}
+  .page-wrap{padding:16px 16px 90px !important;}
+  h1{font-size:22px;margin:4px 0 14px;}
+  #pageSub{display:none;}
+  .d-only{display:none;}.m-only{display:inline;}
+
+  /* 탭: 위에 붙는 가로 스크롤 알약 */
+  .sheettabs{position:sticky;top:0;z-index:60;display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;
+    margin:0 -16px 14px;padding:10px 16px;background:rgba(245,247,251,.96);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;}
+  .sheettabs::-webkit-scrollbar{display:none;}
+  .sheettab{flex:0 0 auto;white-space:nowrap;writing-mode:horizontal-tb;border:1px solid var(--line);border-radius:999px;
+    padding:0 18px;height:42px;line-height:40px;font-size:14.5px;background:#fff;color:var(--ink-soft);top:0 !important;scroll-snap-align:start;}
+  .sheettab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .sheetpanel{background:transparent;border:none;border-radius:0;padding:0;margin:0 0 16px;}
+  .sheetpanel .card,.card{border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(19,42,76,.05);}
+
+  /* 위쪽 작업 카드 */
+  .row{gap:10px;}
+  .act-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .act-row input[type=file]{grid-column:1 / -1;min-width:0;width:100%;flex:none;padding:10px;font-size:14px;border-radius:12px;background:#f4f7fc;border:1.5px dashed #b9c6da;color:var(--ink-soft);}
+  input[type=file]::file-selector-button{background:var(--amber);color:#fff;border:none;border-radius:10px;padding:12px 16px;margin-right:12px;font-size:15px;font-weight:700;font-family:inherit;}
+  .act-row #runBtn{grid-column:1 / -1;}
+  button{min-height:46px;border-radius:12px;font-size:15px;font-weight:600;padding:10px 14px;}
+  #runBtn{min-height:52px;font-size:16.5px;font-weight:800;}
+  .act-row button{width:100%;}
+  #pdfDropZone{display:none;}
+  .status{font-size:14px;line-height:1.5;}
+  #resumeDropZone{padding:16px 14px !important;min-height:0 !important;gap:10px !important;border-radius:14px !important;background:#fff !important;margin-top:14px !important;}
+  #resumeDropZone .rz-text{font-size:14px !important;}
+  #resumeDropZone .rz-sub{display:none;}
+  #resumeUploadBtn{width:100%;}
+
+  /* 미리보기 카드 머리말: 제목 한 줄, 버튼은 아래 2칸 */
+  #previewCard > .row:first-child, #afterCard > .row:first-child, #masterCard > .row:first-child{flex-direction:column;align-items:stretch;gap:10px;}
+  #previewCard > .row:first-child > .row, #afterCard > .row:first-child > .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  #masterCard > .row:first-child > div{flex-wrap:wrap;}
+  #masterCard #importAdminMasterBtn{width:100%;font-size:14px !important;padding:10px 12px !important;}
+  #previewCard > .row:nth-child(2){display:block;}
+  #customerNameInput{width:100%;min-width:0 !important;font-size:16px;padding:12px 14px;border-radius:12px;margin-top:4px;}
+  input[type=text],input[type=number],input[type=password]{font-size:16px;}
+
+  /* 표: 왼쪽 라벨 열을 좁게(구분 36 / 항목 84 / 합계 58) -- 상품 칸이 화면에 한 칸 이상 보이게 */
+  table.preview col:nth-child(1), table.grid col:nth-child(1){width:36px !important;}
+  table.preview col:nth-child(2), table.grid col:nth-child(2){width:84px !important;}
+  #previewTable col:nth-child(3), #afterTable col:nth-child(3){width:74px !important;}
+  .stick-l60{left:36px !important;}
+  .stick-l210{left:120px !important;font-size:11px !important;}
+  table.preview, table.grid{font-size:12px;}
+  table.preview th, table.preview td, table.grid th, table.grid td{padding:5px 3px;}
+  table.preview td.label, table.grid td.label, table.preview td.grouplabel{font-size:11.5px;line-height:1.35;word-break:keep-all;}
+  table.preview input, table.preview textarea, table.grid input, table.grid textarea{font-size:14px;padding:4px 3px;}
+  .scrollwrap{max-height:72vh;-webkit-overflow-scrolling:touch;border-radius:12px;overscroll-behavior:contain;}
+
+  /* 종합비교 / 보장차이 */
+  .summary-premium-row{flex-direction:column;gap:10px;margin-bottom:14px;}
+  .summary-premium-box{padding:14px;}
+  .summary-premium-box .val{font-size:22px;}
+  table.summary-table{font-size:13px;}
+  #summaryGroups{gap:12px;}
+
+  /* 인적사항 추가 창: 아래에서 올라오는 시트 */
+  .cv-back{align-items:flex-end;padding:0;}
+  .cv-card{max-width:none;border-radius:20px 20px 0 0;max-height:92vh;}
+  .cv-head{padding:16px 18px;font-size:16px;}
+  .cv-body{padding:16px 18px calc(22px + env(safe-area-inset-bottom));}
+  .cv-opt{padding:15px 14px;font-size:16px;}
+  .cv-q{font-size:16px;}
+  .cv-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .cv-actions button{min-height:50px;font-size:16px;}
+  .cv-actions button:only-child{grid-column:1 / -1;}
+}
+
+/* ======================================================================
+   📱 모바일 화면 (폭 700px 이하) -- 카카오뱅크·토스·삼성헬스 같은 앱들이 쓰는 방식으로 정리
+   · 여백은 좌우 16px 한 겹만 (카드 안에 카드가 겹치지 않게 평평하게)
+   · 탭은 위에 고정되는 가로 스크롤 알약 버튼 (글자가 세로로 깨지지 않게)
+   · 가장 중요한 버튼 하나(가져오기)는 꽉 찬 큰 버튼, 나머지는 2칸씩
+   · 손가락 기준 최소 높이 46px, 입력 글자 16px(폰이 멋대로 확대하지 않게)
+   · 끌어다 놓기 같은 PC 전용 안내는 숨기고 "파일 고르기" 중심으로
+   · 표는 왼쪽 라벨 열을 좁게 줄여서 상품 칸이 한 칸 이상 보이게
+   ====================================================================== */
+.d-only{display:inline;}.m-only{display:none;}
+@media (max-width:700px){
+  html,body{max-width:100%;overflow-x:hidden;}
+  body{padding:0;font-size:15px;-webkit-text-size-adjust:100%;}
+  .navbar{padding:12px 16px !important;}
+  .navbar nav a{margin-left:14px !important;font-size:13.5px !important;}
+  .page-wrap{padding:16px 16px 90px !important;}
+  h1{font-size:22px;margin:4px 0 14px;}
+  #pageSub{display:none;}
+  .d-only{display:none;}.m-only{display:inline;}
+
+  .sheettabs{position:sticky;top:0;z-index:60;display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;
+    margin:0 -16px 14px;padding:10px 16px;background:rgba(245,247,251,.96);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;}
+  .sheettabs::-webkit-scrollbar{display:none;}
+  .sheettab{flex:0 0 auto;white-space:nowrap;writing-mode:horizontal-tb;border:1px solid var(--line);border-radius:999px;
+    padding:0 18px;height:42px;line-height:40px;font-size:14.5px;background:#fff;color:var(--ink-soft);top:0 !important;scroll-snap-align:start;}
+  .sheettab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .sheetpanel{background:transparent;border:none;border-radius:0;padding:0;margin:0 0 16px;}
+  .sheetpanel .card,.card{border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(19,42,76,.05);}
+
+  .row{gap:10px;}
+  .act-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .act-row input[type=file]{grid-column:1 / -1;min-width:0;width:100%;flex:none;padding:10px;font-size:14px;border-radius:12px;background:#f4f7fc;border:1.5px dashed #b9c6da;color:var(--ink-soft);}
+  input[type=file]::file-selector-button{background:var(--amber);color:#fff;border:none;border-radius:10px;padding:12px 16px;margin-right:12px;font-size:15px;font-weight:700;font-family:inherit;}
+  .act-row #runBtn{grid-column:1 / -1;}
+  button{min-height:46px;border-radius:12px;font-size:15px;font-weight:600;padding:10px 14px;}
+  #runBtn{min-height:52px;font-size:16.5px;font-weight:800;}
+  .act-row button{width:100%;}
+  #pdfDropZone{display:none;}
+  .status{font-size:14px;line-height:1.5;}
+  #resumeDropZone{padding:16px 14px !important;min-height:0 !important;gap:10px !important;border-radius:14px !important;background:#fff !important;margin-top:14px !important;}
+  #resumeDropZone .rz-text{font-size:14px !important;}
+  #resumeDropZone .rz-sub{display:none;}
+  #resumeUploadBtn{width:100%;}
+
+  #previewCard > .row:first-child, #afterCard > .row:first-child, #masterCard > .row:first-child{flex-direction:column;align-items:stretch;gap:10px;}
+  #previewCard > .row:first-child > .row, #afterCard > .row:first-child > .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  #masterCard > .row:first-child > div{flex-wrap:wrap;}
+  #masterCard #importAdminMasterBtn{width:100%;font-size:14px !important;padding:10px 12px !important;}
+  #previewCard > .row:nth-child(2){display:block;}
+  #customerNameInput{width:100%;min-width:0 !important;font-size:16px;padding:12px 14px;border-radius:12px;margin-top:4px;}
+  input[type=text],input[type=number],input[type=password]{font-size:16px;}
+
+  table.preview col:nth-child(1), table.grid col:nth-child(1){width:36px !important;}
+  table.preview col:nth-child(2), table.grid col:nth-child(2){width:84px !important;}
+  #previewTable col:nth-child(3), #afterTable col:nth-child(3){width:74px !important;}
+  .stick-l60{left:36px !important;}
+  .stick-l210{left:120px !important;font-size:11px !important;}
+  table.preview, table.grid{font-size:12px;}
+  table.preview th, table.preview td, table.grid th, table.grid td{padding:5px 3px;}
+  table.preview td.label, table.grid td.label, table.preview td.grouplabel{font-size:11.5px;line-height:1.35;word-break:keep-all;}
+  table.preview input, table.preview textarea, table.grid input, table.grid textarea{font-size:14px;padding:4px 3px;}
+  .scrollwrap{max-height:72vh;-webkit-overflow-scrolling:touch;border-radius:12px;overscroll-behavior:contain;}
+
+  .summary-premium-row{flex-direction:column;gap:10px;margin-bottom:14px;}
+  .summary-premium-box{padding:14px;}
+  .summary-premium-box .val{font-size:22px;}
+  table.summary-table{font-size:13px;}
+  #summaryGroups{gap:12px;}
+
+  .cv-back{align-items:flex-end;padding:0;}
+  .cv-card{max-width:none;border-radius:20px 20px 0 0;max-height:92vh;}
+  .cv-head{padding:16px 18px;font-size:16px;}
+  .cv-body{padding:16px 18px calc(22px + env(safe-area-inset-bottom));}
+  .cv-opt{padding:15px 14px;font-size:16px;}
+  .cv-q{font-size:16px;}
+  .cv-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .cv-actions button{min-height:50px;font-size:16px;}
+  .cv-actions button:only-child{grid-column:1 / -1;}
+}
 </style>
 </head>
 <body>
@@ -133,10 +301,10 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 <a href="dashboard.html" class="brand">With <span>Partners</span></a>
 <nav><a href="profile.html">프로필</a><a href="dashboard.html">대시보드</a><a href="#" id="logoutLink">로그아웃</a></nav>
 </div>
-<div style="max-width:1200px;margin:0 auto;padding:28px 24px 60px;">
+<div class="page-wrap" style="max-width:1200px;margin:0 auto;padding:28px 24px 60px;">
 
 <h1>보장분석표</h1>
-<div class="sub">원본 엑셀처럼 아래 탭에서 시트를 골라 볼 수 있습니다: 보장분석표(전) / 보장분석표(후) / 종합비교 / 보장차이 / 마스터.</div>
+<div class="sub" id="pageSub">원본 엑셀처럼 아래 탭에서 시트를 골라 볼 수 있습니다: 보장분석표(전) / 보장분석표(후) / 종합비교 / 보장차이 / 마스터.</div>
 
 <div class="sheettabs">
   <button class="sheettab active" data-sheet="before">보장분석표(전)</button>
@@ -149,7 +317,7 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
 <!-- ============================== 시트: 보장분석표(전) ============================== -->
 <div id="sheet-before" class="sheetpanel">
   <div class="card">
-    <div class="row">
+    <div class="row act-row">
       <input type="file" id="fileInput" accept=".pdf,.xlsx,.xlsm">
       <button id="runBtn" disabled>가져오기 실행</button>
       <button id="dlBtn" class="secondary" disabled>전체 다운로드</button>
@@ -161,8 +329,8 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
     <div class="status" id="status"></div>
     <div id="resumeDropZone" style="margin-top:12px;border:2px dashed var(--line);border-radius:12px;padding:38px 16px;min-height:150px;background:#fafbfd;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
       <input type="file" id="resumeFileInput" accept=".xlsx" style="display:none;">
-      <div style="font-size:15px;color:var(--ink-soft);line-height:1.6;">📂 이전에 내려받은 보장분석표 <strong>엑셀(.xlsx)</strong>을<br>여기로 끌어다 놓으세요 <span style="font-size:13px;">(이어서 수정)</span></div>
-      <button type="button" id="resumeUploadBtn" class="secondary">이전 보장분석표 불러오기 (파일 선택)</button>
+      <div class="rz-text" style="font-size:15px;color:var(--ink-soft);line-height:1.6;">📂 이전에 내려받은 보장분석표 <strong>엑셀(.xlsx)</strong>을<span class="d-only"><br>여기로 끌어다 놓으세요</span><span class="m-only"><br>골라서 이어서 수정할 수 있어요</span> <span class="rz-sub" style="font-size:13px;">(이어서 수정)</span></div>
+      <button type="button" id="resumeUploadBtn" class="secondary">📂 이전 보장분석표 불러오기</button>
       <div class="status" id="resumeStatus" style="margin:0;"></div>
     </div>
   </div>
@@ -177,7 +345,7 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
     </div>
     <div class="row" style="align-items:center;gap:8px;margin-top:8px;">
       <label for="customerNameInput" style="font-size:13px;white-space:nowrap;">고객명</label>
-      <input type="text" id="customerNameInput" placeholder="예: 홍길동 (파일에서 자동으로 읽어오지만 직접 고칠 수 있습니다)" style="flex:1;min-width:200px;">
+      <input type="text" id="customerNameInput" placeholder="예: 홍길동 (자동 입력 · 직접 수정 가능)" style="flex:1;min-width:200px;">
     </div>
     <div class="scrollwrap"><table class="preview" id="previewTable"></table></div>
   </div>
@@ -1128,6 +1296,7 @@ runBtn.addEventListener("click", async ()=>{
       tables = await readTableSheetsFromWorkbook(wb);
       tables.forEach((t,i)=> log(`  - Table ${i+1} -> ${t.header.insurer} / ${t.header.productName} (${t.dataLines.length}개 담보 라인)`));
     }
+    window.__sourcePdf = isPdf ? file : null; // 「인적사항 추가」 때 이미지 4장 아래에 원본 PDF도 그대로 저장하기 위해 기억해 둔다
     tables = mergeContinuedProducts(tables, log); // "(1/2)", "(2/2)"로 나뉜 같은 상품은 하나로 통합
     if(!tables.length) throw new Error("상품 데이터를 하나도 찾지 못했습니다. 파일 형식을 확인해주세요.");
 
@@ -1240,6 +1409,7 @@ async function loadResumeFile(file){
     const wsBefore = wb.getWorksheet("보장분석표(전)");
     const wsAfter = wb.getWorksheet("보장분석표(후)");
     if(!wsBefore || !wsAfter) throw new Error("보장분석표(전)/(후) 시트를 찾을 수 없습니다. With Partners에서 내려받은 파일인지 확인해주세요.");
+    window.__sourcePdf = null; // 엑셀로 이어서 수정하면 이전 PDF는 이번 내용과 맞지 않을 수 있으니 비운다
 
     const beforeRaw = readColumnsFromWorksheet(wsBefore);
     const afterRaw = readColumnsFromWorksheet(wsAfter);
@@ -2974,6 +3144,7 @@ document.querySelectorAll(".sheettab").forEach(btn=>{
     // 보장분석표(전)/(후)의 최신 데이터로 다시 계산해서 그린다.
     if(btn.dataset.sheet === "summary") renderSummarySheet();
     if(btn.dataset.sheet === "diff") renderDiffSheet();
+    try{ btn.scrollIntoView({ inline:"center", block:"nearest", behavior:"smooth" }); }catch(_){} // 폰에서 가로로 밀리는 탭 줄에서 고른 탭이 가운데 오게
   });
 });
 
@@ -3633,14 +3804,32 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
         uploaded.push(path);
         items.push({ key: sh.key, label: sh.label, path: path, type: img.type, size: img.blob.size, w: img.w, h: img.h, saved_at: new Date().toISOString() });
       }
+      // 원본 PDF도 파일 그대로(변환 없이) 이미지 4장 바로 아래에 함께 저장한다.
+      // PDF가 없으면(엑셀로 이어서 수정한 경우) 이전에 저장해 둔 PDF가 있으면 그대로 둔다.
+      let pdfWarn = "", pdfSaved = false;
+      const srcPdf = window.__sourcePdf;
+      const oldAll = Array.isArray(cust.coverage_images) ? cust.coverage_images.filter(x => x && x.path) : [];
+      const oldPdf = oldAll.filter(x => x.key === "pdf");
+      if(srcPdf){
+        setMsg("원본 PDF 저장 중…");
+        try{
+          const ppath = uid + "/" + cust.id + "/cov_pdf_" + uuid() + ".pdf";
+          const pup = await supabaseClient.storage.from(BUCKET).upload(ppath, srcPdf, { contentType:"application/pdf", upsert:false });
+          if(pup.error) throw pup.error;
+          uploaded.push(ppath);
+          items.push({ key:"pdf", label:"보장분석 PDF", path:ppath, type:"application/pdf", size:srcPdf.size, name:srcPdf.name, saved_at:new Date().toISOString() });
+          pdfSaved = true;
+        }catch(e){ console.warn("PDF 저장 실패:", e); pdfWarn = (e && e.message) ? e.message : String(e); }
+      }
+      if(!pdfSaved) oldPdf.forEach(x => items.push(x));
       setMsg("저장 중…");
-      const old = (cust.coverage_images || []).map(x => x && x.path).filter(Boolean);
+      const old = oldAll.filter(x => !(x.key === "pdf" && !pdfSaved)).map(x => x.path);
       const upd = await supabaseClient.from("customers").update({ coverage_images: items, updated_at: new Date().toISOString() }).eq("id", cust.id).select("id");
       if(upd.error) throw upd.error;
       if(!upd.data || !upd.data.length) throw new Error("저장할 고객을 찾지 못했어요");
       if(old.length){ try{ await supabaseClient.storage.from(BUCKET).remove(old); }catch(e){ console.warn(e); } }
       const el = $("cvMsg"); el.className = "cv-msg ok"; el.textContent = "";
-      el.appendChild(document.createTextNode("「" + dispName(cust) + "」님의 보장분석표 이미지 4장을 저장했어요. "));
+      el.appendChild(document.createTextNode("「" + dispName(cust) + "」님의 보장분석표 이미지 4장" + (pdfSaved ? "과 원본 PDF를" : "을") + " 저장했어요. " + (pdfWarn ? "(PDF는 저장하지 못했어요: " + pdfWarn + ") " : "")));
       const a = document.createElement("a"); a.href = "customers.html#/c/" + cust.id; a.textContent = "고객 페이지 열기"; el.appendChild(a);
       $("cvQ").textContent = "";
       busy = false;
