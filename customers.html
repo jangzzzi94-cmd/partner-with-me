@@ -186,6 +186,14 @@
   .box-head label{margin:0;}
   .box-head .btns{display:flex;gap:6px;flex-wrap:wrap;}
   @media (max-width:640px){.box-head{gap:6px;}.box-head .cu-btn.sm{padding:4px 7px;font-size:12px;}}
+  .box-head.fold-head{flex-wrap:nowrap;}
+  .box-head.fold-head .fold{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .box-head.fold-head .btns{margin-left:auto;flex-shrink:0;}
+  @media (max-width:640px){
+    .box-head.fold-head .fold{font-size:12px;}
+    .box-head.fold-head .btns{gap:4px;}
+    .box-head.fold-head .cu-btn.sm{padding:3px 6px;font-size:10.5px;white-space:nowrap;}
+  }
   .box.folded .box-head{margin-bottom:0;}
   .fold{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--navy-900);cursor:pointer;user-select:none;padding:4px 0;}
   .fold .arr{font-size:12px;width:14px;}
@@ -371,41 +379,41 @@
         <div class="cv-none" id="hfNone" style="display:none;">저장된 병력 파일이 없어요</div>
       </div>
       <div class="box">
-        <div class="box-head">
+        <div class="box-head fold-head">
         <div class="fold" data-fold="simpleText" role="button" tabindex="0"><span class="arr">▶</span> 💊병력사항(간편) <span class="dot" title="내용 있음"></span></div>
         <div class="btns">
-          <button type="button" class="cu-btn sm" data-copy="simple">병력(간편) 복사</button>
-          <button type="button" class="cu-btn sm" data-copy="personal+simple">인적사항+간편 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="simple">간편복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+simple">인적+간편복사</button>
         </div>
         </div>
         <textarea id="simpleText" data-field="simple_text"></textarea>
       </div>
       <div class="box">
-        <div class="box-head">
+        <div class="box-head fold-head">
         <div class="fold" data-fold="standardText" role="button" tabindex="0"><span class="arr">▶</span> 🏋️병력사항(표준체) <span class="dot" title="내용 있음"></span></div>
         <div class="btns">
-          <button type="button" class="cu-btn sm" data-copy="standard">병력(표준체) 복사</button>
-          <button type="button" class="cu-btn sm" data-copy="personal+standard">인적사항+표준체 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="standard">표준체복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+standard">인적+표준복사</button>
         </div>
         </div>
         <textarea id="standardText" data-field="standard_text"></textarea>
       </div>
       <div class="box">
-        <div class="box-head">
+        <div class="box-head fold-head">
         <div class="fold" data-fold="dentalText" role="button" tabindex="0"><span class="arr">▶</span> 🦷병력사항(치아) <span class="dot" title="내용 있음"></span></div>
         <div class="btns">
-          <button type="button" class="cu-btn sm" data-copy="dental">병력(치아) 복사</button>
-          <button type="button" class="cu-btn sm" data-copy="personal+dental">인적사항+치아 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="dental">치아복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+dental">인적+치아복사</button>
         </div>
         </div>
         <textarea id="dentalText" data-field="dental_text"></textarea>
       </div>
       <div class="box">
-        <div class="box-head">
+        <div class="box-head fold-head">
         <div class="fold" data-fold="majorText" role="button" tabindex="0"><span class="arr">▶</span> 👉병력사항(중대질환) <span class="dot" title="내용 있음"></span></div>
         <div class="btns">
-          <button type="button" class="cu-btn sm" data-copy="major">병력(중대질환) 복사</button>
-          <button type="button" class="cu-btn sm" data-copy="personal+major">인적사항+중대질환 복사</button>
+          <button type="button" class="cu-btn sm" data-copy="major">중대질환복사</button>
+          <button type="button" class="cu-btn sm" data-copy="personal+major">인적+중대복사</button>
         </div>
         </div>
         <textarea id="majorText" data-field="major_text"></textarea>
@@ -1305,7 +1313,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(!every.length) return;
     var id = c.id;
     pdfs.forEach(function(pf){
-      renderPdfRow(pbox, pf);
+      renderPdfRow(pbox, pf, pf.dispLabel);
       pbox.style.display = 'flex';
     });
     if(!items.length) return;

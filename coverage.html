@@ -425,6 +425,7 @@ table.summary-table thead td{font-weight:700;background:#f2f4f8;color:var(--ink-
   <div class="cv-body">
     <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;line-height:1.6;">보험사 PDF는 보통 가입자의 주민번호·생년월일·전화번호로 잠겨 있어요. 고객명을 입력하면 저장된 인적사항으로 자동으로 풀어볼게요.</div>
     <input type="text" id="pwCustName" placeholder="고객명" autocomplete="off" maxlength="40">
+    <div class="cv-list" id="pwList"></div>
     <button type="button" id="pwAutoBtn" style="width:100%;margin-top:10px;">🔓 자동으로 풀기</button>
     <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
       <label style="font-size:12.5px;color:var(--ink-soft);">비밀번호를 알고 계시면 직접 입력하세요</label>
@@ -1188,15 +1189,62 @@ async function pwFindCustomers(name){
   }
   return rows.filter(c => pwDispName(c).toLowerCase().indexOf(nl) >= 0);
 }
+let __pwAll = null;
+function pwBirthOf(c){
+  const t = c.personal_text || ""; let m, d;
+  m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){ d = m[1].replace(/\D/g, ""); if(d.length === 8) d = d.slice(2); if(d.length === 6) return d.slice(0,2)+"."+d.slice(2,4)+"."+d.slice(4,6); }
+  m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){ d = m[1].replace(/\D/g, ""); if(d.length >= 6) return d.slice(0,2)+"."+d.slice(2,4)+"."+d.slice(4,6); }
+  return "";
+}
+function pwTagOf(c, counts){
+  const n = pwDispName(c).toLowerCase();
+  if(!n || (counts[n] || 0) < 2) return "";
+  const b = pwBirthOf(c);
+  return b ? b + "생" : "등록 " + String(c.created_at).slice(0,10);
+}
+async function pwLoadAll(){
+  let rows = [], from = 0;
+  for(;;){
+    const res = await supabaseClient.from("customers").select("id,name,personal_text,created_at").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
+    if(res.error) throw res.error;
+    rows = rows.concat(res.data || []);
+    if(!res.data || res.data.length < 1000) break;
+    from += 1000;
+  }
+  __pwAll = rows;
+}
+function pwRenderList(){
+  const list = document.getElementById("pwList");
+  const q = document.getElementById("pwCustName").value.trim().toLowerCase();
+  list.innerHTML = "";
+  if(!__pwAll || !q) return;
+  const counts = {}; __pwAll.forEach(c => { const k = pwDispName(c).toLowerCase(); if(k) counts[k] = (counts[k] || 0) + 1; });
+  const rows = __pwAll.filter(c => pwDispName(c).toLowerCase().indexOf(q) >= 0).slice(0, 15);
+  rows.forEach(c => {
+    const row = document.createElement("div"); row.className = "cv-opt";
+    const t = pwTagOf(c, counts);
+    row.textContent = pwDispName(c) + (t ? " (" + t + ")" : "");
+    row.addEventListener("click", () => {
+      document.getElementById("pwCustName").value = pwDispName(c);
+      list.innerHTML = "";
+      document.getElementById("pwAutoBtn").focus();
+    });
+    list.appendChild(row);
+  });
+}
 let __pwBuf = null, __pwResolve = null;
 function pwSetMsg(text, kind){ const el = document.getElementById("pwMsg"); el.className = "cv-msg" + (kind ? " " + kind : ""); el.textContent = text || ""; }
 function openPwModal(buf){
   __pwBuf = buf;
   const nameInp = document.getElementById("pwCustName");
   nameInp.value = (document.getElementById("customerNameInput").value || "").trim();
-  pwSetMsg(""); document.getElementById("pwManual").value = "";
+  pwSetMsg(""); document.getElementById("pwManual").value = ""; document.getElementById("pwList").innerHTML = "";
   document.getElementById("pwModal").style.display = "flex";
   setTimeout(()=>{ (nameInp.value ? document.getElementById("pwAutoBtn") : nameInp).focus(); }, 50);
+  if(!__pwAll) pwLoadAll().then(()=>pwRenderList()).catch(e=>console.warn("고객 목록을 못 불러왔어요:", e));
+  else pwRenderList();
   return new Promise((resolve)=>{ __pwResolve = (doc)=>{ document.getElementById("pwModal").style.display = "none"; resolve(doc || null); }; });
 }
 async function pwTryList(cands){
@@ -1273,7 +1321,8 @@ async function rasterizePdfToBlob(doc){
   return pdf.output("blob");
 }
 document.getElementById("pwManual").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwManualBtn").click(); });
-document.getElementById("pwCustName").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwAutoBtn").click(); });
+document.getElementById("pwCustName").addEventListener("input", ()=>{ pwRenderList(); });
+document.getElementById("pwCustName").addEventListener("keydown", (e)=>{ if(e.key === "Enter"){ document.getElementById("pwList").innerHTML = ""; document.getElementById("pwAutoBtn").click(); } });
 document.getElementById("pwClose").addEventListener("click", ()=>{ if(__pwResolve) __pwResolve(null); });
 document.getElementById("pwModal").addEventListener("click", (e)=>{ if(e.target === e.currentTarget && __pwResolve) __pwResolve(null); });
 function groupIntoLines(items, tol=2.2){
@@ -3949,6 +3998,49 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
       addBtn("취소", "secondary", () => { $("cvModal").style.display = "none"; });
     }
   }
+  /* 저장된 PDF 표시용 라벨: "홍길동님 KB보장"처럼 고객명 + 보험사(축약) + "보장"
+     형태로 줄여서, 원본 파일명이 너무 길어서 그대로 저장되던 문제를 해결한다. */
+  const INSURER_SHORT_TABLE = [
+    ["KB라이프", "KB라이프"], ["KB손해보험", "KB"], ["KB생명", "KB"],
+    ["삼성화재", "삼성화재"], ["삼성생명", "삼성생명"],
+    ["현대해상", "현대해상"], ["현대라이프", "현대라이프"],
+    ["DB손해보험", "DB"], ["DB생명", "DB생명"],
+    ["메리츠화재", "메리츠"], ["메리츠", "메리츠"],
+    ["한화손해보험", "한화손보"], ["한화생명", "한화생명"],
+    ["롯데손해보험", "롯데손보"],
+    ["흥국화재", "흥국화재"], ["흥국생명", "흥국생명"],
+    ["농협손해보험", "NH농협"], ["NH농협손해보험", "NH농협"],
+    ["농협생명", "NH농협생명"], ["NH농협생명", "NH농협생명"],
+    ["하나손해보험", "하나손보"],
+    ["캐롯손해보험", "캐롯"], ["캐롯", "캐롯"],
+    ["AXA손해보험", "AXA"], ["AXA", "AXA"],
+    ["AIG손해보험", "AIG"], ["AIG", "AIG"],
+    ["교보라이프플래닛", "라이프플래닛"], ["교보생명", "교보생명"],
+    ["동양생명", "동양생명"],
+    ["미래에셋생명", "미래에셋"],
+    ["푸본현대생명", "푸본현대"],
+    ["라이나생명", "라이나"],
+    ["ABL생명", "ABL"],
+    ["신한라이프", "신한라이프"],
+    ["처브라이프", "처브라이프"],
+    ["iM라이프", "iM라이프"],
+    ["KDB생명", "KDB"]
+  ];
+  function shortInsurerName(insurer){
+    const clean = (insurer || "").replace(/\(주\)|주식회사/g, "").trim();
+    if(!clean) return "";
+    for(const [key, short] of INSURER_SHORT_TABLE){ if(clean.indexOf(key) >= 0) return short; }
+    let out = clean;
+    const SUFFIXES = ["해상화재보험", "화재해상보험", "손해보험", "생명보험", "화재보험", "해상보험", "보험"];
+    for(const sfx of SUFFIXES){ if(out.endsWith(sfx)){ out = out.slice(0, -sfx.length); break; } }
+    out = out.trim();
+    return out || clean;
+  }
+  function pdfDispLabel(custName){
+    const plan = plans.find(p => p && p.insurer && p.insurer.trim());
+    const ins = plan ? shortInsurerName(plan.insurer) : "";
+    return (custName || "고객") + "님 " + (ins ? ins + "보장" : "보장분석");
+  }
   async function save(customer, newName){
     if(busy) return; busy = true;
     $("cvActions").innerHTML = "";
@@ -3998,7 +4090,7 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
           const pup = await supabaseClient.storage.from(BUCKET).upload(ppath, blobToSave, { contentType:"application/pdf", upsert:false });
           if(pup.error) throw pup.error;
           uploaded.push(ppath);
-          items.push({ key:"pdf", label:"보장분석 PDF", path:ppath, type:"application/pdf", size:blobToSave.size, name:srcPdf.name, saved_at:new Date().toISOString() });
+          items.push({ key:"pdf", label:"보장분석 PDF", dispLabel: pdfDispLabel(dispName(cust)), path:ppath, type:"application/pdf", size:blobToSave.size, name:srcPdf.name, saved_at:new Date().toISOString() });
           pdfSaved = true;
         }catch(e){ console.warn("PDF 저장 실패:", e); pdfWarn = (e && e.message) ? e.message : String(e); }
       }
