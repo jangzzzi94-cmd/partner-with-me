@@ -34,10 +34,6 @@
 <p class="sub">이용하실 기능을 선택해주세요</p>
 <p class="sub" id="pointsLine" style="display:none"></p>
 <button type="button" class="btn-ghost" id="showRulesBtn" style="margin-bottom:24px;">📌 이용 규칙 보기</button>
-<span id="wpInstallWrap" style="display:none;">
-<button type="button" class="btn-ghost" id="wpInstallBtn" style="margin:0 0 24px 8px;">📲 대시보드 앱으로 설치</button>
-<div id="wpInstallHint" style="display:none;margin:-12px 0 20px;font-size:12.5px;color:var(--muted);line-height:1.6;"></div>
-</span>
 <div class="card-grid">
 <a href="history.html" class="feature-card" data-card-id="history" id="historyCard">
 <div class="icon">📋</div>
@@ -350,29 +346,8 @@ document.getElementById('logoutLink').addEventListener('click', async (e)=>{
 });
 </script>
 <script>
-/* 앱으로 설치 버튼 -- 크롬의 설치 확인 창을 한 번에 띄운다. 이미 앱으로 열었으면 버튼을 숨긴다. */
-(function(){
-  var wrap = document.getElementById('wpInstallWrap'), btn = document.getElementById('wpInstallBtn'), hint = document.getElementById('wpInstallHint');
-  if(!wrap || !btn) return;
-  var deferred = null;
-  function standalone(){
-    try{ return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
-    catch(e){ return false; }
-  }
-  if(!standalone()) wrap.style.display = 'inline';
-  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; if(!standalone()) wrap.style.display = 'inline'; });
-  window.addEventListener('appinstalled', function(){ deferred = null; wrap.style.display = 'none'; });
-  btn.addEventListener('click', function(){
-    if(deferred){
-      var ev = deferred; deferred = null; ev.prompt();
-      return;
-    }
-    if(hint){
-      hint.style.display = 'block';
-      hint.textContent = '이 브라우저에서는 설치 창이 바로 안 떠요. 크롬 메뉴(⋮)에서 「홈 화면에 추가」 또는 「앱 설치」를 눌러주세요. 이미 설치했다면 홈 화면의 아이콘으로 열면 됩니다.';
-    }
-  });
-})();
+/* 대시보드를 PWA로 따로 설치하는 기능은 없앴다 — 이제 앱 설치 안내는
+   위드파트너스 모바일 전용 앱(mobile-app.html, 로그인 직후 안내) 하나로 통합했다. */
 try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(e){}
 </script>
 <script>

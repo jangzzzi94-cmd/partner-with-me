@@ -294,16 +294,6 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <meta name="apple-mobile-web-app-title" content="출근보고">
 </head>
 <body>
-<div id="wpInstallWrap" style="display:none;background:#eaf1ff;color:#0a1a30;font-size:13px;padding:8px 12px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:960px;margin:0 auto;">
-    <span style="font-weight:700;">📲 출근보고를 앱으로 설치하면 바로 열 수 있어요</span>
-    <span style="display:flex;gap:6px;flex:none;">
-      <button type="button" id="wpInstallBtn" style="border:0;background:#0f2545;color:#fff;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;">앱으로 설치</button>
-      <button type="button" aria-label="닫기" onclick="document.getElementById('wpInstallWrap').style.display='none'" style="border:0;background:transparent;color:#5b6b7c;font-size:18px;line-height:1;cursor:pointer;">&times;</button>
-    </span>
-  </div>
-  <div id="wpInstallHint" style="display:none;margin-top:6px;font-size:12px;line-height:1.6;color:#33465c;"></div>
-</div>
 <div id="root"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/supabase-client.js"></script>
@@ -4203,30 +4193,7 @@ render = function () {
 
 </script>
   <script src="assets/attendance-push.js" defer></script>
-  <script>
-/* 앱으로 설치 버튼 -- 크롬의 설치 확인 창을 한 번에 띄운다. 이미 앱으로 열었으면 버튼을 숨긴다. */
-(function(){
-  var wrap = document.getElementById('wpInstallWrap'), btn = document.getElementById('wpInstallBtn'), hint = document.getElementById('wpInstallHint');
-  if(!wrap || !btn) return;
-  var deferred = null;
-  function standalone(){
-    try{ return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
-    catch(e){ return false; }
-  }
-  if(!standalone()) wrap.style.display = 'block';
-  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; if(!standalone()) wrap.style.display = 'block'; });
-  window.addEventListener('appinstalled', function(){ deferred = null; wrap.style.display = 'none'; });
-  btn.addEventListener('click', function(){
-    if(deferred){
-      var ev = deferred; deferred = null; ev.prompt();
-      return;
-    }
-    if(hint){
-      hint.style.display = 'block';
-      hint.textContent = '이 브라우저에서는 설치 창이 바로 안 떠요. 크롬 메뉴(⋮)에서 「홈 화면에 추가」 또는 「앱 설치」를 눌러주세요. 이미 설치했다면 홈 화면의 아이콘으로 열면 됩니다.';
-    }
-  });
-})();
-</script>
+  <!-- 출근보고를 PWA로 따로 설치하는 기능은 없앴다 — 이제 앱 설치 안내는
+       위드파트너스 모바일 전용 앱(mobile-app.html, 로그인 직후 안내) 하나로 통합했다. -->
 </body>
 </html>

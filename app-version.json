@@ -1,0 +1,6 @@
+{
+  "versionCode": 10,
+  "versionName": "1.9",
+  "apkUrl": "https://partner-with-me.vercel.app/app-release.apk",
+  "notes": "로그인 시 앱 설치 안내 화면 추가, 다음 업데이트부터 앱 켤 때 자동 설치"
+}
