@@ -1969,6 +1969,27 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     }
     renderClaimList();
   }
+  // 위드파트너를 홈 화면에 설치해서 쓰는 경우, window.open()이 진짜 크롬 탭이 아니라
+  // 앱에 딸린 "커스텀 탭"(주소창도 없고 북마크도 못 쓰는 미니 브라우저)으로 열릴 때가 있다.
+  // 안드로이드에서는 intent: 주소로 크롬 앱 자체를 직접 지정해서 열면 이 커스텀 탭을 건너뛰고
+  // 진짜 크롬(북마크 북마크바/북마크 메뉴 사용 가능)으로 바로 연결된다.
+  function openExternal(url){
+    // intent: 방식은 주소에 자체적으로 #(해시)이 들어있으면 "#Intent;...;end" 구분자와
+    // 겹쳐서 꼬일 수 있어, 해시가 없는 주소(ERP)에서만 쓰고 해시가 있는 주소(보케어 보험사
+    // 선택 정보)는 기존 방식 그대로 연다. 보케어 쪽은 커스텀 탭이 열렸을 때 오른쪽 위
+    // "⋮" 메뉴 → "Chrome 브라우저에서 열기"로 빠져나가면 된다 (설치 안내 페이지에 적어둠).
+    var isAndroid = /Android/i.test(navigator.userAgent);
+    var hasHash = url.indexOf('#') >= 0;
+    if(isAndroid && !hasHash){
+      try{
+        var noProto = url.replace(/^https?:\/\//, '');
+        var intentUrl = 'intent://' + noProto + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+        window.open(intentUrl, '_blank');
+        return;
+      }catch(e){ /* 아래 기본 방식으로 */ }
+    }
+    window.open(url, '_blank');
+  }
   async function runClaim(){
     var c = getCust(curId);
     if(!c){ showToast('고객을 찾을 수 없어요'); return; }
@@ -1984,7 +2005,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('claimPrev').style.display = 'block';
     // 모바일 브라우저는 클립보드 쓰기보다 새 탭 열기를 먼저(동기적으로) 해야 팝업이 막히지 않아요.
     var url = 'https://www.bocare.co.kr/v2/views/crm/insurance_request_v2/select/#claim=' + encodeURIComponent(claimSel.join(','));
-    window.open(url, '_blank');
+    openExternal(url);
     var copied = true;
     try{ await navigator.clipboard.writeText(payload); }
     catch(e){ copied = false; }
@@ -2029,7 +2050,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('erpPrevText').textContent = payload;
     $('erpPrevStatus').textContent = '복사된 내용';
     // 모바일 브라우저는 클립보드 쓰기보다 새 탭 열기를 먼저(동기적으로) 해야 팝업이 막히지 않아요.
-    window.open('https://line.afg.kr/sam/0101', '_blank');
+    openExternal('https://line.afg.kr/sam/0101');
     var copied = true;
     try{ await navigator.clipboard.writeText(payload); }
     catch(e){ copied = false; }
