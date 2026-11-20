@@ -1963,10 +1963,38 @@ function formatDurationBreak(raw){
   return s.slice(0, idx+1) + "\n" + s.slice(idx+1);
 }
 
+// 원본 엑셀 서식은 상품 칸(E열부터)에 테두리·숫자서식·칸너비를 미리 입혀 두었는데,
+// 이 서식이 입혀진 칸 수는 시트마다 다르고(보장분석표(전)/(후)가 서로 다를 수 있음) 유한하다.
+// 그 칸 수보다 상품이 더 많이 들어오면 뒤쪽 칸은 서식이 아예 없는 빈 칸이라 글씨만 덩그러니
+// 찍혀 보였다. 7행(보험료)에 테두리가 있는 마지막 열까지를 "서식이 입혀진 상품 칸"으로 보고,
+// 그 이후 칸이 필요하면 마지막 서식 칸을 그대로 복제해서 상품이 몇 개가 되든 항상 양식대로 보이게 한다.
+function detectTemplateLastProductCol(ws, startCol){
+  let last = startCol;
+  for(let col = startCol; col <= startCol + 900; col++){
+    const b = ws.getCell(7, col).style && ws.getCell(7, col).style.border;
+    const bordered = !!(b && (b.top || b.bottom || b.left || b.right));
+    if(!bordered) break;
+    last = col;
+  }
+  return last;
+}
+function cloneCellStyle(style){
+  return style ? JSON.parse(JSON.stringify(style)) : style;
+}
+function extendColumnStyleFromTemplate(ws, col, templateLastCol, lastRow){
+  if(col <= templateLastCol) return;
+  ws.getColumn(col).width = ws.getColumn(templateLastCol).width;
+  for(let row = 1; row <= lastRow; row++){
+    ws.getCell(row, col).style = cloneCellStyle(ws.getCell(row, templateLastCol).style);
+  }
+}
+
 function fillSheetColumns(ws, columns, getField){
   const startCol = 5; // E열
+  const templateLastCol = detectTemplateLastProductCol(ws, startCol);
   columns.forEach((c, i)=>{
     const col = startCol + i;
+    extendColumnStyleFromTemplate(ws, col, templateLastCol, 45);
     ws.getCell(3, col).value = getField(c, "insurer");
     ws.getCell(4, col).value = getField(c, "productName");
     ws.getCell(5, col).value = formatDurationBreak(getField(c, "duration"));
@@ -3998,48 +4026,10 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
       addBtn("취소", "secondary", () => { $("cvModal").style.display = "none"; });
     }
   }
-  /* 저장된 PDF 표시용 라벨: "홍길동님 KB보장"처럼 고객명 + 보험사(축약) + "보장"
-     형태로 줄여서, 원본 파일명이 너무 길어서 그대로 저장되던 문제를 해결한다. */
-  const INSURER_SHORT_TABLE = [
-    ["KB라이프", "KB라이프"], ["KB손해보험", "KB"], ["KB생명", "KB"],
-    ["삼성화재", "삼성화재"], ["삼성생명", "삼성생명"],
-    ["현대해상", "현대해상"], ["현대라이프", "현대라이프"],
-    ["DB손해보험", "DB"], ["DB생명", "DB생명"],
-    ["메리츠화재", "메리츠"], ["메리츠", "메리츠"],
-    ["한화손해보험", "한화손보"], ["한화생명", "한화생명"],
-    ["롯데손해보험", "롯데손보"],
-    ["흥국화재", "흥국화재"], ["흥국생명", "흥국생명"],
-    ["농협손해보험", "NH농협"], ["NH농협손해보험", "NH농협"],
-    ["농협생명", "NH농협생명"], ["NH농협생명", "NH농협생명"],
-    ["하나손해보험", "하나손보"],
-    ["캐롯손해보험", "캐롯"], ["캐롯", "캐롯"],
-    ["AXA손해보험", "AXA"], ["AXA", "AXA"],
-    ["AIG손해보험", "AIG"], ["AIG", "AIG"],
-    ["교보라이프플래닛", "라이프플래닛"], ["교보생명", "교보생명"],
-    ["동양생명", "동양생명"],
-    ["미래에셋생명", "미래에셋"],
-    ["푸본현대생명", "푸본현대"],
-    ["라이나생명", "라이나"],
-    ["ABL생명", "ABL"],
-    ["신한라이프", "신한라이프"],
-    ["처브라이프", "처브라이프"],
-    ["iM라이프", "iM라이프"],
-    ["KDB생명", "KDB"]
-  ];
-  function shortInsurerName(insurer){
-    const clean = (insurer || "").replace(/\(주\)|주식회사/g, "").trim();
-    if(!clean) return "";
-    for(const [key, short] of INSURER_SHORT_TABLE){ if(clean.indexOf(key) >= 0) return short; }
-    let out = clean;
-    const SUFFIXES = ["해상화재보험", "화재해상보험", "손해보험", "생명보험", "화재보험", "해상보험", "보험"];
-    for(const sfx of SUFFIXES){ if(out.endsWith(sfx)){ out = out.slice(0, -sfx.length); break; } }
-    out = out.trim();
-    return out || clean;
-  }
+  /* 저장된 PDF 표시용 라벨: 보험사 이름은 자동으로 잘못 집히는 경우가 있어서
+     빼고, "홍길동님 보장"처럼 고객명 + "보장"으로 통일해서 짧게 표시한다. */
   function pdfDispLabel(custName){
-    const plan = plans.find(p => p && p.insurer && p.insurer.trim());
-    const ins = plan ? shortInsurerName(plan.insurer) : "";
-    return (custName || "고객") + "님 " + (ins ? ins + "보장" : "보장분석");
+    return (custName || "고객") + "님 보장";
   }
   async function save(customer, newName){
     if(busy) return; busy = true;
