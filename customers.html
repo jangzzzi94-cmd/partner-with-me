@@ -1809,10 +1809,11 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   // 보케어 쪽 내부 번호(data-company-idx)는 접속마다 바뀔 수 있어 믿을 수 없으므로, 이름으로만 맞춘다.
   var BOCARE_COMPANIES = {
     '손해보험': ['AIG손해보험', 'AXA손해보험', 'DB손해보험', 'KB손해보험', 'NH농협손해보험', '교직원공제', '라이나손해보험', '롯데손해보험', '메리츠화재', '삼성화재', '새마을금고공제', '수협공제', '신한EZ손해보험', '신협공제', '예별손해보험', '우체국보험', '캐롯손해보험', '하나손해보험', '한화손해보험', '현대해상화재', '흥국화재'],
-    '생명보험': ['ABL생명', 'AIA생명', 'BNP파리바카디프생명', 'DB생명', 'KB라이프생명', 'KDB생명', 'NH농협생명', 'iM생명', '교보라이프플래닛생명', '교보생명', '동양생명', '라이나생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '처브라이프생명', '푸르덴셜생명', '푸본현대생명', '하나생명', '한화생명', '흥국생명']
+    '생명보험': ['ABL생명', 'AIA생명', 'BNP파리바카디프생명', 'DB생명', 'KB라이프생명', 'KDB생명', 'NH농협생명', 'iM생명', '교보라이프플래닛생명', '교보생명', '라이나생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '처브라이프생명', '푸르덴셜생명', '푸본현대생명', '하나생명', '한화생명', '흥국생명'] // 동양생명: 보케어 팩스 미지원이라 제외
   };
   var CLAIM_MAX = 3; // 보케어가 한 번에 받을 수 있는 최대 보험사 수
-  var FAX_REQUIRED_COMPANIES = ['AXA손해보험', '수협공제', '우체국보험', '교보생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '하나생명', '한화생명', '흥국생명'];
+  // 보케어 보험사 선택 화면의 ★ 가상팩스번호 표시와 동일한 기준 (손해+생명 전체 확인함, 2026-11 기준)
+  var FAX_REQUIRED_COMPANIES = ['AXA손해보험', '수협공제', '우체국보험', '흥국화재', '교보생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '하나생명', '한화생명', '흥국생명'];
   var claimSel = [];
   var claimFaxVals = {}; // 보험사명 -> 가상팩스번호 입력값
   var claimContractorId = null; // 계피상이(계약자≠피보험자)일 때 선택한 계약자 고객 id
@@ -1827,19 +1828,19 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var phone = getPersonalLine(c.personal_text, '휴대폰번호');
     var job = getPersonalLine(c.personal_text, '직업');
     var addr = getPersonalLine(c.personal_text, '집주소');
-    var bank = getPersonalLine(c.bank_text, '은행명');
-    var acct = getPersonalLine(c.bank_text, '계좌번호');
-    var explicitHolder = getPersonalLine(c.bank_text, '예금주');
-    var contractorName = contractor ? (dispName(contractor) || '') : '';
-    // 예금주는 계약자 기준: 계좌 글상자에 예금주가 따로 적혀 있지 않으면, 계약자가 다를 땐 계약자명을, 같으면 본인명을 쓴다.
-    var holder = explicitHolder || (contractor ? contractorName : name);
+    // 계좌는 "계좌가 등록돼 있는 사람" 기준: 계피상이(계약자≠피보험자)면 계좌도 계약자 기준으로 쓰고,
+    // 예금주는 무조건 그 계좌 주인의 이름으로 적는다.
+    var acctOwner = contractor || c;
+    var acctOwnerName = dispName(acctOwner) || '';
+    var bank = getPersonalLine(acctOwner.bank_text, '은행명');
+    var acct = getPersonalLine(acctOwner.bank_text, '계좌번호');
     var lines = ['이름 : ' + name, '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '직업 : ' + job, '집주소 : ' + addr];
     if(accidentType) lines.push('사고유형 : ' + accidentType);
-    if(acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct, '예금주 : ' + holder);
+    if(acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct, '예금주 : ' + acctOwnerName, '예금주주민등록번호 : ' + getPersonalLine(acctOwner.personal_text, '주민등록번호'));
     (faxList || []).forEach(function(f){ lines.push('가상팩스번호[' + f.company + '] : ' + f.fax); });
     if(contractor){
       lines.push('계약자상이 : 예');
-      lines.push('계약자명 : ' + contractorName);
+      lines.push('계약자명 : ' + (dispName(contractor) || ''));
       lines.push('계약자주민등록번호 : ' + getPersonalLine(contractor.personal_text, '주민등록번호'));
       lines.push('계약자휴대폰번호 : ' + getPersonalLine(contractor.personal_text, '휴대폰번호'));
       lines.push('계약자집주소 : ' + getPersonalLine(contractor.personal_text, '집주소'));
