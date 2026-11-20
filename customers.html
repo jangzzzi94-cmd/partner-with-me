@@ -190,7 +190,10 @@
   .cl-extra{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);}
   .cl-opt-note{font-weight:400;color:var(--muted);font-size:11.5px;text-transform:none;letter-spacing:0;}
   .cl-opt input[type=radio]{accent-color:var(--navy-900);}
-  #claimFax{margin-top:0;}
+  #claimFaxBox input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;margin-top:0;}
+  .claim-fax-row{margin-top:6px;}
+  .claim-fax-row:first-child{margin-top:0;}
+  .claim-fax-lab{font-size:12px;font-weight:700;color:var(--navy-800);margin-bottom:3px;}
   .cl-opt{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;cursor:pointer;user-select:none;word-break:keep-all;}
   .cl-opt:hover{border-color:var(--navy-600);}
   .cl-opt.on{border-color:var(--navy-900);background:var(--navy-100);font-weight:700;}
@@ -539,9 +542,14 @@
         <label class="cl-opt"><input type="radio" name="claimAccType" value="상해"><span>상해</span></label>
         <label class="cl-opt"><input type="radio" name="claimAccType" value="교통사고"><span>교통사고</span></label>
       </div>
-      <div class="cl-grp-t" style="margin-top:12px;">가상팩스번호 <span class="cl-opt-note">(필요한 보험사만 — 없으면 비워두세요)</span></div>
-      <input type="text" id="claimFax" placeholder="숫자만 입력 (예: 0505xxxxxxx)" inputmode="numeric">
-      <div class="md-hint" style="margin:8px 0 0;">계좌정보가 있으면 "일반" 계좌로, 없으면 가능한 경우 "자동이체"로 자동 선택돼요. 신분증 등 서류 첨부가 필요한 보험사는 보케어 화면에 안내가 떠요 — 서류는 직접 첨부해 주세요.</div>
+      <div class="cl-grp-t" id="claimFaxTitle" style="margin-top:12px;display:none;">가상팩스번호 <span class="cl-opt-note">(선택한 보험사 중 필요한 곳만 표시돼요)</span></div>
+      <div id="claimFaxBox"></div>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:700;cursor:pointer;margin-top:12px;font-size:13px;color:var(--navy-900);">
+        <input type="checkbox" id="claimDiffContractor" style="accent-color:var(--navy-900);">
+        계약자가 피보험자와 다름 (계피상이)
+      </label>
+      <div id="claimContractorBox" style="display:none;margin-top:6px;"></div>
+      <div class="md-hint" style="margin:8px 0 0;">계좌정보가 있으면 "일반" 계좌로, 없으면 가능한 경우 "자동이체"로 자동 선택돼요. 예금주는 계약자 기준으로 채워져요. 신분증 등 서류 첨부가 필요한 보험사는 보케어 화면에 안내가 떠요 — 서류는 직접 첨부해 주세요.</div>
     </div>
     <div class="cl-prev" id="claimPrev" style="display:none;">
       <div class="cl-prev-head"><span id="claimPrevStatus">복사된 내용</span><button type="button" class="cu-btn sm" id="claimCopyBtn">복사하기</button></div>
@@ -1804,13 +1812,16 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     '생명보험': ['ABL생명', 'AIA생명', 'BNP파리바카디프생명', 'DB생명', 'KB라이프생명', 'KDB생명', 'NH농협생명', 'iM생명', '교보라이프플래닛생명', '교보생명', '동양생명', '라이나생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '처브라이프생명', '푸르덴셜생명', '푸본현대생명', '하나생명', '한화생명', '흥국생명']
   };
   var CLAIM_MAX = 3; // 보케어가 한 번에 받을 수 있는 최대 보험사 수
+  var FAX_REQUIRED_COMPANIES = ['AXA손해보험', '수협공제', '우체국보험', '교보생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '하나생명', '한화생명', '흥국생명'];
   var claimSel = [];
+  var claimFaxVals = {}; // 보험사명 -> 가상팩스번호 입력값
+  var claimContractorId = null; // 계피상이(계약자≠피보험자)일 때 선택한 계약자 고객 id
   // 인적사항/계좌 글상자에서 「라벨 : 값」 줄의 값만 읽어 온다 (setPersonalLine의 읽기 전용 짝)
   function getPersonalLine(text, label){
     var m = new RegExp('^[ \\t]*' + label + '[ \\t]*[:：][ \\t]*(.*)$', 'm').exec(text || '');
     return m ? m[1].trim() : '';
   }
-  function claimPayloadText(c, accidentType, fax){
+  function claimPayloadText(c, accidentType, faxList, contractor){
     var name = dispName(c) || '';
     var rrn = getPersonalLine(c.personal_text, '주민등록번호');
     var phone = getPersonalLine(c.personal_text, '휴대폰번호');
@@ -1818,11 +1829,21 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var addr = getPersonalLine(c.personal_text, '집주소');
     var bank = getPersonalLine(c.bank_text, '은행명');
     var acct = getPersonalLine(c.bank_text, '계좌번호');
-    var holder = getPersonalLine(c.bank_text, '예금주');
+    var explicitHolder = getPersonalLine(c.bank_text, '예금주');
+    var contractorName = contractor ? (dispName(contractor) || '') : '';
+    // 예금주는 계약자 기준: 계좌 글상자에 예금주가 따로 적혀 있지 않으면, 계약자가 다를 땐 계약자명을, 같으면 본인명을 쓴다.
+    var holder = explicitHolder || (contractor ? contractorName : name);
     var lines = ['이름 : ' + name, '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '직업 : ' + job, '집주소 : ' + addr];
     if(accidentType) lines.push('사고유형 : ' + accidentType);
-    if(acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct, '예금주 : ' + (holder || name));
-    if(fax) lines.push('가상팩스번호 : ' + fax);
+    if(acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct, '예금주 : ' + holder);
+    (faxList || []).forEach(function(f){ lines.push('가상팩스번호[' + f.company + '] : ' + f.fax); });
+    if(contractor){
+      lines.push('계약자상이 : 예');
+      lines.push('계약자명 : ' + contractorName);
+      lines.push('계약자주민등록번호 : ' + getPersonalLine(contractor.personal_text, '주민등록번호'));
+      lines.push('계약자휴대폰번호 : ' + getPersonalLine(contractor.personal_text, '휴대폰번호'));
+      lines.push('계약자집주소 : ' + getPersonalLine(contractor.personal_text, '집주소'));
+    }
     return lines.join('\n');
   }
   function renderClaimList(){
@@ -1850,6 +1871,75 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('claimCnt').textContent = claimSel.length + '/' + CLAIM_MAX + ' 선택';
     $('claimGoBtn').disabled = claimSel.length === 0;
     $('claimPrev').style.display = 'none'; $('claimPrevText').textContent = '';
+    renderClaimFax();
+  }
+  // 선택한 보험사 중 가상팩스번호가 필요한 곳만, 보험사별로 따로 입력칸을 보여준다.
+  function renderClaimFax(){
+    var titleEl = $('claimFaxTitle'), box = $('claimFaxBox'); if(!titleEl || !box) return;
+    var need = claimSel.filter(function(n){ return FAX_REQUIRED_COMPANIES.indexOf(n) >= 0; });
+    titleEl.style.display = need.length ? '' : 'none';
+    box.innerHTML = '';
+    need.forEach(function(name){
+      var row = document.createElement('div'); row.className = 'claim-fax-row';
+      var lab = document.createElement('div'); lab.className = 'claim-fax-lab'; lab.textContent = name;
+      var inp = document.createElement('input');
+      inp.type = 'text'; inp.inputMode = 'numeric'; inp.placeholder = '숫자만 입력 (예: 0505xxxxxxx)';
+      inp.value = claimFaxVals[name] || '';
+      inp.addEventListener('input', function(){ claimFaxVals[name] = inp.value; });
+      row.appendChild(lab); row.appendChild(inp);
+      box.appendChild(row);
+    });
+  }
+  // 계피상이(계약자≠피보험자)일 때 내 고객리스트에서 계약자를 검색해서 고른다. (소개자 검색과 같은 방식)
+  function renderClaimContractor(){
+    var box = $('claimContractorBox'); if(!box) return;
+    var on = $('claimDiffContractor') && $('claimDiffContractor').checked;
+    box.style.display = on ? 'block' : 'none';
+    box.innerHTML = '';
+    if(!on) return;
+    var cur = getCust(curId);
+    if(claimContractorId){
+      var t = getCust(claimContractorId);
+      var row = document.createElement('div'); row.className = 'ref-main';
+      var chip = document.createElement('span'); chip.className = 'chip';
+      chip.style.cssText = 'background:#e8f0fe;color:#1d4ed8;font-size:14px;padding:5px 12px;';
+      chip.textContent = '계약자: ' + (t ? nameWithTag(t) : '(삭제된 고객)');
+      var xBtn = document.createElement('button'); xBtn.type = 'button'; xBtn.className = 'cu-btn sm'; xBtn.textContent = '✕';
+      xBtn.addEventListener('click', function(){ claimContractorId = null; renderClaimContractor(); });
+      row.appendChild(chip); row.appendChild(xBtn);
+      box.appendChild(row);
+      return;
+    }
+    var wrap = document.createElement('div'); wrap.style.cssText = 'position:relative;';
+    var inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = '계약자 이름 검색'; inp.maxLength = 40; inp.autocomplete = 'off'; inp.className = 'rel-in';
+    var pop = document.createElement('div'); pop.className = 'ref-pop'; pop.style.display = 'none';
+    var blurT = null;
+    function choose(t){ claimContractorId = t.id; renderClaimContractor(); }
+    function draw(){
+      var q = inp.value.trim();
+      pop.innerHTML = '';
+      if(!q){ pop.style.display = 'none'; return; }
+      var toks = refTokens(q), ms = [], seen = {};
+      toks.forEach(function(tk){
+        var part = customers.filter(function(t){ return (!cur || t.id !== cur.id) && !seen[t.id] && refKey(dispName(t)).indexOf(tk) >= 0; });
+        part.sort(function(a, b){ var x = refKey(dispName(a)).indexOf(tk) === 0 ? 0 : 1, y = refKey(dispName(b)).indexOf(tk) === 0 ? 0 : 1; return x - y; });
+        part.slice(0, toks.length > 1 ? 4 : 8).forEach(function(t){ seen[t.id] = 1; ms.push(t); });
+      });
+      ms.slice(0, 10).forEach(function(t){
+        var optRow = document.createElement('div'); optRow.className = 'ref-opt'; optRow.textContent = nameWithTag(t);
+        optRow.addEventListener('mousedown', function(e){ e.preventDefault(); });
+        optRow.addEventListener('click', function(){ choose(t); });
+        pop.appendChild(optRow);
+      });
+      if(!ms.length){ var none = document.createElement('div'); none.className = 'ref-opt free'; none.textContent = '일치하는 고객이 없어요'; pop.appendChild(none); }
+      pop.style.display = 'block';
+    }
+    inp.addEventListener('input', draw);
+    inp.addEventListener('focus', function(){ clearTimeout(blurT); draw(); });
+    inp.addEventListener('blur', function(){ blurT = setTimeout(function(){ pop.style.display = 'none'; }, 250); });
+    wrap.appendChild(inp); wrap.appendChild(pop);
+    box.appendChild(wrap);
   }
   function toggleClaim(name){
     var i = claimSel.indexOf(name);
@@ -1866,8 +1956,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(!claimSel.length){ showToast('보험사를 선택해 주세요'); return; }
     var accEl = document.querySelector('input[name="claimAccType"]:checked');
     var accidentType = accEl ? accEl.value : '';
-    var fax = ($('claimFax') && $('claimFax').value || '').trim();
-    var payload = claimPayloadText(c, accidentType, fax);
+    var faxList = claimSel.filter(function(n){ return FAX_REQUIRED_COMPANIES.indexOf(n) >= 0 && (claimFaxVals[n] || '').trim(); })
+      .map(function(n){ return { company: n, fax: (claimFaxVals[n] || '').trim() }; });
+    var contractor = ($('claimDiffContractor') && $('claimDiffContractor').checked && claimContractorId) ? getCust(claimContractorId) : null;
+    var payload = claimPayloadText(c, accidentType, faxList, contractor);
     $('claimPrevText').textContent = payload;
     $('claimPrevStatus').textContent = '복사된 내용';
     $('claimPrev').style.display = 'block';
@@ -2863,14 +2955,19 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('addrOk').addEventListener('click', putAddr);
     $('addrDetailInput').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); putAddr(); } });
     $('claimBtn').addEventListener('click', function(){
-      claimSel = []; renderClaimList(); openModal('claimModal');
+      claimSel = []; claimFaxVals = {}; claimContractorId = null;
+      if($('claimDiffContractor')) $('claimDiffContractor').checked = false;
+      renderClaimList(); renderClaimContractor(); openModal('claimModal');
       var accDef = document.querySelector('input[name="claimAccType"][value="질병"]');
       if(accDef) accDef.checked = true;
-      if($('claimFax')) $('claimFax').value = '';
     });
     $('claimClearBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); });
     $('claimGoBtn').addEventListener('click', runClaim);
     $('claimCopyBtn').addEventListener('click', copyClaimPreview);
+    $('claimDiffContractor').addEventListener('change', function(){
+      if(!$('claimDiffContractor').checked) claimContractorId = null;
+      renderClaimContractor();
+    });
     var closers = document.querySelectorAll('[data-close]');
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
     ['jobModal', 'addrModal', 'impModal', 'claimModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
