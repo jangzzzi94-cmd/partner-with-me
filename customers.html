@@ -176,6 +176,23 @@
   .md-list .jo.nodesc{grid-template-columns:1fr;}
   .md-hint{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
   #addrEmbed{width:100%;height:min(460px,64vh);}
+
+  /* 보험금청구 (보케어) */
+  #claimModal .md-card{max-width:560px;}
+  #claimModal .md-body{padding-bottom:4px;}
+  .cl-grp{margin:12px 0;}
+  .cl-grp:first-child{margin-top:0;}
+  .cl-grp-t{font-size:12.5px;font-weight:800;color:var(--navy-900);margin:0 0 6px;}
+  .cl-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;}
+  @media (max-width:480px){.cl-grid{grid-template-columns:1fr;}}
+  .cl-opt{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;cursor:pointer;user-select:none;word-break:keep-all;}
+  .cl-opt:hover{border-color:var(--navy-600);}
+  .cl-opt.on{border-color:var(--navy-900);background:var(--navy-100);font-weight:700;}
+  .cl-opt.dis{opacity:.4;cursor:not-allowed;}
+  .cl-opt input{width:16px;height:16px;flex:none;}
+  .cl-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-top:1px solid var(--line);}
+  .cl-cnt{font-size:12.5px;color:var(--muted);font-weight:700;}
+  .cl-prev{margin:10px 0 2px;padding:10px 11px;background:var(--navy-100);border-radius:10px;font-size:12px;color:var(--navy-800);line-height:1.6;white-space:pre-wrap;word-break:break-all;}
   .ref-pop{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--navy-600);border-radius:10px;box-shadow:0 10px 28px rgba(15,37,69,.2);z-index:60;max-height:260px;overflow-y:auto;}
   .ref-opt{padding:10px 12px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--line);}
   .ref-opt:last-child{border-bottom:none;}
@@ -356,6 +373,7 @@
           <button type="button" class="cu-btn sm" id="jobFindBtn">🔍 직업 찾기</button>
           <button type="button" class="cu-btn sm" id="addrFindBtn">📍 주소 찾기</button>
           <button type="button" class="cu-btn sm" id="txtInBtn">📝 텍스트 입력</button>
+          <button type="button" class="cu-btn sm" id="claimBtn">📑 보험금청구</button>
         </div>
         <div class="box-head">
           <label for="personalText">😄인적사항😄</label>
@@ -498,6 +516,21 @@
       </div>
     </div>
     <div class="md-hint" id="addrMsg"></div>
+  </div>
+</div></div>
+<div class="md-back" id="claimModal"><div class="md-card">
+  <div class="md-head"><span>📑 보험금청구 (보케어)</span><button type="button" data-close="claimModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <div class="md-hint" style="margin-top:0;">보케어로 청구할 보험사를 최대 3개까지 선택하세요. 선택하면 고객의 인적사항이 복사되고, 보케어 보험사 선택 화면이 새 탭으로 열려요.<br>처음 쓰시나요? <a href="bocare-install.html" target="_blank" rel="noopener">보케어 자동입력 북마크 설치 방법</a>을 먼저 봐 주세요 (기기당 1회).</div>
+    <div id="claimList"></div>
+    <div class="cl-prev" id="claimPrev" style="display:none;"></div>
+  </div>
+  <div class="cl-foot">
+    <span class="cl-cnt" id="claimCnt">0/3 선택</span>
+    <span style="display:flex;gap:8px;">
+      <button type="button" class="cu-btn sm" id="claimClearBtn">전체해제</button>
+      <button type="button" class="cu-btn sm primary" id="claimGoBtn" disabled>복사하고 보케어 열기</button>
+    </span>
   </div>
 </div></div>
 <div class="ch-toast" id="toast"></div>
@@ -1735,10 +1768,85 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
   function closeModal(id){
     $(id).style.display = 'none';
-    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal', 'tiModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal', 'tiModal', 'claimModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
     if(!open) document.documentElement.style.overflow = '';
   }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
+
+  /* ---------------- 📑 보험금청구 (보케어 연동) ---------------- */
+  // 보케어(bocare.co.kr) 보험금청구V2 > 보험사 선택 화면에 실제로 떠 있는 보험사 전체 목록.
+  // 보케어 쪽 내부 번호(data-company-idx)는 접속마다 바뀔 수 있어 믿을 수 없으므로, 이름으로만 맞춘다.
+  var BOCARE_COMPANIES = {
+    '손해보험': ['AIG손해보험', 'AXA손해보험', 'DB손해보험', 'KB손해보험', 'NH농협손해보험', '교직원공제', '라이나손해보험', '롯데손해보험', '메리츠화재', '삼성화재', '새마을금고공제', '수협공제', '신한EZ손해보험', '신협공제', '예별손해보험', '우체국보험', '캐롯손해보험', '하나손해보험', '한화손해보험', '현대해상화재', '흥국화재'],
+    '생명보험': ['ABL생명', 'AIA생명', 'BNP파리바카디프생명', 'DB생명', 'KB라이프생명', 'KDB생명', 'NH농협생명', 'iM생명', '교보라이프플래닛생명', '교보생명', '동양생명', '라이나생명', '메트라이프생명', '미래에셋생명', '삼성생명', '신한라이프', '오렌지라이프', '처브라이프생명', '푸르덴셜생명', '푸본현대생명', '하나생명', '한화생명', '흥국생명']
+  };
+  var CLAIM_MAX = 3; // 보케어가 한 번에 받을 수 있는 최대 보험사 수
+  var claimSel = [];
+  // 인적사항/계좌 글상자에서 「라벨 : 값」 줄의 값만 읽어 온다 (setPersonalLine의 읽기 전용 짝)
+  function getPersonalLine(text, label){
+    var m = new RegExp('^[ \\t]*' + label + '[ \\t]*[:：][ \\t]*(.*)$', 'm').exec(text || '');
+    return m ? m[1].trim() : '';
+  }
+  function claimPayloadText(c){
+    var name = dispName(c) || '';
+    var rrn = getPersonalLine(c.personal_text, '주민등록번호');
+    var phone = getPersonalLine(c.personal_text, '휴대폰번호');
+    var job = getPersonalLine(c.personal_text, '직업');
+    var addr = getPersonalLine(c.personal_text, '집주소');
+    var bank = getPersonalLine(c.bank_text, '은행명');
+    var acct = getPersonalLine(c.bank_text, '계좌번호');
+    var lines = ['이름 : ' + name, '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '직업 : ' + job, '집주소 : ' + addr];
+    if(bank || acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct);
+    return lines.join('\n');
+  }
+  function renderClaimList(){
+    var box = $('claimList'); if(!box) return;
+    box.innerHTML = '';
+    Object.keys(BOCARE_COMPANIES).forEach(function(grp){
+      var g = document.createElement('div'); g.className = 'cl-grp';
+      var t = document.createElement('div'); t.className = 'cl-grp-t'; t.textContent = grp;
+      var grid = document.createElement('div'); grid.className = 'cl-grid';
+      BOCARE_COMPANIES[grp].forEach(function(name){
+        var on = claimSel.indexOf(name) >= 0;
+        var full = claimSel.length >= CLAIM_MAX && !on;
+        var lab = document.createElement('label');
+        lab.className = 'cl-opt' + (on ? ' on' : '') + (full ? ' dis' : '');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.checked = on; cb.disabled = full;
+        cb.addEventListener('change', (function(nm){ return function(){ toggleClaim(nm); }; })(name));
+        var sp = document.createElement('span'); sp.textContent = name;
+        lab.appendChild(cb); lab.appendChild(sp);
+        grid.appendChild(lab);
+      });
+      g.appendChild(t); g.appendChild(grid);
+      box.appendChild(g);
+    });
+    $('claimCnt').textContent = claimSel.length + '/' + CLAIM_MAX + ' 선택';
+    $('claimGoBtn').disabled = claimSel.length === 0;
+    $('claimPrev').style.display = 'none'; $('claimPrev').textContent = '';
+  }
+  function toggleClaim(name){
+    var i = claimSel.indexOf(name);
+    if(i >= 0){ claimSel.splice(i, 1); }
+    else{
+      if(claimSel.length >= CLAIM_MAX){ showToast('최대 ' + CLAIM_MAX + '개까지 선택할 수 있어요'); renderClaimList(); return; }
+      claimSel.push(name);
+    }
+    renderClaimList();
+  }
+  async function runClaim(){
+    var c = getCust(curId);
+    if(!c){ showToast('고객을 찾을 수 없어요'); return; }
+    if(!claimSel.length){ showToast('보험사를 선택해 주세요'); return; }
+    var payload = claimPayloadText(c);
+    var copied = true;
+    try{ await navigator.clipboard.writeText(payload); }
+    catch(e){ copied = false; }
+    $('claimPrev').style.display = 'block'; $('claimPrev').textContent = payload;
+    var url = 'https://www.bocare.co.kr/v2/views/crm/insurance_request_v2/select/#claim=' + encodeURIComponent(claimSel.join(','));
+    window.open(url, '_blank');
+    showToast(copied ? '인적사항을 복사했어요. 보케어 탭에서 확인해 주세요' : '클립보드 복사에 실패했어요. 아래 내용을 직접 복사해 주세요');
+  }
   // 폰에서 목록을 누를 때 키보드가 닫히면서 화면이 움직여, 누른 줄이 아니라 위(또는 아래) 줄이 선택되는 문제 방지:
   // 손가락을 댄 순간의 줄을 기억해 두었다가, 손가락을 뗄 때(움직이지 않았다면) 그 줄을 선택한다.
   var jobDown = null;
@@ -2710,11 +2818,14 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     }
     $('addrOk').addEventListener('click', putAddr);
     $('addrDetailInput').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); putAddr(); } });
+    $('claimBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); openModal('claimModal'); });
+    $('claimClearBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); });
+    $('claimGoBtn').addEventListener('click', runClaim);
     var closers = document.querySelectorAll('[data-close]');
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
-    ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
-    ['jobModal', 'addrModal', 'impModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); closeModal('tiModal'); } } });
+    ['jobModal', 'addrModal', 'impModal', 'claimModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
+    ['jobModal', 'addrModal', 'impModal', 'claimModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); closeModal('claimModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); closeModal('tiModal'); } } });
   }
 
   /* ---------------- 이벤트 연결 ---------------- */
