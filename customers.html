@@ -185,6 +185,12 @@
   .cl-grp-t{font-size:12.5px;font-weight:800;color:var(--navy-900);margin:0 0 6px;}
   .cl-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;}
   @media (max-width:480px){.cl-grid{grid-template-columns:1fr;}}
+  .cl-grid3{grid-template-columns:1fr 1fr 1fr;}
+  @media (max-width:480px){.cl-grid3{grid-template-columns:1fr 1fr;}}
+  .cl-extra{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);}
+  .cl-opt-note{font-weight:400;color:var(--muted);font-size:11.5px;text-transform:none;letter-spacing:0;}
+  .cl-opt input[type=radio]{accent-color:var(--navy-900);}
+  #claimFax{margin-top:0;}
   .cl-opt{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;cursor:pointer;user-select:none;word-break:keep-all;}
   .cl-opt:hover{border-color:var(--navy-600);}
   .cl-opt.on{border-color:var(--navy-900);background:var(--navy-100);font-weight:700;}
@@ -526,6 +532,17 @@
   <div class="md-body">
     <div class="md-hint" style="margin-top:0;">보케어로 청구할 보험사를 최대 3개까지 선택하세요. 선택하면 고객의 인적사항이 복사되고, 보케어 보험사 선택 화면이 새 탭으로 열려요.<br>처음 쓰시나요? <a href="bocare-install.html" target="_blank" rel="noopener">보케어 자동입력 북마크 설치 방법</a>을 먼저 봐 주세요 (기기당 1회).</div>
     <div id="claimList"></div>
+    <div class="cl-extra">
+      <div class="cl-grp-t">사고유형</div>
+      <div class="cl-grid cl-grid3" id="claimAccGroup">
+        <label class="cl-opt"><input type="radio" name="claimAccType" value="질병" checked><span>질병</span></label>
+        <label class="cl-opt"><input type="radio" name="claimAccType" value="상해"><span>상해</span></label>
+        <label class="cl-opt"><input type="radio" name="claimAccType" value="교통사고"><span>교통사고</span></label>
+      </div>
+      <div class="cl-grp-t" style="margin-top:12px;">가상팩스번호 <span class="cl-opt-note">(필요한 보험사만 — 없으면 비워두세요)</span></div>
+      <input type="text" id="claimFax" placeholder="숫자만 입력 (예: 0505xxxxxxx)" inputmode="numeric">
+      <div class="md-hint" style="margin:8px 0 0;">계좌정보가 있으면 "일반" 계좌로, 없으면 가능한 경우 "자동이체"로 자동 선택돼요. 신분증 등 서류 첨부가 필요한 보험사는 보케어 화면에 안내가 떠요 — 서류는 직접 첨부해 주세요.</div>
+    </div>
     <div class="cl-prev" id="claimPrev" style="display:none;">
       <div class="cl-prev-head"><span id="claimPrevStatus">복사된 내용</span><button type="button" class="cu-btn sm" id="claimCopyBtn">복사하기</button></div>
       <pre id="claimPrevText"></pre>
@@ -1793,7 +1810,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var m = new RegExp('^[ \\t]*' + label + '[ \\t]*[:：][ \\t]*(.*)$', 'm').exec(text || '');
     return m ? m[1].trim() : '';
   }
-  function claimPayloadText(c){
+  function claimPayloadText(c, accidentType, fax){
     var name = dispName(c) || '';
     var rrn = getPersonalLine(c.personal_text, '주민등록번호');
     var phone = getPersonalLine(c.personal_text, '휴대폰번호');
@@ -1801,8 +1818,11 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var addr = getPersonalLine(c.personal_text, '집주소');
     var bank = getPersonalLine(c.bank_text, '은행명');
     var acct = getPersonalLine(c.bank_text, '계좌번호');
+    var holder = getPersonalLine(c.bank_text, '예금주');
     var lines = ['이름 : ' + name, '주민등록번호 : ' + rrn, '휴대폰번호 : ' + phone, '직업 : ' + job, '집주소 : ' + addr];
-    if(bank || acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct);
+    if(accidentType) lines.push('사고유형 : ' + accidentType);
+    if(acct) lines.push('은행명 : ' + bank, '계좌번호 : ' + acct, '예금주 : ' + (holder || name));
+    if(fax) lines.push('가상팩스번호 : ' + fax);
     return lines.join('\n');
   }
   function renderClaimList(){
@@ -1844,7 +1864,10 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     var c = getCust(curId);
     if(!c){ showToast('고객을 찾을 수 없어요'); return; }
     if(!claimSel.length){ showToast('보험사를 선택해 주세요'); return; }
-    var payload = claimPayloadText(c);
+    var accEl = document.querySelector('input[name="claimAccType"]:checked');
+    var accidentType = accEl ? accEl.value : '';
+    var fax = ($('claimFax') && $('claimFax').value || '').trim();
+    var payload = claimPayloadText(c, accidentType, fax);
     $('claimPrevText').textContent = payload;
     $('claimPrevStatus').textContent = '복사된 내용';
     $('claimPrev').style.display = 'block';
@@ -2839,7 +2862,12 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     }
     $('addrOk').addEventListener('click', putAddr);
     $('addrDetailInput').addEventListener('keydown', function(e){ if(e.key === 'Enter'){ e.preventDefault(); putAddr(); } });
-    $('claimBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); openModal('claimModal'); });
+    $('claimBtn').addEventListener('click', function(){
+      claimSel = []; renderClaimList(); openModal('claimModal');
+      var accDef = document.querySelector('input[name="claimAccType"][value="질병"]');
+      if(accDef) accDef.checked = true;
+      if($('claimFax')) $('claimFax').value = '';
+    });
     $('claimClearBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); });
     $('claimGoBtn').addEventListener('click', runClaim);
     $('claimCopyBtn').addEventListener('click', copyClaimPreview);
