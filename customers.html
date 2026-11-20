@@ -192,7 +192,10 @@
   .cl-opt input{width:16px;height:16px;flex:none;}
   .cl-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-top:1px solid var(--line);}
   .cl-cnt{font-size:12.5px;color:var(--muted);font-weight:700;}
-  .cl-prev{margin:10px 0 2px;padding:10px 11px;background:var(--navy-100);border-radius:10px;font-size:12px;color:var(--navy-800);line-height:1.6;white-space:pre-wrap;word-break:break-all;}
+  .cl-prev{margin:10px 0 2px;padding:10px 11px;background:var(--navy-100);border-radius:10px;}
+  .cl-prev-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .cl-prev-head span{font-size:12px;font-weight:700;color:var(--navy-900);}
+  .cl-prev pre{margin:0;font-size:12px;color:var(--navy-800);line-height:1.6;white-space:pre-wrap;word-break:break-all;font-family:inherit;}
   .ref-pop{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--navy-600);border-radius:10px;box-shadow:0 10px 28px rgba(15,37,69,.2);z-index:60;max-height:260px;overflow-y:auto;}
   .ref-opt{padding:10px 12px;font-size:14.5px;cursor:pointer;border-bottom:1px solid var(--line);}
   .ref-opt:last-child{border-bottom:none;}
@@ -523,7 +526,10 @@
   <div class="md-body">
     <div class="md-hint" style="margin-top:0;">보케어로 청구할 보험사를 최대 3개까지 선택하세요. 선택하면 고객의 인적사항이 복사되고, 보케어 보험사 선택 화면이 새 탭으로 열려요.<br>처음 쓰시나요? <a href="bocare-install.html" target="_blank" rel="noopener">보케어 자동입력 북마크 설치 방법</a>을 먼저 봐 주세요 (기기당 1회).</div>
     <div id="claimList"></div>
-    <div class="cl-prev" id="claimPrev" style="display:none;"></div>
+    <div class="cl-prev" id="claimPrev" style="display:none;">
+      <div class="cl-prev-head"><span id="claimPrevStatus">복사된 내용</span><button type="button" class="cu-btn sm" id="claimCopyBtn">복사하기</button></div>
+      <pre id="claimPrevText"></pre>
+    </div>
   </div>
   <div class="cl-foot">
     <span class="cl-cnt" id="claimCnt">0/3 선택</span>
@@ -1823,7 +1829,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     });
     $('claimCnt').textContent = claimSel.length + '/' + CLAIM_MAX + ' 선택';
     $('claimGoBtn').disabled = claimSel.length === 0;
-    $('claimPrev').style.display = 'none'; $('claimPrev').textContent = '';
+    $('claimPrev').style.display = 'none'; $('claimPrevText').textContent = '';
   }
   function toggleClaim(name){
     var i = claimSel.indexOf(name);
@@ -1839,13 +1845,28 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(!c){ showToast('고객을 찾을 수 없어요'); return; }
     if(!claimSel.length){ showToast('보험사를 선택해 주세요'); return; }
     var payload = claimPayloadText(c);
+    $('claimPrevText').textContent = payload;
+    $('claimPrevStatus').textContent = '복사된 내용';
+    $('claimPrev').style.display = 'block';
+    // 모바일 브라우저는 클립보드 쓰기보다 새 탭 열기를 먼저(동기적으로) 해야 팝업이 막히지 않아요.
+    var url = 'https://www.bocare.co.kr/v2/views/crm/insurance_request_v2/select/#claim=' + encodeURIComponent(claimSel.join(','));
+    window.open(url, '_blank');
     var copied = true;
     try{ await navigator.clipboard.writeText(payload); }
     catch(e){ copied = false; }
-    $('claimPrev').style.display = 'block'; $('claimPrev').textContent = payload;
-    var url = 'https://www.bocare.co.kr/v2/views/crm/insurance_request_v2/select/#claim=' + encodeURIComponent(claimSel.join(','));
-    window.open(url, '_blank');
-    showToast(copied ? '인적사항을 복사했어요. 보케어 탭에서 확인해 주세요' : '클립보드 복사에 실패했어요. 아래 내용을 직접 복사해 주세요');
+    $('claimPrevStatus').textContent = copied ? '✅ 복사된 내용' : '⚠️ 자동 복사 실패 — 아래 "복사하기"를 눌러 주세요';
+    showToast(copied ? '인적사항을 복사했어요. 보케어 탭에서 확인해 주세요' : '자동 복사가 안 됐어요. 아래 "복사하기" 버튼을 눌러 주세요');
+  }
+  async function copyClaimPreview(){
+    var text = $('claimPrevText').textContent;
+    if(!text){ showToast('먼저 보험사를 선택하고 "복사하고 보케어 열기"를 눌러 주세요'); return; }
+    try{
+      await navigator.clipboard.writeText(text);
+      $('claimPrevStatus').textContent = '✅ 복사된 내용';
+      showToast('복사했어요');
+    }catch(e){
+      showToast('복사에 실패했어요. 위의 글상자를 길게 눌러 직접 복사해 주세요');
+    }
   }
   // 폰에서 목록을 누를 때 키보드가 닫히면서 화면이 움직여, 누른 줄이 아니라 위(또는 아래) 줄이 선택되는 문제 방지:
   // 손가락을 댄 순간의 줄을 기억해 두었다가, 손가락을 뗄 때(움직이지 않았다면) 그 줄을 선택한다.
@@ -2821,6 +2842,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     $('claimBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); openModal('claimModal'); });
     $('claimClearBtn').addEventListener('click', function(){ claimSel = []; renderClaimList(); });
     $('claimGoBtn').addEventListener('click', runClaim);
+    $('claimCopyBtn').addEventListener('click', copyClaimPreview);
     var closers = document.querySelectorAll('[data-close]');
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
     ['jobModal', 'addrModal', 'impModal', 'claimModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
