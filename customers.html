@@ -1978,9 +1978,13 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     // 겹쳐서 꼬일 수 있어, 해시가 없는 주소(ERP)에서만 쓰고 해시가 있는 주소(보케어 보험사
     // 선택 정보)는 기존 방식 그대로 연다. 보케어 쪽은 커스텀 탭이 열렸을 때 오른쪽 위
     // "⋮" 메뉴 → "Chrome 브라우저에서 열기"로 빠져나가면 된다 (설치 안내 페이지에 적어둠).
+    // "위드파트너 자동입력" 전용 앱(WebView) 안에서는 커스텀 탭 자체가 없고,
+    // 앱이 window.open()을 가로채 같은 화면 안에서 바로 열어주므로 intent: 트릭이 필요 없다.
+    // 오히려 WebView는 intent: 스킴을 모르는 경우가 있어 "지원하지 않는 주소"로 실패한다.
+    var isInApp = /WithPartnersApp/i.test(navigator.userAgent);
     var isAndroid = /Android/i.test(navigator.userAgent);
     var hasHash = url.indexOf('#') >= 0;
-    if(isAndroid && !hasHash){
+    if(isAndroid && !hasHash && !isInApp){
       try{
         var noProto = url.replace(/^https?:\/\//, '');
         var intentUrl = 'intent://' + noProto + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
