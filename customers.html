@@ -191,7 +191,9 @@
   .fold .arr{font-size:12px;width:14px;}
   .fold .dot{width:7px;height:7px;border-radius:50%;background:#1d4ed8;display:none;}
   .box.folded textarea{display:none;}
-  .box.folded .cv-grid,.box.folded .cv-none,.box.folded .cv-pdf{display:none !important;}
+  .box.folded .cv-grid,.box.folded .cv-none,.box.folded .cv-pdf,.box.folded .hf-list{display:none !important;}
+  .hf-list .cv-pdf{margin-top:10px;}
+  .hf-list .cv-pdf:first-child{margin-top:0;}
   .chat:empty{display:none;}
   .chat{max-height:58vh;overflow-y:auto;background:#f5f7fb;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px;}
   .msg2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:8px;max-width:100%;}
@@ -362,6 +364,11 @@
           </div>
         </div>
         <textarea id="bankText" data-field="bank_text"></textarea>
+      </div>
+      <div class="box" id="hfBox">
+        <div class="box-head"><div class="fold" id="hfFold" role="button" tabindex="0"><span class="arr">▶</span> 📂병력파일📂 <span class="dot" title="저장된 파일 있음"></span></div></div>
+        <div class="hf-list" id="hfList"></div>
+        <div class="cv-none" id="hfNone" style="display:none;">저장된 병력 파일이 없어요</div>
       </div>
       <div class="box">
         <div class="box-head">
@@ -1239,6 +1246,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     renderReferrer();
     renderFamily();
     renderCoverage(c);
+    renderHistoryFiles(c);
     renderContracts(c);
     $('noteText').value = '';
     $('chatList').innerHTML = '';
@@ -1256,6 +1264,34 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   }
   $('cvFold').addEventListener('click', function(){ setCovFold(!$('cvBox').classList.contains('folded')); });
   $('cvFold').addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('cvFold').click(); } });
+  // PDF 한 건을 "열기/저장" 버튼이 달린 한 줄로 그려서 컨테이너에 붙인다.
+  // boldText가 있으면 굵은 글씨로(예: "서효찬님 기본"), 없으면 파일 이름을 굵게 쓴다.
+  function renderPdfRow(container, pf, boldText){
+    var pname = pf.name || '파일.pdf';
+    var kb = pf.size ? (pf.size >= 1048576 ? (pf.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(pf.size / 1024)) + 'KB') : '';
+    var bold = boldText || pname;
+    var sub = (boldText ? pname + ' · ' : '원본 PDF' + (kb ? ' · ' : '')) + (boldText ? kb : (kb || ''));
+    var row = h('div', { class: 'cv-pdf' });
+    var pdfUrl = async function(dl){
+      var res = await sb.storage.from(BUCKET).createSignedUrl(pf.path, 300, dl ? { download: pname.replace(/[\\/:*?"<>|]/g, '_') } : undefined);
+      if(res.error || !res.data || !res.data.signedUrl) throw (res.error || new Error('주소를 만들지 못했어요'));
+      return res.data.signedUrl;
+    };
+    var openB = h('button', { type: 'button', class: 'cu-btn sm', text: '📄 열기', onclick: async function(){
+      var w = window.open('', '_blank');
+      try{ var u = await pdfUrl(false); if(w) w.location.href = u; else location.href = u; }catch(e){ if(w) w.close(); showToast('열지 못했어요: ' + errText(e)); }
+    } });
+    var saveB = h('button', { type: 'button', class: 'cu-btn sm', text: '💾 PDF 저장', onclick: async function(){
+      saveB.disabled = true;
+      try{ var u = await pdfUrl(true); var a = document.createElement('a'); a.href = u; a.download = pname; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+      catch(e){ showToast('저장하지 못했어요: ' + errText(e)); }
+      finally{ saveB.disabled = false; }
+    } });
+    row.appendChild(h('div', { class: 'ic', text: '📄' }));
+    row.appendChild(h('div', { class: 'tx' }, [h('b', { text: bold }), h('span', { text: sub })]));
+    row.appendChild(h('div', { class: 'bt' }, [openB, saveB]));
+    container.appendChild(row);
+  }
   async function renderCoverage(c){
     var every = ((c && c.coverage_images) || []).filter(function(x){ return x && x.path; });
     var items = every.filter(function(x){ return x.key !== 'pdf'; });
@@ -1269,26 +1305,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(!every.length) return;
     var id = c.id;
     pdfs.forEach(function(pf){
-      var pname = pf.name || (covName + '_보장분석.pdf');
-      var kb = pf.size ? (pf.size >= 1048576 ? (pf.size / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(pf.size / 1024)) + 'KB') : '';
-      var pdfUrl = async function(dl){
-        var res = await sb.storage.from(BUCKET).createSignedUrl(pf.path, 300, dl ? { download: pname.replace(/[\\/:*?"<>|]/g, '_') } : undefined);
-        if(res.error || !res.data || !res.data.signedUrl) throw (res.error || new Error('주소를 만들지 못했어요'));
-        return res.data.signedUrl;
-      };
-      var openB = h('button', { type: 'button', class: 'cu-btn sm', text: '📄 열기', onclick: async function(){
-        var w = window.open('', '_blank');
-        try{ var u = await pdfUrl(false); if(w) w.location.href = u; else location.href = u; }catch(e){ if(w) w.close(); showToast('열지 못했어요: ' + errText(e)); }
-      } });
-      var saveB = h('button', { type: 'button', class: 'cu-btn sm', text: '💾 PDF 저장', onclick: async function(){
-        saveB.disabled = true;
-        try{ var u = await pdfUrl(true); var a = document.createElement('a'); a.href = u; a.download = pname; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
-        catch(e){ showToast('저장하지 못했어요: ' + errText(e)); }
-        finally{ saveB.disabled = false; }
-      } });
-      pbox.appendChild(h('div', { class: 'ic', text: '📄' }));
-      pbox.appendChild(h('div', { class: 'tx' }, [h('b', { text: pname }), h('span', { text: '원본 PDF' + (kb ? ' · ' + kb : '') })]));
-      pbox.appendChild(h('div', { class: 'bt' }, [openB, saveB]));
+      renderPdfRow(pbox, pf);
       pbox.style.display = 'flex';
     });
     if(!items.length) return;
@@ -1302,6 +1319,23 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       cell.appendChild(h('div', { class: 'cv-lab', text: it.label || '' }));
       grid.appendChild(cell);
     });
+  }
+
+  /* ---- 📂병력파일📂 : 병력정리 페이지에서 올린 PDF 원본(기본/세부/자동차기본/자동차세부) ---- */
+  function setHfFold(folded){
+    var box = $('hfBox'), f = $('hfFold');
+    box.classList.toggle('folded', folded);
+    f.querySelector('.arr').textContent = folded ? '▶' : '▼';
+  }
+  $('hfFold').addEventListener('click', function(){ setHfFold(!$('hfBox').classList.contains('folded')); });
+  $('hfFold').addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('hfFold').click(); } });
+  function renderHistoryFiles(c){
+    var items = ((c && c.history_files) || []).filter(function(x){ return x && x.path; });
+    var list = $('hfList'); list.innerHTML = '';
+    setHfFold(true);
+    $('hfFold').querySelector('.dot').style.display = items.length ? 'inline-block' : 'none';
+    $('hfNone').style.display = items.length ? 'none' : 'block';
+    items.forEach(function(it){ renderPdfRow(list, it, it.label); });
   }
   function setCovZoom(full){
     covFull = !!full;
@@ -1549,7 +1583,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       var paths = [];
       var notesAll = await fetchAll(function(){ return sb.from('customer_notes').select('attachments').eq('customer_id', t.id); });
       notesAll.forEach(function(n){ (n.attachments || []).forEach(function(a){ paths.push(a.path); }); });
-      try{ var cr = await sb.from('customers').select('coverage_images').eq('id', t.id).single(); if(cr.data) (cr.data.coverage_images || []).forEach(function(a){ if(a && a.path) paths.push(a.path); }); }catch(e){}
+      try{ var cr = await sb.from('customers').select('coverage_images,history_files').eq('id', t.id).single(); if(cr.data){ (cr.data.coverage_images || []).forEach(function(a){ if(a && a.path) paths.push(a.path); }); (cr.data.history_files || []).forEach(function(a){ if(a && a.path) paths.push(a.path); }); } }catch(e){}
       if(paths.length){ try{ await sb.storage.from(BUCKET).remove(paths); }catch(e){} }
       must(await sb.from('customers').delete().eq('id', t.id));
       trash = trash.filter(function(x){ return x.id !== t.id; });

@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="assets/supabase-client.js"></script>
 <style>
 :root{ --ink:#132a4c; --ink-soft:#5b6b7c; --paper:#f5f7fb; --panel:#fff; --line:#dfe5ec; --amber:#16305c; }
@@ -1118,35 +1119,52 @@ async function extractPagesFromDoc(doc){
 }
 async function extractPdfPages(file){
   const buf = await file.arrayBuffer();
-  const doc = await openPdfSmart(buf);
+  const { doc, wasLocked } = await openPdfSmart(buf);
+  window.__sourcePdfDoc = doc; // 「인적사항 추가」 저장 때, 잠겨 있던 파일이면 비밀번호를 해제한 뒤 다시 찍어내기 위해 기억해 둔다
+  window.__sourcePdfWasLocked = wasLocked;
   return extractPagesFromDoc(doc);
 }
 
 /* -------------------------------------------------------------------------
    🔒 비밀번호가 걸린 PDF -- 보험사 PDF는 보통 가입자의 주민번호·생년월일·전화번호로
    암호가 걸려 있다. 비밀번호 없이 억지로 뚫는 게 아니라, 고객리스트에 이미 저장된
-   그 고객의 인적사항에서 흔히 쓰이는 패턴(주민번호 앞 6/7자리, 생년월일, 전화번호
-   뒷자리 등)을 자동으로 넣어보고, 그래도 안 열리면 직접 입력하게 한다.
+   그 고객의 인적사항에서 흔히 쓰이는 패턴을 자동으로 넣어보고, 그래도 안 열리면
+   직접 입력하게 한다. 보장분석표는 "생년월일 6자리(예: 940506)"가 기본 규칙이라고
+   확인돼서 그걸 먼저 시도하고, 혹시 규칙이 바뀌어 "19940506"처럼 8자리인 경우에
+   대비해 반대 자리수도 한 번 더 시도한다.
    ------------------------------------------------------------------------- */
+const PW_BASE_PRIORITY = "6"; // 보장분석표: 생년월일 6자리(YYMMDD)를 먼저 시도
 function isPdfPasswordError(e){ return e && e.name === "PasswordException"; }
-function pwDigitCandidates(personalText){
+function pwRrnCentury(g){
+  if(g === "1" || g === "2" || g === "5" || g === "6") return "19";
+  if(g === "3" || g === "4" || g === "7" || g === "8") return "20";
+  if(g === "9" || g === "0") return "18";
+  return null;
+}
+function pwDigitCandidates(personalText, basePriority){
   const t = personalText || "";
   const out = [];
   const push = (v)=>{ if(v && !out.includes(v)) out.push(v); };
   const digits = (s)=> (s||"").replace(/\D/g, "");
+  let rrn6 = "", rrn7 = "", rrn8 = "", rrnFull = "", bd6 = "", bd8 = "";
   let m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
   if(m){
     const d = digits(m[1]);
-    if(d.length >= 6) push(d.slice(0,6));   // 생년월일 6자리
-    if(d.length >= 7) push(d.slice(0,7));   // 생년월일+성별 7자리
-    if(d.length >= 13){ push(d.slice(0,13)); push(d.slice(7,13)); push(d.slice(7,13)+d.slice(6,7)); }
+    if(d.length >= 6) rrn6 = d.slice(0,6);
+    if(d.length >= 7){ rrn7 = d.slice(0,7); const c = pwRrnCentury(d[6]); if(c) rrn8 = c + rrn6; }
+    if(d.length >= 13) rrnFull = d.slice(0,13);
   }
   m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
   if(m){
     const d = digits(m[1]);
-    if(d.length === 8){ push(d.slice(2)); push(d); }
-    else if(d.length === 6) push(d);
+    if(d.length === 8){ bd8 = d; bd6 = d.slice(2); }
+    else if(d.length === 6) bd6 = d;
   }
+  const base6 = rrn6 || bd6, base8 = rrn8 || bd8;
+  if((basePriority || PW_BASE_PRIORITY) === "8"){ push(base8); push(base6); }
+  else { push(base6); push(base8); }
+  // 생년월일 기반으로 못 풀면, 주민번호 전체/뒷자리·전화번호도 이어서 시도해 본다 (기본 규칙이 또 바뀌었을 가능성 대비).
+  push(rrn7); push(rrnFull); if(rrnFull) push(rrnFull.slice(7,13));
   m = /^[ \t]*휴대폰번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
   if(m){
     const d = digits(m[1]);
@@ -1183,6 +1201,7 @@ function openPwModal(buf){
 }
 async function pwTryList(cands){
   for(const pw of cands){
+    if(!pw) continue;
     try{ return await pdfjsLib.getDocument({ data: new Uint8Array(__pwBuf), password: pw }).promise; }
     catch(e){ if(!isPdfPasswordError(e)) throw e; }
   }
@@ -1190,12 +1209,13 @@ async function pwTryList(cands){
 }
 async function openPdfSmart(buf){
   try{
-    return await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    return { doc, wasLocked: false };
   }catch(e){
     if(!isPdfPasswordError(e)) throw e;
     const doc = await openPwModal(buf);
-    if(!doc) throw new Error("비밀번호를 풀지 못해 가져오기를 멈췄습니다.");
-    return doc;
+    if(!doc) throw new Error("비밀번호를 풀지 못해 가져오기를 멈췄습니다. (자동/수동 모두 실패)");
+    return { doc, wasLocked: true };
   }
 }
 document.getElementById("pwAutoBtn").addEventListener("click", async ()=>{
@@ -1209,7 +1229,7 @@ document.getElementById("pwAutoBtn").addEventListener("click", async ()=>{
     let cands = [];
     matches.forEach(c => pwDigitCandidates(c.personal_text).forEach(x=>{ if(!cands.includes(x)) cands.push(x); }));
     if(!cands.length){ pwSetMsg("「" + name + "」님의 저장된 주민번호·생년월일·전화번호가 없어서 자동으로는 못 풀어요. 비밀번호를 직접 입력해 주세요.", "err"); return; }
-    pwSetMsg("비밀번호 " + cands.length + "개를 하나씩 넣어보는 중…");
+    pwSetMsg("비밀번호 " + cands.length + "개를 하나씩 넣어보는 중… (생년월일 6자리 → 8자리 순)");
     const doc = await pwTryList(cands);
     if(doc){ __pwResolve(doc); return; }
     pwSetMsg("자동으로는 못 풀었어요(" + cands.length + "개 시도). 비밀번호를 직접 입력해 주세요.", "err");
@@ -1229,6 +1249,29 @@ document.getElementById("pwManualBtn").addEventListener("click", async ()=>{
     else pwSetMsg("오류: " + (e && e.message ? e.message : e), "err");
   }finally{ btn.disabled = false; }
 });
+/* -------------------------------------------------------------------------
+   🔓 비밀번호를 풀어서 저장할 때 -- 원본 파일을 그대로 두지 않고, 각 페이지를
+   화면에 그린 뒤(이미 pdf.js로 올바른 비밀번호를 넣어 연 상태) 그 화면을 다시
+   새 PDF 페이지로 찍어서, 비밀번호가 전혀 없는 새 PDF를 만든다.
+   ------------------------------------------------------------------------- */
+async function rasterizePdfToBlob(doc){
+  const { jsPDF } = window.jspdf;
+  let pdf = null;
+  for(let p=1;p<=doc.numPages;p++){
+    const page = await doc.getPage(p);
+    const v1 = page.getViewport({ scale:1 });
+    const vr = page.getViewport({ scale:1.5 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(vr.width); canvas.height = Math.ceil(vr.height);
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport: vr }).promise;
+    const imgData = canvas.toDataURL("image/jpeg", 0.82);
+    if(!pdf) pdf = new jsPDF({ unit:"pt", format:[v1.width, v1.height], compress:true });
+    else pdf.addPage([v1.width, v1.height]);
+    pdf.addImage(imgData, "JPEG", 0, 0, v1.width, v1.height);
+  }
+  return pdf.output("blob");
+}
 document.getElementById("pwManual").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwManualBtn").click(); });
 document.getElementById("pwCustName").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwAutoBtn").click(); });
 document.getElementById("pwClose").addEventListener("click", ()=>{ if(__pwResolve) __pwResolve(null); });
@@ -3935,20 +3978,27 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) syncAdm
         uploaded.push(path);
         items.push({ key: sh.key, label: sh.label, path: path, type: img.type, size: img.blob.size, w: img.w, h: img.h, saved_at: new Date().toISOString() });
       }
-      // 원본 PDF도 파일 그대로(변환 없이) 이미지 4장 바로 아래에 함께 저장한다.
+      // 원본 PDF를 이미지 4장 바로 아래에 함께 저장한다. 비밀번호가 걸려 있어서 풀어서 연
+      // 파일이면(= 원본 그대로 두면 또 비밀번호가 걸려 있는 것이므로) 화면에 그려서 비밀번호가
+      // 전혀 없는 새 PDF로 다시 찍어 저장하고, 비밀번호가 없던 파일이면 원본 그대로 저장한다.
       // PDF가 없으면(엑셀로 이어서 수정한 경우) 이전에 저장해 둔 PDF가 있으면 그대로 둔다.
       let pdfWarn = "", pdfSaved = false;
       const srcPdf = window.__sourcePdf;
       const oldAll = Array.isArray(cust.coverage_images) ? cust.coverage_images.filter(x => x && x.path) : [];
       const oldPdf = oldAll.filter(x => x.key === "pdf");
       if(srcPdf){
-        setMsg("원본 PDF 저장 중…");
         try{
+          let blobToSave = srcPdf;
+          if(window.__sourcePdfWasLocked && window.__sourcePdfDoc){
+            setMsg("비밀번호를 해제한 PDF로 변환 중…");
+            blobToSave = await rasterizePdfToBlob(window.__sourcePdfDoc);
+          }
+          setMsg("원본 PDF 저장 중…");
           const ppath = uid + "/" + cust.id + "/cov_pdf_" + uuid() + ".pdf";
-          const pup = await supabaseClient.storage.from(BUCKET).upload(ppath, srcPdf, { contentType:"application/pdf", upsert:false });
+          const pup = await supabaseClient.storage.from(BUCKET).upload(ppath, blobToSave, { contentType:"application/pdf", upsert:false });
           if(pup.error) throw pup.error;
           uploaded.push(ppath);
-          items.push({ key:"pdf", label:"보장분석 PDF", path:ppath, type:"application/pdf", size:srcPdf.size, name:srcPdf.name, saved_at:new Date().toISOString() });
+          items.push({ key:"pdf", label:"보장분석 PDF", path:ppath, type:"application/pdf", size:blobToSave.size, name:srcPdf.name, saved_at:new Date().toISOString() });
           pdfSaved = true;
         }catch(e){ console.warn("PDF 저장 실패:", e); pdfWarn = (e && e.message) ? e.message : String(e); }
       }

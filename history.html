@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --ink:#132a4c;
@@ -223,6 +224,22 @@ button.secondary:hover{background:#e2eee2;}
     <div class="cm-msg" id="cmMsg"></div>
   </div>
 </div></div>
+<div class="cm-back" id="pwModal"><div class="cm-card" style="max-width:420px;">
+  <div class="cm-head"><b>🔒 PDF 비밀번호가 필요해요</b><button type="button" id="pwClose" aria-label="닫기">✕</button></div>
+  <div class="cm-body">
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;line-height:1.6;">보험사 PDF는 보통 가입자의 생년월일·주민번호·전화번호로 잠겨 있어요. 고객명을 입력하면 저장된 인적사항으로 자동으로 풀어볼게요.</div>
+    <input type="text" id="pwCustName" placeholder="고객명" autocomplete="off" maxlength="40">
+    <button type="button" id="pwAutoBtn" class="primary" style="width:100%;margin-top:10px;">🔓 자동으로 풀기</button>
+    <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
+      <label style="font-size:12.5px;color:var(--ink-soft);">비밀번호를 알고 계시면 직접 입력하세요</label>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <input type="password" id="pwManual" placeholder="비밀번호" style="flex:1;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;">
+        <button type="button" id="pwManualBtn" class="secondary">열기</button>
+      </div>
+    </div>
+    <div class="cm-msg" id="pwMsg"></div>
+  </div>
+</div></div>
 <script src="assets/supabase-client.js"></script>
 <script>
 // ⚠️ 테스트용 임시 스위치: true로 두면 포인트 차감 없이(포인트가 있다고 가정하고) 무제한으로
@@ -285,6 +302,12 @@ const DENTAL_MAJOR_RE = /임플란트|implant|고정체|지대주|치조골\s*�
 const HEADERS_FIXED = ["순번","진료시작일","병·의원&약국","진단과","입원/외래","주상병코드","주상병명","내원일수","내가 낸 의료비(진료비)","내복약일수","수술내역"];
 let file1=null, file2=null, file3=null, file4=null;
 let lastResult=null;
+// 파일 1~4 중 PDF로 올린 것들을 기억해 둔다 -- 저장할 때 그 PDF를 고객에게도 같이 저장하기 위해서다.
+// { file, doc, wasLocked } -- doc은 비밀번호를 풀어서 연 pdf.js 문서(저장 시 다시 찍어내기용).
+const PDF_SLOT = {1:null, 2:null, 3:null, 4:null};
+const PDF_SLOT_LABEL = {1:"기본", 2:"세부", 3:"자동차기본", 4:"자동차세부"};
+const PDF_SLOT_KEY = {1:"hist1", 2:"hist2", 3:"hist3", 4:"hist4"};
+function resetPdfSlots(){ PDF_SLOT[1]=PDF_SLOT[2]=PDF_SLOT[3]=PDF_SLOT[4]=null; }
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js";
 const REF_WIDTH = 595.28;
 const WORD_GAP = 3.0;
@@ -302,9 +325,10 @@ const PDF_TEMPLATES = {
   detail: { marker: "코드명",   anchors: [36.6, 64.5, 145.5, 249.9, 356.0, 456.3, 499.6, 542.4],
             borders: [28.4, 56.7, 127.6, 226.8, 333.1, 439.4, 481.9, 524.4, 566.9] }
 };
-async function extractPdfPages(file){
+async function extractPdfPages(file, slot){
   const buf = await file.arrayBuffer();
-  const doc = await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const { doc, wasLocked } = await openPdfSmart(buf);
+  if(slot) PDF_SLOT[slot] = { file, doc, wasLocked };
   const pages = [];
   for(let p=1;p<=doc.numPages;p++){
     const page = await doc.getPage(p);
@@ -317,6 +341,160 @@ async function extractPdfPages(file){
     pages.push({ items, width: viewport.width, height: viewport.height });
   }
   return pages;
+}
+
+/* -------------------------------------------------------------------------
+   🔒 비밀번호가 걸린 PDF -- 병력정리 PDF는 보통 가입자의 생년월일(예: 19940506)로
+   잠겨 있다고 확인돼서 8자리를 먼저 시도하고, 혹시 규칙이 바뀌어 6자리(예: 940506)인
+   경우에 대비해 반대 자리수도 한 번 더 시도한다. 그래도 안 풀리면 직접 입력하게 하고,
+   그것도 안 되면 못 푼다고 알려준다. 1번+2번, 3번+4번처럼 같은 고객의 파일을 두 개
+   올리는 경우가 많아서, 한 번 맞은 비밀번호는 같은 매칭 실행 동안 먼저 시도해 본다.
+   ------------------------------------------------------------------------- */
+const PW_BASE_PRIORITY = "8"; // 병력정리: 생년월일 8자리(YYYYMMDD)를 먼저 시도
+let __lastGoodPwd = null;
+function isPdfPasswordError(e){ return e && e.name === "PasswordException"; }
+function pwRrnCentury(g){
+  if(g === "1" || g === "2" || g === "5" || g === "6") return "19";
+  if(g === "3" || g === "4" || g === "7" || g === "8") return "20";
+  if(g === "9" || g === "0") return "18";
+  return null;
+}
+function pwDigitCandidates(personalText, basePriority){
+  const t = personalText || "";
+  const out = [];
+  const push = (v)=>{ if(v && !out.includes(v)) out.push(v); };
+  const digits = (s)=> (s||"").replace(/\D/g, "");
+  let rrn6 = "", rrn7 = "", rrn8 = "", rrnFull = "", bd6 = "", bd8 = "";
+  let m = /^[ \t]*주민등록번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){
+    const d = digits(m[1]);
+    if(d.length >= 6) rrn6 = d.slice(0,6);
+    if(d.length >= 7){ rrn7 = d.slice(0,7); const c = pwRrnCentury(d[6]); if(c) rrn8 = c + rrn6; }
+    if(d.length >= 13) rrnFull = d.slice(0,13);
+  }
+  m = /^[ \t]*생년월일[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){
+    const d = digits(m[1]);
+    if(d.length === 8){ bd8 = d; bd6 = d.slice(2); }
+    else if(d.length === 6) bd6 = d;
+  }
+  const base6 = rrn6 || bd6, base8 = rrn8 || bd8;
+  if((basePriority || PW_BASE_PRIORITY) === "8"){ push(base8); push(base6); }
+  else { push(base6); push(base8); }
+  push(rrn7); push(rrnFull); if(rrnFull) push(rrnFull.slice(7,13));
+  m = /^[ \t]*휴대폰번호[ \t]*[:：][ \t]*(.*)$/m.exec(t);
+  if(m){
+    const d = digits(m[1]);
+    if(d.length >= 4) push(d.slice(-4));
+    if(d.length >= 8) push(d.slice(-8));
+    if(d.length) push(d);
+  }
+  return out;
+}
+function pwParseName(t){ const m = /^[ \t]*이름[ \t]*[:：][ \t]*(.*)$/m.exec(t || ""); return m ? m[1].trim() : ""; }
+function pwDispName(c){ return ((c.name || "").trim()) || pwParseName(c.personal_text); }
+async function pwFindCustomers(name){
+  const nl = name.trim().toLowerCase(); if(!nl) return [];
+  let rows = [], from = 0;
+  for(;;){
+    const res = await supabaseClient.from("customers").select("id,name,personal_text").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
+    if(res.error) throw res.error;
+    rows = rows.concat(res.data || []);
+    if(!res.data || res.data.length < 1000) break;
+    from += 1000;
+  }
+  return rows.filter(c => pwDispName(c).toLowerCase().indexOf(nl) >= 0);
+}
+let __pwBuf = null, __pwResolve = null;
+function pwSetMsg(text, kind){ const el = document.getElementById("pwMsg"); el.className = "cm-msg" + (kind ? " " + kind : ""); el.textContent = text || ""; }
+function openPwModal(buf){
+  __pwBuf = buf;
+  const nameInp = document.getElementById("pwCustName");
+  nameInp.value = "";
+  pwSetMsg(""); document.getElementById("pwManual").value = "";
+  document.getElementById("pwModal").style.display = "flex";
+  setTimeout(()=> nameInp.focus(), 50);
+  return new Promise((resolve)=>{ __pwResolve = (doc)=>{ document.getElementById("pwModal").style.display = "none"; resolve(doc || null); }; });
+}
+async function pwTryList(cands){
+  for(const pw of cands){
+    if(!pw) continue;
+    try{ return { doc: await pdfjsLib.getDocument({ data: new Uint8Array(__pwBuf), password: pw }).promise, pw }; }
+    catch(e){ if(!isPdfPasswordError(e)) throw e; }
+  }
+  return null;
+}
+async function openPdfSmart(buf){
+  try{
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+    return { doc, wasLocked: false };
+  }catch(e){
+    if(!isPdfPasswordError(e)) throw e;
+    // 같은 매칭에서 1번+2번(또는 3번+4번)처럼 같은 고객의 파일을 올린 경우, 방금 맞았던
+    // 비밀번호를 먼저 조용히 시도해서 매번 다시 입력하지 않게 한다.
+    if(__lastGoodPwd){
+      try{ const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf), password: __lastGoodPwd }).promise; return { doc, wasLocked: true }; }
+      catch(e2){ if(!isPdfPasswordError(e2)) throw e2; }
+    }
+    __pwBuf = buf;
+    const doc = await openPwModal(buf);
+    if(!doc) throw new Error("비밀번호를 풀지 못해 가져오기를 멈췄습니다. (자동/수동 모두 실패)");
+    return { doc, wasLocked: true };
+  }
+}
+document.getElementById("pwAutoBtn").addEventListener("click", async ()=>{
+  const name = document.getElementById("pwCustName").value.trim();
+  if(!name){ pwSetMsg("고객명을 입력해 주세요.", "err"); return; }
+  const btn = document.getElementById("pwAutoBtn"); btn.disabled = true;
+  pwSetMsg("「" + name + "」 고객 정보를 찾는 중…");
+  try{
+    const matches = await pwFindCustomers(name);
+    if(!matches.length){ pwSetMsg("「" + name + "」 고객을 찾지 못했어요. 이름을 확인하거나 비밀번호를 직접 입력해 주세요.", "err"); return; }
+    let cands = [];
+    matches.forEach(c => pwDigitCandidates(c.personal_text).forEach(x=>{ if(!cands.includes(x)) cands.push(x); }));
+    if(!cands.length){ pwSetMsg("「" + name + "」님의 저장된 생년월일·주민번호·전화번호가 없어서 자동으로는 못 풀어요. 비밀번호를 직접 입력해 주세요.", "err"); return; }
+    pwSetMsg("비밀번호 " + cands.length + "개를 하나씩 넣어보는 중… (생년월일 8자리 → 6자리 순)");
+    const r = await pwTryList(cands);
+    if(r){ __lastGoodPwd = r.pw; __pwResolve(r.doc); return; }
+    pwSetMsg("자동으로는 못 풀었어요(" + cands.length + "개 시도). 비밀번호를 직접 입력해 주세요.", "err");
+  }catch(e){ pwSetMsg("오류: " + (e && e.message ? e.message : e), "err"); }
+  finally{ btn.disabled = false; }
+});
+document.getElementById("pwManualBtn").addEventListener("click", async ()=>{
+  const pw = document.getElementById("pwManual").value;
+  if(!pw){ pwSetMsg("비밀번호를 입력해 주세요.", "err"); return; }
+  const btn = document.getElementById("pwManualBtn"); btn.disabled = true;
+  pwSetMsg("여는 중…");
+  try{
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(__pwBuf), password: pw }).promise;
+    __lastGoodPwd = pw; __pwResolve(doc);
+  }catch(e){
+    if(isPdfPasswordError(e)) pwSetMsg("비밀번호가 맞지 않아요.", "err");
+    else pwSetMsg("오류: " + (e && e.message ? e.message : e), "err");
+  }finally{ btn.disabled = false; }
+});
+document.getElementById("pwManual").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwManualBtn").click(); });
+document.getElementById("pwCustName").addEventListener("keydown", (e)=>{ if(e.key === "Enter") document.getElementById("pwAutoBtn").click(); });
+document.getElementById("pwClose").addEventListener("click", ()=>{ if(__pwResolve) __pwResolve(null); });
+document.getElementById("pwModal").addEventListener("click", (e)=>{ if(e.target === e.currentTarget && __pwResolve) __pwResolve(null); });
+/* 🔓 비밀번호를 풀어서 저장할 때 -- 각 페이지를 화면에 그려서 비밀번호가 전혀 없는 새 PDF로 다시 찍는다. */
+async function rasterizePdfToBlob(doc){
+  const { jsPDF } = window.jspdf;
+  let pdf = null;
+  for(let p=1;p<=doc.numPages;p++){
+    const page = await doc.getPage(p);
+    const v1 = page.getViewport({ scale:1 });
+    const vr = page.getViewport({ scale:1.5 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(vr.width); canvas.height = Math.ceil(vr.height);
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport: vr }).promise;
+    const imgData = canvas.toDataURL("image/jpeg", 0.82);
+    if(!pdf) pdf = new jsPDF({ unit:"pt", format:[v1.width, v1.height], compress:true });
+    else pdf.addPage([v1.width, v1.height]);
+    pdf.addImage(imgData, "JPEG", 0, 0, v1.width, v1.height);
+  }
+  return pdf.output("blob");
 }
 // 글자의 "중심 x좌표"가 실제 표 경계선(borders) 중 어느 두 선 사이에 있는지로 열을 정한다.
 // 좌표 임계값(간격)으로 추측하는 것보다, PDF에 실제로 그려진 선을 기준으로 하는 게 훨씬 정확하다.
@@ -570,16 +748,16 @@ function coerceCell(s){
   if(dateKey && /^\d{4}-\d{2}-\d{2}$/.test(t)) return toDateObj(t);
   return t;
 }
-async function loadMatrixFromPdf(file){
-  const pages = await extractPdfPages(file);
+async function loadMatrixFromPdf(file, slot){
+  const pages = await extractPdfPages(file, slot);
   const res = processPdfPages(pages);
   if(res.rows.length===0) throw new Error(`"${file.name}"에서 표 데이터를 인식하지 못했습니다. 텍스트 기반 PDF인지 확인해주세요.`);
   const matrix = [res.header.slice()];
   res.rows.forEach(r=> matrix.push(r.map(coerceCell)));
   return matrix;
 }
-async function loadMatrixAuto(file){
-  if(/\.pdf$/i.test(file.name)) return await loadMatrixFromPdf(file);
+async function loadMatrixAuto(file, slot){
+  if(/\.pdf$/i.test(file.name)) return await loadMatrixFromPdf(file, slot);
   return await loadMatrix(file);
 }
 function pad(n){ return String(n).padStart(2,"0"); }
@@ -770,8 +948,8 @@ function normalizeAutoBase(m){
   }
   return out;
 }
-async function loadBaseMatrix(file, forceAuto){
-  const m = await loadMatrixAuto(file);
+async function loadBaseMatrix(file, forceAuto, slot){
+  const m = await loadMatrixAuto(file, slot);
   if(forceAuto || isAutoBaseMatrix(m)) return { matrix: normalizeAutoBase(m), auto: true };
   return { matrix: m, auto: false };
 }
@@ -1196,6 +1374,7 @@ setupDrop("drop4","file4","fname4", f=>{ file4=f; updateRunBtn(); });
 function updateRunBtn(){ document.getElementById("runBtn").disabled = !((file1 && file2) || (file3 && file4)); }
 document.getElementById("resetBtn").addEventListener("click", ()=>{
   file1=null; file2=null; file3=null; file4=null;
+  resetPdfSlots(); __lastGoodPwd = null;
   ["1","2","3","4"].forEach(n=>{
     document.getElementById("file"+n).value="";
     document.getElementById("fname"+n).classList.remove("show");
@@ -1259,22 +1438,23 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
         status.className="status"; status.textContent="처리 중...";
         document.getElementById("results").classList.remove("show");
         runBtn.disabled = true;
+        resetPdfSlots(); __lastGoodPwd = null; // 이번 실행에서 새로 올린 파일들만 추적한다
         try{
                   if(!!file1 !== !!file2) throw new Error("1번(기본진료정보)과 2번(세부진료정보)은 함께 올려주세요.");
                   if(!!file3 !== !!file4) throw new Error("3번(자동차사고 기본)과 4번(자동차사고 세부)은 함께 올려주세요.");
                   if(!file1 && !file3) throw new Error("파일을 올려주세요.");
                   let regBase=null, regDetail=null, autoBase=null, autoDetail=null;
                   if(file1){
-                    const lb = await loadBaseMatrix(file1, false);
+                    const lb = await loadBaseMatrix(file1, false, 1);
                     if(lb.auto) autoBase = lb.matrix; else regBase = lb.matrix;
-                    regDetail = await loadMatrixAuto(file2);
+                    regDetail = await loadMatrixAuto(file2, 2);
                     if(lb.auto){ autoDetail = regDetail; regDetail = null; }
                   }
                   if(file3){
-                    const lb = await loadBaseMatrix(file3, true);
+                    const lb = await loadBaseMatrix(file3, true, 3);
                     if(autoBase) throw new Error("자동차사고 기본진료정보가 두 번 올라왔습니다. 1번과 3번 중 하나만 사용해주세요.");
                     autoBase = lb.matrix;
-                    autoDetail = await loadMatrixAuto(file4);
+                    autoDetail = await loadMatrixAuto(file4, 4);
                   }
                   const baseMatrix = mergeBase(regBase, autoBase);
                   const detailMatrix = mergeDetail(regDetail, autoDetail);
@@ -1333,8 +1513,36 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
   const FIELD = { simple:"simple_text", standard:"standard_text", dental:"dental_text", major:"major_text" };
   const PERSONAL_TPL = (n)=> "✅인적사항✅\n이름 : " + n + "\n직업 : \n주민등록번호 : \n휴대폰번호 : \n통신사 : \n집주소 : \n운전여부 : ";
   const BANK_TPL = "은행명 : \n계좌번호 : ";
+  const BUCKET = "customer-files";
   const $ = (id)=> document.getElementById(id);
   let all = null, picked = null;
+  function uuid(){
+    if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==="x"?r:(r&3|8)).toString(16); });
+  }
+  // 1~4번 중 PDF로 올렸던 파일들을 고객에게도 그대로(비밀번호가 있었으면 풀어서) 저장한다.
+  // "□□□님 기본/세부/자동차기본/자동차세부" 순서로, 올린 것만 저장한다.
+  async function saveHistoryPdfs(uid, custId, custName, oldFiles){
+    const slots = [1,2,3,4].filter(i => PDF_SLOT[i]);
+    const items = [], uploaded = [];
+    let warn = "";
+    for(const i of slots){
+      const info = PDF_SLOT[i];
+      try{
+        let blob = info.file, name = info.file.name;
+        if(info.wasLocked && info.doc){ blob = await rasterizePdfToBlob(info.doc); }
+        const path = uid + "/" + custId + "/hist_" + PDF_SLOT_KEY[i] + "_" + uuid() + ".pdf";
+        const up = await supabaseClient.storage.from(BUCKET).upload(path, blob, { contentType:"application/pdf", upsert:false });
+        if(up.error) throw up.error;
+        uploaded.push(path);
+        items.push({ key:PDF_SLOT_KEY[i], label: custName + "님 " + PDF_SLOT_LABEL[i], path, type:"application/pdf", size: blob.size, name, saved_at: new Date().toISOString() });
+      }catch(e){ warn += (warn ? " / " : "") + PDF_SLOT_LABEL[i] + ": " + (e && e.message ? e.message : e); }
+    }
+    if(!items.length && !warn) return { items: (oldFiles || []), warn: "" }; // 이번에 올린 PDF가 없으면 기존 파일을 그대로 둔다
+    const oldPaths = (oldFiles || []).map(x => x && x.path).filter(Boolean);
+    if(oldPaths.length){ try{ await supabaseClient.storage.from(BUCKET).remove(oldPaths); }catch(e){ console.warn(e); } }
+    return { items, warn };
+  }
 
   function parseName(t){ const m = /^[ \t]*이름[ \t]*[:：][ \t]*(.*)$/m.exec(t || ""); return m ? m[1].trim() : ""; }
   function dispName(c){ return ((c.name || "").trim()) || parseName(c.personal_text); }
@@ -1357,7 +1565,7 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
   async function loadAll(){
     let rows = [], from = 0;
     for(;;){
-      const res = await supabaseClient.from("customers").select("id,name,personal_text,created_at,simple_text,standard_text,dental_text,major_text").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
+      const res = await supabaseClient.from("customers").select("id,name,personal_text,created_at,simple_text,standard_text,dental_text,major_text,history_files").is("deleted_at", null).order("created_at", { ascending:false }).range(from, from + 999);
       if(res.error) throw res.error;
       rows = rows.concat(res.data || []);
       if(!res.data || res.data.length < 1000) break;
@@ -1399,9 +1607,9 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
       n.addEventListener("click", () => createNew(q)); act.appendChild(n);
     }
   }
-  function done(id, name, created){
+  function done(id, name, created, pdfWarn){
     const el = $("cmMsg"); el.className = "cm-msg ok"; el.textContent = "";
-    el.appendChild(document.createTextNode((created ? "새 고객 「" + name + "」을(를) 만들어 " : "「" + name + "」에 ") + "병력사항(간편·표준체·치아·중대질환)을 저장했어요. "));
+    el.appendChild(document.createTextNode((created ? "새 고객 「" + name + "」을(를) 만들어 " : "「" + name + "」에 ") + "병력사항(간편·표준체·치아·중대질환)을 저장했어요. " + (pdfWarn ? "(병력파일 일부는 저장하지 못했어요: " + pdfWarn + ") " : "")));
     const a = document.createElement("a"); a.href = "customers.html#/c/" + id; a.textContent = "고객 페이지 열기"; el.appendChild(a);
     $("cmActions").innerHTML = "";
   }
@@ -1411,10 +1619,13 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
     setMsg("저장 중…");
     const v = newValues();
     try{
-      const res = await supabaseClient.from("customers").update({ simple_text:v.simple, standard_text:v.standard, dental_text:v.dental, major_text:v.major, updated_at:new Date().toISOString() }).eq("id", picked.id).select("id");
+      const { data:{ session } } = await supabaseClient.auth.getSession();
+      const name = dispName(picked);
+      const { items: histFiles, warn: pdfWarn } = await saveHistoryPdfs(session.user.id, picked.id, name, picked.history_files);
+      const res = await supabaseClient.from("customers").update({ simple_text:v.simple, standard_text:v.standard, dental_text:v.dental, major_text:v.major, history_files:histFiles, updated_at:new Date().toISOString() }).eq("id", picked.id).select("id");
       if(res.error) throw res.error;
       if(!res.data || !res.data.length) throw new Error("저장할 고객을 찾지 못했어요");
-      done(picked.id, dispName(picked), false);
+      done(picked.id, name, false, pdfWarn);
       await loadAll();
     }catch(e){ console.error(e); setMsg("저장하지 못했어요: " + (e.message || e), "err"); }
   }
@@ -1422,9 +1633,15 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
     setMsg("만드는 중…");
     const v = newValues();
     try{
+      const { data:{ session } } = await supabaseClient.auth.getSession();
       const res = await supabaseClient.from("customers").insert({ name:name, props:{}, personal_text:PERSONAL_TPL(name), bank_text:BANK_TPL, simple_text:v.simple, standard_text:v.standard, dental_text:v.dental, major_text:v.major }).select("id").single();
       if(res.error) throw res.error;
-      done(res.data.id, name, true);
+      const { items: histFiles, warn: pdfWarn } = await saveHistoryPdfs(session.user.id, res.data.id, name, null);
+      if(histFiles.length){
+        const upd = await supabaseClient.from("customers").update({ history_files: histFiles }).eq("id", res.data.id);
+        if(upd.error) console.warn(upd.error);
+      }
+      done(res.data.id, name, true, pdfWarn);
       await loadAll();
     }catch(e){ console.error(e); setMsg("만들지 못했어요: " + (e.message || e), "err"); }
   }
