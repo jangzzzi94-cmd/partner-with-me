@@ -386,6 +386,7 @@
           <button type="button" class="cu-btn sm" id="addrFindBtn">📍 주소 찾기</button>
           <button type="button" class="cu-btn sm" id="txtInBtn">📝 텍스트 입력</button>
           <button type="button" class="cu-btn sm" id="claimBtn">📑 보험금청구</button>
+          <button type="button" class="cu-btn sm" id="erpBtn">🏢 ERP고객등록</button>
         </div>
         <div class="box-head">
           <label for="personalText">😄인적사항😄</label>
@@ -561,6 +562,23 @@
     <span style="display:flex;gap:8px;">
       <button type="button" class="cu-btn sm" id="claimClearBtn">전체해제</button>
       <button type="button" class="cu-btn sm primary" id="claimGoBtn" disabled>복사하고 보케어 열기</button>
+    </span>
+  </div>
+</div></div>
+<div class="md-back" id="erpModal"><div class="md-card">
+  <div class="md-head"><span>🏢 ERP 고객등록 (LINE)</span><button type="button" data-close="erpModal" aria-label="닫기">✕</button></div>
+  <div class="md-body">
+    <div class="md-hint" style="margin-top:0;">ERP(line.afg.kr) 고객등록 화면에 고객 정보를 자동으로 채워 드려요.<br>처음 쓰시나요? <a href="erp-install.html" target="_blank" rel="noopener">ERP 자동입력 북마크 설치 방법</a>을 먼저 봐 주세요 (기기당 1회).</div>
+    <div class="cl-prev" id="erpPrev">
+      <div class="cl-prev-head"><span id="erpPrevStatus">복사될 내용 (미리보기)</span><button type="button" class="cu-btn sm" id="erpCopyBtn">복사하기</button></div>
+      <pre id="erpPrevText"></pre>
+    </div>
+    <div class="md-hint" style="margin:8px 0 0;">이름·주민번호·연락처·주소·직업이 자동으로 채워지고, 고객구분은 "소개/지인"으로 기본 설정돼요. 주소는 ERP 특성상 자동 선택이 안 돼서 후보 목록에서 직접 선택해 주셔야 해요. 로그인이 안 되어 있으면 로그인하신 뒤 북마크를 다시 눌러 주세요. 확인 후 "저장"은 꼭 직접 눌러 주세요 — 자동 저장은 하지 않아요.</div>
+  </div>
+  <div class="cl-foot">
+    <span></span>
+    <span style="display:flex;gap:8px;">
+      <button type="button" class="cu-btn sm primary" id="erpGoBtn">복사하고 ERP 열기</button>
     </span>
   </div>
 </div></div>
@@ -1799,7 +1817,7 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
   function openModal(id){ $(id).style.display = 'flex'; document.documentElement.style.overflow = 'hidden'; }
   function closeModal(id){
     $(id).style.display = 'none';
-    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal', 'tiModal', 'claimModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
+    var open = false; ['jobModal', 'addrModal', 'impModal', 'lnModal', 'tmModal', 'ctModal', 'tiModal', 'claimModal', 'erpModal'].forEach(function(m){ if($(m) && $(m).style.display === 'flex') open = true; });
     if(!open) document.documentElement.style.overflow = '';
   }
   function pickJob(j){ setPersonalLine('직업', j.name); closeModal('jobModal'); }
@@ -1979,6 +1997,51 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     try{
       await navigator.clipboard.writeText(text);
       $('claimPrevStatus').textContent = '✅ 복사된 내용';
+      showToast('복사했어요');
+    }catch(e){
+      showToast('복사에 실패했어요. 위의 글상자를 길게 눌러 직접 복사해 주세요');
+    }
+  }
+
+  /* ---------------- 🏢 ERP고객등록 (line.afg.kr 연동) ---------------- */
+  // line.afg.kr 고객등록관리 화면의 "빠른입력"이 그대로 알아듣는 한 줄 형식으로 만든다:
+  // "이름 주민번호 연락처 주소 / 직업 / 고객구분키워드" (예: 홍길동 900101-1234567 010-1234-5678 서울 강남구 테헤란로 123 / 회사원 / 소개)
+  function erpDigits(s){ return (s || '').replace(/\D/g, ''); }
+  function erpPayloadText(c){
+    var name = dispName(c) || '';
+    var rrnD = erpDigits(getPersonalLine(c.personal_text, '주민등록번호'));
+    var rrn = rrnD.length >= 13 ? (rrnD.slice(0, 6) + '-' + rrnD.slice(6, 13)) : rrnD;
+    var phD = erpDigits(getPersonalLine(c.personal_text, '휴대폰번호'));
+    var phone = phD.length === 11 ? (phD.slice(0, 3) + '-' + phD.slice(3, 7) + '-' + phD.slice(7)) :
+      phD.length === 10 ? (phD.slice(0, 3) + '-' + phD.slice(3, 6) + '-' + phD.slice(6)) : phD;
+    var addr = getPersonalLine(c.personal_text, '집주소');
+    var job = getPersonalLine(c.personal_text, '직업');
+    var head = [name, rrn, phone, addr].filter(Boolean).join(' ');
+    var segs = [head];
+    if(job) segs.push(job);
+    segs.push('소개'); // 고객구분 기본값: 소개/지인
+    return segs.join(' / ');
+  }
+  async function runErp(){
+    var c = getCust(curId);
+    if(!c){ showToast('고객을 찾을 수 없어요'); return; }
+    var payload = erpPayloadText(c);
+    $('erpPrevText').textContent = payload;
+    $('erpPrevStatus').textContent = '복사된 내용';
+    // 모바일 브라우저는 클립보드 쓰기보다 새 탭 열기를 먼저(동기적으로) 해야 팝업이 막히지 않아요.
+    window.open('https://line.afg.kr/sam/0101', '_blank');
+    var copied = true;
+    try{ await navigator.clipboard.writeText(payload); }
+    catch(e){ copied = false; }
+    $('erpPrevStatus').textContent = copied ? '✅ 복사된 내용' : '⚠️ 자동 복사 실패 — 아래 "복사하기"를 눌러 주세요';
+    showToast(copied ? 'ERP 탭에서 자동입력 북마크를 눌러 주세요' : '자동 복사가 안 됐어요. 아래 "복사하기" 버튼을 눌러 주세요');
+  }
+  async function copyErpPreview(){
+    var text = $('erpPrevText').textContent;
+    if(!text){ showToast('먼저 "복사하고 ERP 열기"를 눌러 주세요'); return; }
+    try{
+      await navigator.clipboard.writeText(text);
+      $('erpPrevStatus').textContent = '✅ 복사된 내용';
       showToast('복사했어요');
     }catch(e){
       showToast('복사에 실패했어요. 위의 글상자를 길게 눌러 직접 복사해 주세요');
@@ -2969,11 +3032,19 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
       if(!$('claimDiffContractor').checked) claimContractorId = null;
       renderClaimContractor();
     });
+    $('erpBtn').addEventListener('click', function(){
+      var c = getCust(curId);
+      $('erpPrevText').textContent = c ? erpPayloadText(c) : '';
+      $('erpPrevStatus').textContent = '복사될 내용 (미리보기)';
+      openModal('erpModal');
+    });
+    $('erpGoBtn').addEventListener('click', runErp);
+    $('erpCopyBtn').addEventListener('click', copyErpPreview);
     var closers = document.querySelectorAll('[data-close]');
     for(var i = 0; i < closers.length; i++){ (function(b){ b.addEventListener('click', function(){ closeModal(b.getAttribute('data-close')); }); })(closers[i]); }
-    ['jobModal', 'addrModal', 'impModal', 'claimModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
-    ['jobModal', 'addrModal', 'impModal', 'claimModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); closeModal('claimModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); closeModal('tiModal'); } } });
+    ['jobModal', 'addrModal', 'impModal', 'claimModal', 'erpModal'].forEach(function(id){ $(id).addEventListener('click', function(e){ if(e.target === $(id)) closeModal(id); }); });
+    ['jobModal', 'addrModal', 'impModal', 'claimModal', 'erpModal'].forEach(function(id){ $(id).addEventListener('wheel', function(e){ if(!e.target.closest || !e.target.closest('.md-body')) e.preventDefault(); }, { passive: false }); });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ closeModal('jobModal'); closeModal('addrModal'); closeModal('impModal'); closeModal('claimModal'); closeModal('erpModal'); if($('lnModal').style.display === 'flex') closeModal('lnModal'); else { closeModal('tmModal'); closeModal('ctModal'); closeModal('tiModal'); } } });
   }
 
   /* ---------------- 이벤트 연결 ---------------- */

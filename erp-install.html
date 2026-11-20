@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP 자동입력 | With Partners</title>
+<style>
+/* layout: single scrolling column, numbered install steps, platform tabs for mobile */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --ink:#0f2545; --muted:#5b6b85;
+  --line:#e2e6ee; --accent:#1d4ed8; --accent-ink:#ffffff; --good:#15803d; --good-bg:#ecfdf3;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b1220; --surface:#121b2e; --ink:#eef2f8; --muted:#93a1bb;
+    --line:#223050; --accent:#5b8bf0; --accent-ink:#0b1220; --good:#4ade80; --good-bg:#0f2a1c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --surface:#121b2e; --ink:#eef2f8; --muted:#93a1bb;
+  --line:#223050; --accent:#5b8bf0; --accent-ink:#0b1220; --good:#4ade80; --good-bg:#0f2a1c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;}
+body{background:var(--bg);color:var(--ink);font-family:"Inter",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;}
+.wrap{max-width:640px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:28px 60px;}
+h1{font-family:"Space Grotesk","Inter",sans-serif;font-size:26px;margin:6px 0 10px;letter-spacing:-.01em;text-wrap:balance;}
+h2{font-family:"Space Grotesk","Inter",sans-serif;font-size:16.5px;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+.eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.08em;color:var(--accent);text-transform:uppercase;margin:0;}
+.lede{color:var(--muted);font-size:14.5px;line-height:1.65;margin:0;}
+.badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:800;flex:none;}
+section{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 18px 20px;margin-top:14px;}
+section.safety{background:var(--good-bg);border-color:transparent;}
+section.safety h2{color:var(--good);}
+section.safety p{margin:0 0 6px;font-size:13.5px;line-height:1.7;color:var(--ink);}
+section.safety p:last-child{margin-bottom:0;}
+ol{margin:0;padding-left:20px;font-size:14px;line-height:1.85;color:var(--ink);}
+ol li strong{color:var(--accent);}
+p.step-p{font-size:14px;line-height:1.7;color:var(--ink);margin:0 0 12px;}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.6;}
+.bookmarklet-btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:15px;padding:12px 20px;border-radius:10px;text-decoration:none;cursor:grab;user-select:none;}
+.bookmarklet-btn:active{cursor:grabbing;}
+.copy-btn{background:var(--surface);border:1px solid var(--accent);color:var(--accent);font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:9px;cursor:pointer;font-family:inherit;margin-top:4px;}
+.copy-btn.done{border-color:var(--good);color:var(--good);}
+details{margin-top:12px;}
+summary{font-size:13px;color:var(--muted);cursor:pointer;}
+textarea{width:100%;margin-top:10px;min-height:110px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-size:11px;line-height:1.5;resize:vertical;}
+.steps-num{counter-reset:s;}
+.steps-num li{counter-increment:s;list-style:none;margin-bottom:10px;padding-left:28px;position:relative;}
+.steps-num li::before{content:counter(s);position:absolute;left:0;top:1px;width:19px;height:19px;border-radius:999px;background:var(--line);color:var(--muted);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+footer.note{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.7;text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">With Partners · 설치 가이드</p>
+    <h1>ERP 자동입력 북마크</h1>
+    <p class="lede">위드파트너 고객리스트에서 "ERP고객등록"을 누르면 고객 정보가 복사되고 line.afg.kr 고객등록 화면이 열려요. 거기서 이 북마크를 한 번 탭하면, "고객등록" 화면을 열고 이름·주민번호·연락처·주소·직업을 대신 채워줘요. 기기마다 딱 한 번만 설치하면 계속 써요.</p>
+  </header>
+
+  <section class="safety">
+    <h2>🔒 안전하게 만들었어요</h2>
+    <p>· 아이디·비밀번호는 전혀 다루지 않아요. 로그인이 안 되어 있으면 "로그인 후 다시 눌러주세요"라고 안내만 하고 멈춰요.</p>
+    <p>· "저장" · "삭제" 같은 되돌릴 수 없는 버튼은 어떤 경우에도 자동으로 누르지 않아요. 입력까지만 하고, 마지막 확인과 저장은 항상 사람이 직접 해요.</p>
+    <p>· 주소는 ERP 자체 특성(카카오 우편번호 검색 위젯) 때문에 자동으로 선택할 수 없어요 — 후보 목록에서 직접 눌러 선택해 주셔야 해요.</p>
+    <p>· 북마크는 line.afg.kr 페이지 안에서만 동작해요. 다른 사이트에서는 아무 일도 하지 않아요.</p>
+  </section>
+
+  <section>
+    <h2><span class="badge">1</span>PC (Chrome, Edge, Whale 등)</h2>
+    <p class="step-p">아래 버튼을 <strong>누르지 말고</strong>, 북마크바로 <strong>끌어다 놓으세요</strong>.</p>
+    <a class="bookmarklet-btn" id="dragBtn" href="#" onclick="return false;">🔖 ERP 자동입력</a>
+    <p class="hint">북마크바가 안 보이면 Ctrl+Shift+B (맥은 Cmd+Shift+B)로 켤 수 있어요. 설치가 끝나면 끝 — line.afg.kr에서 북마크를 탭하기만 하면 돼요.</p>
+  </section>
+
+  <section>
+    <h2><span class="badge">2</span>아이폰 (Safari)</h2>
+    <ol class="steps-num">
+      <li>아무 페이지에서 하단 <strong>공유</strong> 버튼 → <strong>책갈피 추가</strong></li>
+      <li>책갈피 목록을 열고, 방금 만든 책갈피를 <strong>편집</strong>(목록에서 책갈피를 눌러 편집 모드로)</li>
+      <li>이름을 "ERP 자동입력"으로 바꾸고, 주소 칸의 내용을 전부 지운 뒤 아래 코드를 붙여넣으세요</li>
+    </ol>
+    <button class="copy-btn" id="copyBtn1">코드 복사하기</button>
+    <details>
+      <summary>코드 직접 보기</summary>
+      <textarea id="codeArea1" readonly onclick="this.select()"></textarea>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="badge">3</span>안드로이드 (Chrome)</h2>
+    <ol class="steps-num">
+      <li>아무 페이지에서 주소창 오른쪽 <strong>⋮</strong> 메뉴 → <strong>북마크 추가</strong></li>
+      <li>⋮ 메뉴 → <strong>북마크</strong> → 방금 만든 북마크를 길게 눌러 <strong>수정</strong></li>
+      <li>이름을 "ERP 자동입력"으로 바꾸고, URL 칸의 내용을 전부 지운 뒤 아래 코드를 붙여넣으세요</li>
+    </ol>
+    <button class="copy-btn" id="copyBtn2">코드 복사하기</button>
+    <details>
+      <summary>코드 직접 보기</summary>
+      <textarea id="codeArea2" readonly onclick="this.select()"></textarea>
+    </details>
+  </section>
+
+  <section>
+    <h2>💡 사용하는 순서</h2>
+    <ol class="steps-num">
+      <li>위드파트너 고객 화면에서 <strong>"🏢 ERP고객등록"</strong> → <strong>"복사하고 ERP 열기"</strong></li>
+      <li>새로 열린 line.afg.kr 탭에서, 설치해 둔 <strong>"ERP 자동입력"</strong> 북마크를 탭</li>
+      <li>로그인이 안 되어 있다면 로그인한 뒤 북마크를 한 번 더 탭하세요</li>
+      <li>고객등록 화면이 자동으로 열리고, 이름·주민등록번호·연락처·주소·직업이 자동으로 채워져요</li>
+      <li><strong>주소는 후보 목록에서 직접 눌러 선택</strong>해 주세요 (자동 선택 불가)</li>
+      <li>내용을 꼭 확인하고 <strong>"저장"은 직접</strong> 눌러주세요</li>
+    </ol>
+  </section>
+
+  <footer class="note">브라우저 버전에 따라 북마크 주소 편집이 막혀 있을 수 있어요. 안 되면 알려주세요 — 다른 설치 방식(Tampermonkey · Kiwi 브라우저)으로 바꿔드릴게요.</footer>
+</div>
+
+<script>
+(function(){
+  var BOOKMARKLET = "javascript:(function()%7B%20'use%20strict'%3B%20if(window.__wpErpRunning)%20return%3B%20window.__wpErpRunning%20%3D%20true%3B%20var%20STEP_MS%20%3D%20400%3B%20var%20WAIT_MAX%20%3D%2040%3B%20function%20banner(text%2C%20kind)%7B%20var%20id%20%3D%20'wp-erp-banner'%3B%20var%20el%20%3D%20document.getElementById(id)%3B%20if(!el)%7B%20el%20%3D%20document.createElement('div')%3B%20el.id%20%3D%20id%3B%20el.style.cssText%20%3D%20'position%3Afixed%3Bleft%3A50%25%3Bbottom%3A18px%3Btransform%3AtranslateX(-50%25)%3Bz-index%3A2147483647%3B'%20%2B%20'max-width%3A92vw%3Bpadding%3A10px%2016px%3Bborder-radius%3A10px%3Bfont-size%3A13.5px%3Bfont-weight%3A600%3B'%20%2B%20'font-family%3A-apple-system%2C%22Apple%20SD%20Gothic%20Neo%22%2C%22Malgun%20Gothic%22%2Csans-serif%3B'%20%2B%20'box-shadow%3A0%208px%2024px%20rgba(0%2C0%2C0%2C.25)%3Bwhite-space%3Apre-line%3Bline-height%3A1.5%3Btext-align%3Acenter%3B'%3B%20document.body.appendChild(el)%3B%20%7D%20el.style.background%20%3D%20kind%20%3D%3D%3D%20'err'%20%3F%20'%23c0392b'%20%3A%20(kind%20%3D%3D%3D%20'warn'%20%3F%20'%23b45309'%20%3A%20'%230f2545')%3B%20el.style.color%20%3D%20'%23fff'%3B%20el.textContent%20%3D%20text%3B%20clearTimeout(el._t)%3B%20el._t%20%3D%20setTimeout(function()%7B%20if(el%20%26%26%20el.parentNode)%20el.parentNode.removeChild(el)%3B%20window.__wpErpRunning%20%3D%20false%3B%20%7D%2C%2011000)%3B%20%7D%20function%20setNativeValue(el%2C%20value)%7B%20var%20proto%20%3D%20Object.getPrototypeOf(el)%3B%20var%20d%20%3D%20Object.getOwnPropertyDescriptor(proto%2C%20'value')%3B%20var%20setter%20%3D%20d%20%26%26%20d.set%3B%20if(setter)%20setter.call(el%2C%20value)%3B%20else%20el.value%20%3D%20value%3B%20el.dispatchEvent(new%20Event('input'%2C%20%7B%20bubbles%3A%20true%20%7D))%3B%20el.dispatchEvent(new%20Event('change'%2C%20%7B%20bubbles%3A%20true%20%7D))%3B%20%7D%20function%20findButtonByText(text)%7B%20var%20btns%20%3D%20document.querySelectorAll('button')%3B%20for(var%20i%20%3D%200%3B%20i%20%3C%20btns.length%3B%20i%2B%2B)%7B%20if(btns%5Bi%5D.textContent.trim()%20%3D%3D%3D%20text)%20return%20btns%5Bi%5D%3B%20%7D%20return%20null%3B%20%7D%20function%20findQuickTextarea(autoBtn)%7B%20var%20container%20%3D%20autoBtn.closest('div')%3B%20for(var%20i%20%3D%200%3B%20i%20%3C%206%20%26%26%20container%3B%20i%2B%2B)%7B%20var%20ta%20%3D%20container.querySelector('textarea')%3B%20if(ta)%20return%20ta%3B%20container%20%3D%20container.parentElement%3B%20%7D%20return%20null%3B%20%7D%20var%20KNOWN_INFL_KEYWORDS%20%3D%20%5B'%EC%86%8C%EA%B0%9C%2F%EC%A7%80%EC%9D%B8'%2C%20'%EC%86%8C%EA%B0%9C'%2C%20'%EC%A7%80%EC%9D%B8'%2C%20'%EA%B0%9C%EC%B2%99'%2C%20'DB'%2C%20'%EB%B3%91%EC%9B%90DB'%2C%20'%EB%AA%A8%EB%8B%A4%EC%95%84%EC%9A%B8%EB%A0%9BDB'%2C%20'%EA%B8%B0%ED%83%80'%5D%3B%20function%20extractJob(text)%7B%20var%20segs%20%3D%20text.split('%2F').map(function(s)%7B%20return%20s.trim()%3B%20%7D).filter(Boolean)%3B%20for(var%20i%20%3D%201%3B%20i%20%3C%20segs.length%3B%20i%2B%2B)%7B%20if(KNOWN_INFL_KEYWORDS.indexOf(segs%5Bi%5D)%20%3D%3D%3D%20-1)%20return%20segs%5Bi%5D%3B%20%7D%20return%20''%3B%20%7D%20function%20fillAndAnnounce(autoBtn%2C%20text)%7B%20var%20ta%20%3D%20findQuickTextarea(autoBtn)%3B%20if(!ta)%7B%20banner('%22%EB%B9%A0%EB%A5%B8%EC%9E%85%EB%A0%A5%22%20%EC%B9%B8%EC%9D%84%20%EC%B0%BE%EC%A7%80%20%EB%AA%BB%ED%96%88%EC%96%B4%EC%9A%94.%20%EA%B3%A0%EA%B0%9D%EB%93%B1%EB%A1%9D%20%ED%99%94%EB%A9%B4%EC%9D%84%20%EC%A7%81%EC%A0%91%20%EC%97%B4%EC%96%B4%20%EC%A3%BC%EC%84%B8%EC%9A%94.'%2C%20'warn')%3B%20return%3B%20%7D%20setNativeValue(ta%2C%20text)%3B%20autoBtn.click()%3B%20setTimeout(function()%7B%20var%20job%20%3D%20extractJob(text)%3B%20if(job)%7B%20var%20jobEl%20%3D%20document.getElementById('modalOcptNm')%3B%20if(jobEl%20%26%26%20!jobEl.value)%20setNativeValue(jobEl%2C%20job)%3B%20%7D%20banner('%E2%9C%85%20%EC%9E%90%EB%8F%99%EC%9C%BC%EB%A1%9C%20%EC%B1%84%EC%9B%A0%EC%96%B4%EC%9A%94.%5Cn%F0%9F%93%8D%20%EC%A3%BC%EC%86%8C%EB%8A%94%20ERP%20%ED%8A%B9%EC%84%B1%EC%83%81%20%EC%9E%90%EB%8F%99%20%EC%84%A0%ED%83%9D%EC%9D%B4%20%EC%95%88%20%EB%8F%BC%EC%84%9C%2C%20%EC%95%84%EB%9E%98%20%ED%9B%84%EB%B3%B4%20%EB%AA%A9%EB%A1%9D%EC%97%90%EC%84%9C%20%EC%A7%81%EC%A0%91%20%EB%88%8C%EB%9F%AC%20%EC%84%A0%ED%83%9D%ED%95%B4%20%EC%A3%BC%EC%84%B8%EC%9A%94.%5Cn%EB%82%B4%EC%9A%A9%EC%9D%84%20%EA%BC%AD%20%ED%99%95%EC%9D%B8%ED%95%9C%20%EB%92%A4%20%22%EC%A0%80%EC%9E%A5%22%EC%9D%80%20%EC%A7%81%EC%A0%91%20%EB%88%8C%EB%9F%AC%20%EC%A3%BC%EC%84%B8%EC%9A%94.%20(%EC%A0%80%EC%9E%A5%EC%9D%80%20%EC%9E%90%EB%8F%99%EC%9C%BC%EB%A1%9C%20%ED%95%98%EC%A7%80%20%EC%95%8A%EC%95%84%EC%9A%94)'%2C%20'ok')%3B%20%7D%2C%20700)%3B%20%7D%20function%20openPanelThenFill(openBtn%2C%20text)%7B%20openBtn.click()%3B%20var%20tries%20%3D%200%3B%20var%20t%20%3D%20setInterval(function()%7B%20tries%2B%2B%3B%20var%20autoBtn%20%3D%20findButtonByText('%EC%9E%90%EB%8F%99%EC%9E%85%EB%A0%A5')%3B%20if(autoBtn)%7B%20clearInterval(t)%3B%20fillAndAnnounce(autoBtn%2C%20text)%3B%20return%3B%20%7D%20if(tries%20%3E%3D%2020)%7B%20clearInterval(t)%3B%20banner('%EA%B3%A0%EA%B0%9D%EB%93%B1%EB%A1%9D%20%EC%9E%85%EB%A0%A5%20%ED%99%94%EB%A9%B4%EC%9D%84%20%EC%97%B4%EC%A7%80%20%EB%AA%BB%ED%96%88%EC%96%B4%EC%9A%94.%20%22%EA%B3%A0%EA%B0%9D%EB%93%B1%EB%A1%9D%22%20%EB%B2%84%ED%8A%BC%EC%9D%84%20%EC%A7%81%EC%A0%91%20%EB%88%8C%EB%9F%AC%20%EC%A3%BC%EC%84%B8%EC%9A%94.'%2C%20'warn')%3B%20%7D%20%7D%2C%20300)%3B%20%7D%20async%20function%20run()%7B%20var%20text%20%3D%20''%3B%20try%7B%20text%20%3D%20(await%20navigator.clipboard.readText()).trim()%3B%20%7D%20catch(e)%7B%20banner('%ED%81%B4%EB%A6%BD%EB%B3%B4%EB%93%9C%EB%A5%BC%20%EC%9D%BD%EC%A7%80%20%EB%AA%BB%ED%96%88%EC%96%B4%EC%9A%94.%20%EB%B8%8C%EB%9D%BC%EC%9A%B0%EC%A0%80%EA%B0%80%20%EB%AC%BC%EC%96%B4%EB%B3%B4%EB%8A%94%20%22%ED%81%B4%EB%A6%BD%EB%B3%B4%EB%93%9C%20%EC%A0%91%EA%B7%BC%20%ED%97%88%EC%9A%A9%22%EC%9D%84%20%EB%88%8C%EB%9F%AC%EC%A3%BC%EC%8B%A0%20%EB%92%A4%2C%5Cn%EC%9C%84%EB%93%9C%ED%8C%8C%ED%8A%B8%EB%84%88%EC%97%90%EC%84%9C%20%22%EB%B3%B5%EC%82%AC%ED%95%98%EA%B3%A0%20ERP%20%EC%97%B4%EA%B8%B0%22%EB%A5%BC%20%EB%8B%A4%EC%8B%9C%20%EB%88%84%EB%A5%B4%EA%B3%A0%2C%20%EC%9D%B4%20%EB%B6%81%EB%A7%88%ED%81%AC%EB%A5%BC%20%EB%8B%A4%EC%8B%9C%20%EB%88%8C%EB%9F%AC%EC%A3%BC%EC%84%B8%EC%9A%94.'%2C%20'err')%3B%20return%3B%20%7D%20if(!text)%7B%20banner('%ED%81%B4%EB%A6%BD%EB%B3%B4%EB%93%9C%EA%B0%80%20%EB%B9%84%EC%96%B4%20%EC%9E%88%EC%96%B4%EC%9A%94.%20%EC%9C%84%EB%93%9C%ED%8C%8C%ED%8A%B8%EB%84%88%EC%97%90%EC%84%9C%20%EB%8B%A4%EC%8B%9C%20%EB%B3%B5%EC%82%AC%ED%95%B4%20%EC%A3%BC%EC%84%B8%EC%9A%94.'%2C%20'warn')%3B%20return%3B%20%7D%20var%20tries%20%3D%200%3B%20var%20t%20%3D%20setInterval(function()%7B%20tries%2B%2B%3B%20var%20openBtn%20%3D%20findButtonByText('%EA%B3%A0%EA%B0%9D%EB%93%B1%EB%A1%9D')%3B%20var%20autoBtn%20%3D%20findButtonByText('%EC%9E%90%EB%8F%99%EC%9E%85%EB%A0%A5')%3B%20if(autoBtn)%7B%20clearInterval(t)%3B%20fillAndAnnounce(autoBtn%2C%20text)%3B%20return%3B%20%7D%20if(openBtn)%7B%20clearInterval(t)%3B%20openPanelThenFill(openBtn%2C%20text)%3B%20return%3B%20%7D%20if(document.querySelector('input%5Btype%3D%22password%22%5D'))%7B%20clearInterval(t)%3B%20banner('%EB%A1%9C%EA%B7%B8%EC%9D%B8%EC%9D%B4%20%ED%95%84%EC%9A%94%ED%95%B4%EC%9A%94.%20%EB%A1%9C%EA%B7%B8%EC%9D%B8%ED%95%98%EC%8B%A0%20%EB%92%A4%20%EC%9D%B4%20%EB%B6%81%EB%A7%88%ED%81%AC%EB%A5%BC%20%EB%8B%A4%EC%8B%9C%20%EB%88%8C%EB%9F%AC%20%EC%A3%BC%EC%84%B8%EC%9A%94.'%2C%20'warn')%3B%20return%3B%20%7D%20if(tries%20%3E%3D%20WAIT_MAX)%7B%20clearInterval(t)%3B%20banner('%EA%B3%A0%EA%B0%9D%EB%93%B1%EB%A1%9D%EA%B4%80%EB%A6%AC%20%ED%99%94%EB%A9%B4%EC%9D%84%20%EC%B0%BE%EC%A7%80%20%EB%AA%BB%ED%96%88%EC%96%B4%EC%9A%94.%5Cn%EB%A1%9C%EA%B7%B8%EC%9D%B8%20%ED%9B%84%20%22%EA%B3%84%EC%95%BD%EA%B4%80%EB%A6%AC%20%E2%80%BA%20%EA%B3%A0%EA%B0%9D%EA%B4%80%EB%A6%AC%20%E2%80%BA%20%EA%B3%A0%EA%B0%9D%EB%93%B1%EB%A1%9D%EA%B4%80%EB%A6%AC%22%20%ED%99%94%EB%A9%B4%EC%97%90%EC%84%9C%20%EC%9D%B4%20%EB%B6%81%EB%A7%88%ED%81%AC%EB%A5%BC%20%EB%8B%A4%EC%8B%9C%20%EB%88%8C%EB%9F%AC%20%EC%A3%BC%EC%84%B8%EC%9A%94.'%2C%20'warn')%3B%20%7D%20%7D%2C%20STEP_MS)%3B%20%7D%20run()%3B%20%7D)()%3B";
+  var drag = document.getElementById('dragBtn');
+  if(drag) drag.setAttribute('href', BOOKMARKLET);
+  var a1 = document.getElementById('codeArea1'), a2 = document.getElementById('codeArea2');
+  if(a1) a1.value = BOOKMARKLET;
+  if(a2) a2.value = BOOKMARKLET;
+  function wireCopy(id){
+    var btn = document.getElementById(id); if(!btn) return;
+    var label = btn.textContent;
+    btn.addEventListener('click', async function(){
+      var ok = true;
+      try{ await navigator.clipboard.writeText(BOOKMARKLET); }
+      catch(e){ ok = false; }
+      btn.textContent = ok ? '복사됐어요 ✓' : '복사 실패 — 아래 코드 직접 선택해 주세요';
+      btn.classList.toggle('done', ok);
+      setTimeout(function(){ btn.textContent = label; btn.classList.remove('done'); }, 2200);
+    });
+  }
+  wireCopy('copyBtn1'); wireCopy('copyBtn2');
+})();
+</script>
+
+</body>
+</html>
