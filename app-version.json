@@ -1,6 +1,6 @@
 {
-  "versionCode": 10,
-  "versionName": "1.9",
+  "versionCode": 11,
+  "versionName": "1.10",
   "apkUrl": "https://partner-with-me.vercel.app/app-release.apk",
-  "notes": "로그인 시 앱 설치 안내 화면 추가, 다음 업데이트부터 앱 켤 때 자동 설치"
+  "notes": "병력정리/보장분석 파일 선택·다운로드 버튼이 앱에서 안 되던 문제 수정"
 }
