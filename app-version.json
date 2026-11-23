@@ -1,6 +1,6 @@
 {
-  "versionCode": 11,
-  "versionName": "1.10",
+  "versionCode": 12,
+  "versionName": "1.11",
   "apkUrl": "https://partner-with-me.vercel.app/app-release.apk",
-  "notes": "병력정리/보장분석 파일 선택·다운로드 버튼이 앱에서 안 되던 문제 수정"
+  "notes": "첫 실행 때 흰 화면에서 멈추던 문제 수정 · 로딩화면(로고/진행바) 추가 · 로딩 실패시 자동 재시도"
 }
