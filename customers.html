@@ -193,6 +193,22 @@
   #claimFaxBox input[type=text]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:15px;font-family:inherit;margin-top:0;}
   .claim-fax-row{margin-top:6px;}
   .claim-fax-row:first-child{margin-top:0;}
+  /* 계약자가 피보험자와 다름(계피상이) — 아래쪽에 있으면 놓치기 쉬워서, 모달 맨 위에
+     눈에 띄게 둔다(배경색 있는 박스 + 느낌표). */
+  .cl-flag{display:flex;align-items:center;gap:9px;background:#fff7e6;border:1px solid #f0c36d;
+    border-radius:10px;padding:10px 12px;margin:10px 0;cursor:pointer;font-weight:700;
+    font-size:13.5px;color:#8a5a00;}
+  .cl-flag input{width:18px;height:18px;flex:none;accent-color:#b45309;}
+  /* PC에서 쓰는 자동입력 북마크를 모달에서 바로 끌어다 설치할 수 있게 하는 박스.
+     모바일(휴대폰 브라우저)에서는 끌어다 놓을 북마크바가 없어서 JS로 숨겨 둔다. */
+  .cl-pcbm{display:none;background:var(--navy-100);border-radius:10px;padding:10px 12px;margin:10px 0;}
+  .cl-pcbm-t{font-size:12.5px;font-weight:700;color:var(--navy-900);margin:0 0 8px;}
+  .cl-pcbm-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .cl-pcbm-note{font-size:11.5px;color:var(--muted);line-height:1.5;}
+  .bookmarklet-btn{display:inline-flex;align-items:center;gap:6px;flex:none;background:var(--navy-900);
+    color:#fff;font-weight:700;font-size:13.5px;padding:8px 14px;border-radius:8px;
+    text-decoration:none;cursor:grab;user-select:none;}
+  .bookmarklet-btn:active{cursor:grabbing;}
   .claim-fax-lab{font-size:12px;font-weight:700;color:var(--navy-800);margin-bottom:3px;}
   .cl-opt{display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13.5px;cursor:pointer;user-select:none;word-break:keep-all;}
   .cl-opt:hover{border-color:var(--navy-600);}
@@ -535,6 +551,18 @@
   <div class="md-head"><span>📑 보험금청구 (보케어)</span><button type="button" data-close="claimModal" aria-label="닫기">✕</button></div>
   <div class="md-body">
     <div class="md-hint" style="margin-top:0;">보케어로 청구할 보험사를 최대 3개까지 선택하세요. 선택하면 고객의 인적사항이 복사되고, 보케어 보험사 선택 화면이 새 탭으로 열려요.<br>처음 쓰시나요? <a href="auto-install.html" target="_blank" rel="noopener">자동입력 북마크 설치 방법</a>을 먼저 봐 주세요 (보케어·ERP 공용, 기기당 1회).</div>
+    <div class="cl-pcbm" id="claimPcBm">
+      <div class="cl-pcbm-t">💻 PC로 쓰고 계시네요 — 아래 버튼을 북마크바로 끌어다 놓으면(처음 1회만), 다음부터 보케어 화면에서 그 북마크를 눌러 자동으로 채울 수 있어요.</div>
+      <div class="cl-pcbm-row">
+        <a class="bookmarklet-btn" id="claimDragBtn" href="#" draggable="true" onclick="return false;">🔖 자동입력</a>
+        <span class="cl-pcbm-note">누르지 말고 <b>끌어다</b> 놓아주세요. 북마크바가 안 보이면 Ctrl+Shift+B.</span>
+      </div>
+    </div>
+    <label class="cl-flag">
+      <input type="checkbox" id="claimDiffContractor">
+      <span>⚠️ 계약자가 피보험자와 다름 (계피상이)</span>
+    </label>
+    <div id="claimContractorBox" style="display:none;margin-top:6px;"></div>
     <div id="claimList"></div>
     <div class="cl-extra">
       <div class="cl-grp-t">사고유형</div>
@@ -545,11 +573,6 @@
       </div>
       <div class="cl-grp-t" id="claimFaxTitle" style="margin-top:12px;display:none;">가상팩스번호 <span class="cl-opt-note">(선택한 보험사 중 필요한 곳만 표시돼요)</span></div>
       <div id="claimFaxBox"></div>
-      <label style="display:flex;align-items:center;gap:6px;font-weight:700;cursor:pointer;margin-top:12px;font-size:13px;color:var(--navy-900);">
-        <input type="checkbox" id="claimDiffContractor" style="accent-color:var(--navy-900);">
-        계약자가 피보험자와 다름 (계피상이)
-      </label>
-      <div id="claimContractorBox" style="display:none;margin-top:6px;"></div>
       <div class="md-hint" style="margin:8px 0 0;">계좌정보가 있으면 "일반" 계좌로, 없으면 가능한 경우 "자동이체"로 자동 선택돼요. 예금주는 계약자 기준으로 채워져요. 신분증 등 서류 첨부가 필요한 보험사는 보케어 화면에 안내가 떠요 — 서류는 직접 첨부해 주세요.</div>
     </div>
     <div class="cl-prev" id="claimPrev" style="display:none;">
@@ -569,6 +592,13 @@
   <div class="md-head"><span>🏢 ERP 고객등록 (LINE)</span><button type="button" data-close="erpModal" aria-label="닫기">✕</button></div>
   <div class="md-body">
     <div class="md-hint" style="margin-top:0;">ERP(line.afg.kr) 고객등록 화면에 고객 정보를 자동으로 채워 드려요.<br>처음 쓰시나요? <a href="auto-install.html" target="_blank" rel="noopener">자동입력 북마크 설치 방법</a>을 먼저 봐 주세요 (보케어·ERP 공용, 기기당 1회).</div>
+    <div class="cl-pcbm" id="erpPcBm">
+      <div class="cl-pcbm-t">💻 PC로 쓰고 계시네요 — 아래 버튼을 북마크바로 끌어다 놓으면(처음 1회만), 다음부터 ERP 화면에서 그 북마크를 눌러 자동으로 채울 수 있어요.</div>
+      <div class="cl-pcbm-row">
+        <a class="bookmarklet-btn" id="erpDragBtn" href="#" draggable="true" onclick="return false;">🔖 자동입력</a>
+        <span class="cl-pcbm-note">누르지 말고 <b>끌어다</b> 놓아주세요. 북마크바가 안 보이면 Ctrl+Shift+B.</span>
+      </div>
+    </div>
     <div class="cl-prev" id="erpPrev">
       <div class="cl-prev-head"><span id="erpPrevStatus">복사될 내용 (미리보기)</span><button type="button" class="cu-btn sm" id="erpCopyBtn">복사하기</button></div>
       <pre id="erpPrevText"></pre>
@@ -3218,6 +3248,26 @@ window.WP_JOBS=[["의회의원/고위고무원 및 공공단체 임원","국회�
     if(anyDirty()) flushAll();
   }
   start();
+})();
+</script>
+<script src="assets/bookmarklet.js"></script>
+<script>
+// 보험금청구/ERP고객등록 모달 안에 있는 "끌어다 쓰는 자동입력 북마크" 버튼.
+// 북마크바가 있는 PC(데스크톱) 브라우저에서만 보여준다 — 휴대폰에는 끌어다 놓을
+// 북마크바가 없고, 전용 앱(위드파트너 자동입력)을 따로 쓰고 있으므로.
+(function(){
+  try{
+    var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if(isMobile || !window.WP_BOOKMARKLET) return;
+    ['claimDragBtn', 'erpDragBtn'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.setAttribute('href', window.WP_BOOKMARKLET);
+    });
+    ['claimPcBm', 'erpPcBm'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.style.display = 'block';
+    });
+  }catch(e){}
 })();
 </script>
 </body>
