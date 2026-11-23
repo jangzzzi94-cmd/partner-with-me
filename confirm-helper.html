@@ -59,6 +59,11 @@
   .ch-label{flex:none;width:68px;font-size:12px;color:var(--muted);font-weight:700;}
   .ch-value{flex:1;min-width:0;font-size:15px;color:var(--ink);word-break:break-all;font-weight:600;}
   .ch-value.miss{color:#d9822b;font-size:13px;font-weight:600;}
+  /* 인식 결과를 바로 고칠 수 있는 입력칸. 평소에는 그냥 텍스트처럼 보이게(테두리 없이)
+     해두고, 포커스가 가면 아래에 밑줄이 생겨서 "지금 수정 중"인 걸 알 수 있게 한다. */
+  .ch-value-input{border:none;background:transparent;padding:2px 0;margin:0;width:100%;font:inherit;color:inherit;border-bottom:1px solid transparent;}
+  .ch-value-input:focus{outline:none;border-bottom-color:var(--navy-600);}
+  .ch-value-input::placeholder{color:#d9822b;font-size:13px;font-weight:600;opacity:1;}
   .ch-copy{flex:none;}
   .ch-notice{padding:12px 14px;font-size:13px;color:#d9822b;background:#fff;border:1px dashed #f0c79a;border-radius:12px;margin-bottom:12px;}
   .ch-bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(15,37,69,.08);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;z-index:50;}
@@ -483,10 +488,24 @@ var CH = (function(){
     }
     return null;
   }
+  // 청약번호·설계번호처럼 "G2611230031264"같이 앞에 영문자가 붙는 식별자도 있어서,
+  // numberAfter(숫자만 인식)와 달리 맨 앞 영문자(최대 3글자)는 허용하고, 그 영문자를
+  // 포함해서 그대로 돌려준다(숫자만 남기지 않음 — 뒤에서 그대로 붙여넣어야 하므로).
+  function codeAfter(msg, labelSrc){
+    var re = new RegExp(labelSrc + '[ \\t]*[:：]?[ \\t]*([A-Za-z]{0,3}[0-9][0-9\\-]*[0-9])', 'g'), m;
+    while((m = re.exec(msg)) !== null){
+      var raw = m[m.length - 1];
+      var digitCount = raw.replace(/[^0-9]/g, '').length;
+      if(digitCount >= 6) return raw.replace(/-/g, '');
+    }
+    return null;
+  }
   function findApplicationNo(msg){
-    var order = ['청약[ \\t]*서?[ \\t]*번호', '가계약[ \\t]*번호', '영수증[ \\t]*번호', '(?:^|[^가증])계약[ \\t]*번호'];
+    // 보험사마다 쓰는 이름이 달라서(라이나생명 "청약번호", 삼성화재 "설계번호" 등) 여러
+    // 라벨을 순서대로 시도한다 — 메시지 하나에는 보통 이 중 하나만 나온다.
+    var order = ['청약[ \\t]*서?[ \\t]*번호', '설계[ \\t]*번호', '가계약[ \\t]*번호', '영수증[ \\t]*번호', '(?:^|[^가증])계약[ \\t]*번호'];
     for(var i = 0; i < order.length; i++){
-      var v = numberAfter(msg, order[i]);
+      var v = codeAfter(msg, order[i]);
       if(v) return v;
     }
     return null;
@@ -573,7 +592,10 @@ var CH = (function(){
   var peopleSec = $('peopleSec'), peopleOut = $('peopleOut'), prodSec = $('prodSec'), prodOut = $('prodOut');
   var bar = $('bar'), barText = $('barText'), nextBtn = $('nextBtn'), toast = $('toast'), errBox = $('errBox');
 
-  var state = { t1: '', boxes: [''], copied: {}, savedAt: 0 };
+  // overrides: 인식 결과 칸을 사람이 직접 고친 값. key는 makeRow의 r.key(예: 's0:no')와
+  // 같아서, 문자를 다시 붙여넣어 재해석해도(render가 다시 돌아도) 고친 값이 안 지워지고
+  // 그대로 유지된다. t1/boxes와 똑같이 이 기기(localStorage)·서버(Supabase) 양쪽에 저장된다.
+  var state = { t1: '', boxes: [''], copied: {}, overrides: {}, savedAt: 0 };
   var storageOk = true;
   var timer = null, toastTimer = null, serverTimer = null;
   var rows = []; // 이번 렌더의 항목들 [{key,label,value,copyable,seq}]
@@ -600,6 +622,7 @@ var CH = (function(){
     state.t1 = typeof d.t1 === 'string' ? d.t1 : '';
     state.boxes = (d.boxes && d.boxes.length) ? d.boxes.map(function(x){ return String(x || ''); }) : [''];
     state.copied = (d.copied && typeof d.copied === 'object') ? d.copied : {};
+    state.overrides = (d.overrides && typeof d.overrides === 'object') ? d.overrides : {};
     state.savedAt = d.savedAt || 0;
   }
   function localWrite(){
@@ -661,7 +684,7 @@ var CH = (function(){
     return ensureUid().then(function(uid){
       var c = getClient();
       if(isEmptyState()) return c.from(TABLE).delete().eq('user_id', uid);
-      return c.from(TABLE).upsert({ user_id: uid, data: { t1: state.t1, boxes: state.boxes, copied: state.copied, savedAt: state.savedAt }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      return c.from(TABLE).upsert({ user_id: uid, data: { t1: state.t1, boxes: state.boxes, copied: state.copied, overrides: state.overrides, savedAt: state.savedAt }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
     }).then(function(res){
       if(res && res.error) throw res.error;
       server.saving = false; server.ok = true; server.dirty = false; server.missing = false; server.msg = ''; server.lastAt = Date.now();
@@ -770,19 +793,42 @@ var CH = (function(){
   }
 
   /* ---- 결과 ---- */
+  // 인식이 잘못됐거나 못 찾았을 때 직접 고칠 수 있도록, 값 칸을 입력란(input)으로 만든다.
+  // 값 칸을 누르면(수정 목적) 복사가 되지 않도록 그 클릭은 행(row) 밖으로 못 나가게 막고,
+  // 값이 바뀌면 overrides에 저장해서 다음에 문자를 다시 붙여넣어도 안 지워지게 한다.
   function makeRow(parent, r){
     var row = document.createElement('div');
     row.className = 'ch-row' + (r.value ? '' : ' missing');
     var lab = document.createElement('div'); lab.className = 'ch-label'; lab.textContent = r.label;
-    var val = document.createElement('div'); val.className = 'ch-value';
-    if(r.value){ val.textContent = r.value; } else { val.className += ' miss'; val.textContent = r.missText; }
+    var val = document.createElement('input');
+    val.type = 'text';
+    val.className = 'ch-value ch-value-input' + (r.value ? '' : ' miss');
+    val.value = r.value || '';
+    val.placeholder = r.missText || '';
+    val.setAttribute('autocomplete', 'off'); val.setAttribute('autocorrect', 'off'); val.spellcheck = false;
     row.appendChild(lab); row.appendChild(val);
-    if(r.value){
-      var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ch-btn ch-copy'; btn.textContent = '복사';
-      row.appendChild(btn);
-      row.addEventListener('click', function(){ doCopy(r); });
-      r.el = row;
-    }
+
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'ch-btn ch-copy'; btn.textContent = '복사';
+    btn.style.display = r.value ? '' : 'none';
+    row.appendChild(btn);
+
+    r.el = row;
+
+    function stopBubble(ev){ ev.stopPropagation(); }
+    val.addEventListener('mousedown', stopBubble);
+    val.addEventListener('click', stopBubble);
+    val.addEventListener('input', function(){
+      r.value = val.value;
+      state.overrides[r.key] = val.value;
+      val.classList.toggle('miss', !val.value);
+      btn.style.display = val.value ? '' : 'none';
+      refreshMarks();
+      clearTimeout(timer);
+      timer = setTimeout(function(){ save(); }, 350);
+    });
+
+    row.addEventListener('click', function(){ doCopy(r); });
     parent.appendChild(row);
   }
   function makeCard(parent, title, sub, right){
@@ -800,6 +846,14 @@ var CH = (function(){
     var n = document.createElement('div'); n.className = 'ch-notice'; n.textContent = text; parent.appendChild(n);
   }
 
+  // 사람이 그 칸을 직접 고친 적이 있으면(state.overrides[r.key]), 방금 새로 해석한
+  // 값 대신 그 고친 값을 쓴다. 문자를 다시 붙여넣어도 직접 고친 값은 안 지워진다.
+  function withOverride(r){
+    if(Object.prototype.hasOwnProperty.call(state.overrides, r.key)){
+      r.value = state.overrides[r.key];
+    }
+    return r;
+  }
   function render(){
     rows = [];
     peopleOut.innerHTML = ''; prodOut.innerHTML = '';
@@ -816,6 +870,7 @@ var CH = (function(){
         var card = makeCard(peopleOut, '인적사항 ' + (n + 1) + (p.name ? ' · ' + p.name : ''));
         [['name', '이름', p.name], ['phone', '연락처', p.phone], ['birth', '생년월일', p.birth]].forEach(function(x){
           var r = { key: 'p' + n + ':' + x[0], label: x[1], value: x[2] || '', missText: '없음 · 직접 확인', seq: true, group: '인적사항 ' + (n + 1) };
+          withOverride(r);
           rows.push(r); makeRow(card, r);
         });
       });
@@ -836,6 +891,7 @@ var CH = (function(){
         ];
         rs.forEach(function(r){
           r.group = '상품 ' + (n + 1);
+          withOverride(r);
           if(r.hideIfMissing && !r.value) return;
           rows.push(r); makeRow(card, r);
         });
@@ -921,7 +977,7 @@ var CH = (function(){
   $('addBoxBtn').addEventListener('click', function(){ state.boxes.push(''); renderBoxes(); update(true); });
   $('clearAllBtn').addEventListener('click', function(){
     if(!confirm('입력한 내용(①②)과 저장본을 모두 지울까요?')) return;
-    state.t1 = ''; state.boxes = ['']; state.copied = {};
+    state.t1 = ''; state.boxes = ['']; state.copied = {}; state.overrides = {};
     t1.value = ''; renderBoxes(); update(true);
   });
   nextBtn.addEventListener('click', function(){ var nx = nextRow(); if(nx) doCopy(nx); });
