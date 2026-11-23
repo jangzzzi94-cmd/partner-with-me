@@ -748,9 +748,9 @@ DB.set = async function (col, id, data) {
     this.cache[col][id] = Object.assign({}, this.cache[col][id] || {}, data, { id });
     this.emit(); return;
   }
-  const prev = this.cache[col][id] || {};
-  const merged = Object.assign({}, prev, data, { id });
-  this.cache[col][id] = merged;
+  const prevLocal = this.cache[col][id] || {};
+  // 화면은 바로 반응하도록 일단 로컬 캐시 기준으로 낙관적으로 먼저 갱신해둔다.
+  this.cache[col][id] = Object.assign({}, prevLocal, data, { id });
   this.emit();
 
   let error = null;
@@ -762,14 +762,28 @@ DB.set = async function (col, id, data) {
     }
   } else {
     const T = TABLES[col];
+    // 로컬 캐시가 최신이 아닐 수 있다 — 예를 들어 "병원근무"로 유형을 먼저 저장해둔 뒤
+    // 한참 지나서(또는 다른 기기/탭에서) 출근 사진을 올리면, 이 화면이 그 유형 변경을
+    // 아직 못 받았을 수 있다. 그 상태로 그냥 merge+upsert 하면 서버에 이미 저장된 type/
+    // hospital 같은 필드가 사진 업로드 한 번에 통째로 사라져 버린다(= "병원근무가 갑자기
+    // 안 한 걸로 뜨는" 버그의 원인). 그래서 쓰기 직전에 서버의 최신 값을 한 번 더 읽어와
+    // 그걸 기준으로 합친 뒤에 올린다.
+    let prev = prevLocal;
+    try {
+      const { data: row, error: fetchErr } = await this.sb.from(T.table).select("*").eq("id", id).maybeSingle();
+      if (!fetchErr && row) prev = Object.assign({}, prevLocal, rowToDoc(row));
+    } catch (e) { /* 네트워크 문제면 로컬 캐시 기준으로 계속 진행 */ }
+    const merged = Object.assign({}, prev, data, { id });
+    this.cache[col][id] = merged;
+    this.emit();
     const body = Object.assign({}, merged); delete body.id;
-    const row = { id, data: body };
-    if (T.uid) row.uid = body.uid || null;
-    if (T.date) row.date = body.date || null;
-    ({ error } = await this.sb.from(T.table).upsert(row, { onConflict: "id" }));
+    const row2 = { id, data: body };
+    if (T.uid) row2.uid = body.uid || null;
+    if (T.date) row2.date = body.date || null;
+    ({ error } = await this.sb.from(T.table).upsert(row2, { onConflict: "id" }));
   }
   if (error) {
-    if (prev.id) this.cache[col][id] = prev; else delete this.cache[col][id];
+    if (prevLocal.id) this.cache[col][id] = prevLocal; else delete this.cache[col][id];
     this.emit();
     throw new Error(error.message);
   }
