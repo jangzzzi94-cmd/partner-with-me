@@ -269,6 +269,9 @@
   .box label{display:block;font-size:13px;font-weight:700;color:var(--navy-900);margin-bottom:5px;}
   .box textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;font-family:inherit;line-height:1.55;resize:none;overflow:hidden;background:#fff;}
   .box .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  /* 병력사항(간편/표준체/치아/중대질환) — 내용이 많으면 박스가 한도 없이 길어져서
+     화면을 다 차지하던 걸, 적당한 높이로 고정하고 그 안에서 스크롤해서 보게 한다. */
+  #simpleText,#standardText,#dentalText,#majorText{max-height:230px;overflow-y:auto;}
   .cv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
   .cv-item{min-width:0;}
   .cv-th{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;object-position:top left;border:1px solid var(--line);border-radius:8px;background:#f1f4f9;cursor:pointer;}
