@@ -57,6 +57,20 @@
   .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:3px;margin-top:4px;}
   .sch-chip{font-size:10.5px;padding:2px 5px;border-radius:5px;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;cursor:pointer;line-height:1.45;color:var(--ink);}
   .sch-incheon-toggle{position:absolute;top:5px;right:5px;width:15px;height:15px;cursor:pointer;margin:0;}
+  /* PC: 일정에 마우스를 올리면 진해지고 오른쪽 위에 작은 × (바로 삭제) */
+  .sch-chip{position:relative;transition:filter .12s, box-shadow .12s;}
+  .sch-chip .chip-x{display:none;position:absolute;top:-6px;right:-6px;width:17px;height:17px;border:none;border-radius:50%;background:rgba(10,26,48,.78);color:#fff;font-size:11px;line-height:17px;padding:0;cursor:pointer;z-index:3;font-family:inherit;}
+  .sch-chip .chip-x:hover{background:var(--danger);}
+  @media (hover:hover){
+    .sch-chip:hover{filter:brightness(.86) saturate(1.35);box-shadow:0 0 0 1.5px rgba(15,37,69,.45);}
+    .sch-chip.can-edit:hover .chip-x{display:block;}
+  }
+  @media (hover:none){ .sch-incheon-toggle{display:none;} }  /* 휴대폰/앱: 인천출근 체크박스는 PC에서만 */
+  .sch-chip.dragging{opacity:.4;}
+  .sch-day.drop-target{outline:2px dashed #2b6fd6;outline-offset:-3px;background:#eef4ff;}
+  .ev-date-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:13px;font-weight:600;color:var(--navy-900);}
+  .ev-date-row input{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;color:var(--ink);}
+  .ev-date-row small{font-weight:400;color:var(--muted);font-size:11.5px;}
 
   /* 일정 화면 - 저장은 오른쪽 위, 아래는 대화창 */
   .mh-acts{display:flex;align-items:center;gap:10px;}
@@ -124,10 +138,28 @@
   .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;font-family:inherit;}
   .sch-btn-sm:hover{border-color:var(--navy-600);}
   .sch-btn-sm.danger{color:var(--danger);}
+  /* ---- 모바일: 타임트리처럼 - 큰 테두리/날짜별 상자 없이 주마다 얇은 선만, 일정은 한 줄.
+         글씨가 잘리지 않게 칸을 넓히고 달력만 좌우로 밀어서 본다 ---- */
   @media (max-width:760px){
-    .sch-day{min-height:88px;padding:4px;}
-    .sch-chip{font-size:9.5px;}
-    .sch-weekdays{font-size:11px;}
+    .sch-wrap{padding:18px 0 60px;}
+    .sch-wrap > h1,.sch-toolbar,.sch-cals,.sch-legend{padding-left:14px;padding-right:14px;}
+    .sch-toolbar{margin:14px 0 12px;}
+    .sch-grid-wrap{border:none;border-radius:0;background:transparent;padding:0;}
+    .sch-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+    .sch-inner{min-width:910px;}
+    .sch-weekdays{font-size:12px;padding:6px 0;border-bottom:1px solid var(--line);}
+    .sch-grid{gap:0;}
+    .sch-day{min-height:94px;border:none;border-radius:0;border-bottom:1px solid var(--line);padding:5px 2px 6px;background:transparent;}
+    .sch-day:hover{border-color:var(--line);}
+    .sch-day.is-today{border-color:var(--line);box-shadow:none;}
+    .sch-day .d-num{text-align:center;padding-right:0;font-size:13px;}
+    .sch-day .d-num span{display:inline-block;min-width:24px;height:24px;line-height:24px;border-radius:12px;}
+    .sch-day.is-today .d-num span{background:var(--navy-900);color:#fff;}
+    .sch-day .d-hol{text-align:center;margin-top:0;}
+    .sch-day .d-items{gap:2px;margin-top:3px;}
+    .sch-chip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;font-weight:600;padding:2px 4px;border-radius:4px;}
+    .sch-incheon-toggle{display:none;}  /* 모바일에서는 인천출근 체크박스 숨김(PC에서만 사용) */
+    .modal-overlay{padding:8px;}
     .chat-list{max-height:max(220px, calc(94vh - 380px));}
     .cmsg .bub img{max-width:220px;max-height:220px;}
   }
@@ -168,10 +200,12 @@
     <div class="sch-grid-wrap" id="calendarCapture">
       <div class="cap-title" id="capTitle"></div>
       <div class="sch-legend" id="legendRow"></div>
-      <div class="sch-weekdays">
-        <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span>
-      </div>
-      <div class="sch-grid" id="calGrid"></div>
+      <div class="sch-scroll" id="calScroll"><div class="sch-inner">
+        <div class="sch-weekdays">
+          <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span>
+        </div>
+        <div class="sch-grid" id="calGrid"></div>
+      </div></div>
     </div>
   </div>
 </div>
@@ -215,6 +249,22 @@
   </div>
 </div>
 
+<!-- 다른 날짜로 옮길 때: 이동할지 복사할지 -->
+<div id="mcOverlay" class="modal-overlay" style="display:none;z-index:130;">
+  <div class="modal-card" style="max-width:360px;">
+    <div class="modal-body" style="padding:22px;">
+      <div id="mcTitle" style="font-size:15px;font-weight:800;color:var(--navy-950);margin-bottom:4px;word-break:break-all;"></div>
+      <div id="mcDates" style="font-size:13px;color:var(--navy-800);font-weight:600;margin-bottom:10px;"></div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:16px;">이동: 원래 날짜에서 새 날짜로 옮겨요<br>복사: 원래 일정은 그대로 두고, 새 날짜에 복사본을 만들어요(복사 창에서 고칠 수 있어요)</div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn-save-top" data-mc="move" style="flex:1;padding:11px;">이동</button>
+        <button type="button" class="btn-save-top" data-mc="copy" style="flex:1;padding:11px;background:#2b6fd6;">복사</button>
+        <button type="button" class="sch-btn-sm" data-mc="cancel">취소</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="chatFile" multiple accept="image/*,application/pdf,.pdf,.txt,.hwp,.doc,.docx,.xls,.xlsx,.ppt,.pptx" style="display:none">
 
 <script src="assets/supabase-client.js"></script>
@@ -245,6 +295,8 @@ const NEW_KIND_SUGGEST = ['#e3ddf7', '#d7f2ea', '#f7e3cf', '#c9eef2', '#e8d9c7',
 const ACTIVE_KEY = 'wp_schedule_cals_v1';
 const FILE_BUCKET = 'schedule-files';
 const MAX_FILE_MB = 20;
+/** 휴대폰처럼 마우스가 없는 기기 - Ctrl+V 안내를 빼는 데 쓴다 */
+const IS_TOUCH = (function(){ try{ return window.matchMedia('(hover: none)').matches; }catch(e){ return false; } })();
 
 let Me = null;
 let Roster = [];
@@ -464,7 +516,10 @@ function renderLegend(){
 
 function renderChip(e){
   if(e.virtual) return '<div class="sch-chip" style="background:' + BIRTHDAY_COLOR + ';font-weight:600;" data-bday="1">🎁 ' + esc(e.label) + '</div>';
-  return '<div class="sch-chip" style="background:' + esc(e.color) + '" data-id="' + e.id + '">' + esc(e.label) + '</div>';
+  const editable = canEditEvent(e);
+  return '<div class="sch-chip' + (editable ? ' can-edit' : '') + '" style="background:' + esc(e.color) + '" data-id="' + e.id + '"' +
+    (editable && !IS_TOUCH ? ' draggable="true"' : '') + ' title="' + esc(e.label) + '">' + esc(e.label) +
+    (editable ? '<button type="button" class="chip-x" data-delev="' + e.id + '" title="삭제">×</button>' : '') + '</div>';
 }
 
 function renderGrid(){
@@ -484,7 +539,7 @@ function renderGrid(){
     const bg = (showIncheon && flag && flag.incheon) ? (' style="background:' + esc(flag.incheon_color || INCHEON_PALETTE[0]) + '"') : '';
     html += '<div class="sch-day' + (inMonth ? '' : ' other-month') + (dateStr === todayStr ? ' is-today' : '') + '"' + bg + ' data-date="' + dateStr + '">' +
       (canToggleIncheon ? ('<input type="checkbox" class="sch-incheon-toggle" title="인천출근 표시" data-incheon="' + dateStr + '"' + (flag && flag.incheon ? ' checked' : '') + '>') : '') +
-      '<div class="d-num ' + numClass + '">' + d.getDate() + '</div>' +
+      '<div class="d-num ' + numClass + '"><span>' + d.getDate() + '</span></div>' +
       (holName ? ('<div class="d-hol">' + esc(holName) + '</div>') : '') +
       '<div class="d-items">' + dayEventsFor(dateStr).map(renderChip).join('') + '</div>' +
       '</div>';
@@ -493,6 +548,17 @@ function renderGrid(){
 }
 
 function renderAll(){ renderToggles(); renderLegend(); renderGrid(); }
+
+/** 모바일(달력이 화면보다 넓어 좌우로 밀어 보는 경우)에서 오늘 칸이 가운데 오게 맞춘다 */
+function scrollToToday(){
+  const sc = document.getElementById('calScroll');
+  if(!sc || sc.scrollWidth <= sc.clientWidth + 2) return;
+  const now = new Date();
+  const cell = document.querySelector('.sch-day[data-date="' + ymd(now.getFullYear(), now.getMonth() + 1, now.getDate()) + '"]');
+  if(!cell){ sc.scrollLeft = 0; return; }
+  const r = cell.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+  sc.scrollLeft += (r.left - sr.left) - (sc.clientWidth - r.width) / 2;
+}
 
 async function refreshMonth(){
   await Promise.all([loadEvents(), loadDayFlags()]);
@@ -598,14 +664,69 @@ function whereLabel(ev){
   return ((RosterByUid[ev.owner_uid] || {}).name || '?') + ' 님 일정';
 }
 
-function openEventModal(eventId, newDateStr){
+/** "이동 / 복사 / 취소"를 물어보고 'move' | 'copy' | null 을 돌려준다 */
+function askMoveCopy(label, fromDate, toDate){
+  return new Promise(function(resolve){
+    const ov = document.getElementById('mcOverlay');
+    document.getElementById('mcTitle').textContent = '"' + label + '"';
+    document.getElementById('mcDates').textContent = fmtDateKr(fromDate) + '  →  ' + fmtDateKr(toDate);
+    ov.style.display = 'flex';
+    ov.onclick = function(e){
+      const b = e.target.closest('[data-mc]');
+      if(!b && e.target !== ov) return;
+      ov.style.display = 'none';
+      ov.onclick = null;
+      resolve(b && b.dataset.mc !== 'cancel' ? b.dataset.mc : null);
+    };
+  });
+}
+
+/** 일정을 다른 날로 끌어다 놓았을 때(PC) */
+async function dropEventOn(eventId, toDate){
+  const ev = Events.find(function(x){ return x.id === eventId; });
+  if(!ev || !canEditEvent(ev) || ev.event_date === toDate) return;
+  const choice = await askMoveCopy(ev.label, ev.event_date, toDate);
+  if(choice === 'move'){
+    const { error } = await supabaseClient.from('schedule_events').update({ event_date: toDate, updated_at: new Date().toISOString() }).eq('id', ev.id);
+    if(error){ alert('이동 실패: ' + error.message); return; }
+    await refreshMonth();
+  } else if(choice === 'copy'){
+    openEventModal(null, toDate, { copyOf: ev });
+  }
+}
+
+/** 일정 오른쪽 위 ×로 바로 지우기(PC) */
+async function quickDeleteEvent(eventId){
+  const ev = Events.find(function(x){ return x.id === eventId; });
+  if(!ev || !canEditEvent(ev)) return;
+  if(!confirm('"' + ev.label + '" 일정을 삭제할까요?\n(대화 내용도 같이 지워져요)')) return;
+  const { error } = await supabaseClient.from('schedule_events').delete().eq('id', ev.id);
+  if(error){ alert('삭제 실패: ' + error.message); return; }
+  await refreshMonth();
+}
+
+/** 원래 일정이 들어 있던 곳(복사본을 같은 곳에 만들 때 씀) */
+function targetOf(ev){
+  if(ev.calendar_id){ const c = calById(ev.calendar_id); return { id: 'cal:' + ev.calendar_id, label: '🗂 ' + (c ? c.name : '공유 일정') }; }
+  if(ev.is_common) return isSM(Me) ? { id: 'common', label: '📢 공통일정' } : { id: Me.id, label: '내 일정' };
+  if(ev.owner_uid === Me.id) return { id: Me.id, label: '내 일정' };
+  return { id: ev.owner_uid, label: nameOf(ev.owner_uid, '?') + ' 님' };
+}
+/** 수정할 수 있는 일정인가(공통일정은 SM만) - × 삭제 표시와 끌어서 옮기기에 쓴다 */
+function canEditEvent(e){ return !!e && !e.virtual && (!!e.calendar_id || !e.is_common || isSM(Me)); }
+
+/** opts.copyOf: 이 일정을 복사해서 새로 만드는 창 / opts.draft: 복사 전에 고쳐둔 내용 */
+function openEventModal(eventId, newDateStr, opts){
+  const copyOf = (opts && opts.copyOf) || null;
+  const draft = (opts && opts.draft) || null;
   const ev = eventId ? Events.find(function(x){ return x.id === eventId; }) : null;
   const dateStr = ev ? ev.event_date : newDateStr;
-  const targets = ev ? [] : writableTargets();
+  const targets = ev ? [] : (copyOf ? [targetOf(copyOf)] : writableTargets());
+  const base = draft || copyOf || ev;
   Modal = {
-    ev: ev, dateStr: dateStr,
-    kind: ev ? ev.kind : PRESET_TYPES[0].key,
-    color: ev ? ev.color : PRESET_TYPES[0].color,
+    ev: ev, dateStr: dateStr, copyOf: copyOf,
+    kind: base ? base.kind : PRESET_TYPES[0].key,
+    color: base ? base.color : PRESET_TYPES[0].color,
     target: targets.length ? targets[0].id : null,
     targets: targets,
     readOnly: ev ? (!ev.calendar_id && ev.is_common && !isSM(Me)) : false,
@@ -615,11 +736,11 @@ function openEventModal(eventId, newDateStr){
     seenCount: -1,
     poll: null
   };
-  if(ev && !PRESET_TYPES.some(function(t){ return t.key === ev.kind; }) && !MyCategories.some(function(c){ return c.name === ev.kind; })){
-    Modal.extraKind = { name: ev.kind || '기타', color: ev.color };
+  if(base && !PRESET_TYPES.some(function(t){ return t.key === base.kind; }) && !MyCategories.some(function(c){ return c.name === base.kind; })){
+    Modal.extraKind = { name: base.kind || '기타', color: base.color };
   }
 
-  document.getElementById('eventModalTitle').textContent = fmtDateKr(dateStr) + (ev ? ' 일정' : ' 일정 추가');
+  document.getElementById('eventModalTitle').textContent = fmtDateKr(dateStr) + (ev ? ' 일정' : (copyOf ? ' 일정 복사' : ' 일정 추가'));
   document.getElementById('evSaveTop').style.display = Modal.readOnly ? 'none' : '';
   document.getElementById('evSaveTop').disabled = false;
   const ro = Modal.readOnly ? ' disabled' : '';
@@ -635,7 +756,9 @@ function openEventModal(eventId, newDateStr){
   }
 
   document.getElementById('eventModalBody').innerHTML =
-    '<input type="text" class="ev-title" id="evLabel" placeholder="제목 (예: 09 장진수)" value="' + esc(ev ? ev.label : '') + '"' + ro + '>' +
+    '<input type="text" class="ev-title" id="evLabel" placeholder="제목 (예: 09 장진수)" value="' + esc(base ? base.label : '') + '"' + ro + '>' +
+    '<div class="ev-date-row"><span>📅 날짜</span><input type="date" id="evDate" value="' + esc(dateStr) + '"' + ro + '>' +
+      (ev && !Modal.readOnly ? '<small>다른 날짜로 바꾸면 이동/복사를 골라요</small>' : '') + '</div>' +
     '<div class="ev-sec"><div class="ev-sec-t">종류</div>' +
       '<div class="kind-row"><div class="kind-btns" id="kindBtns"></div>' +
       (Modal.readOnly ? '' : '<button type="button" class="kind-add" id="kindAddBtn">+ 새 항목</button>') + '</div>' +
@@ -649,13 +772,19 @@ function openEventModal(eventId, newDateStr){
       '<div class="chat-pend" id="chatPend"></div>' +
       '<div class="chat-input">' +
         '<button type="button" class="chat-ic" id="chatAttachBtn" title="사진·PDF·파일 첨부">📎</button>' +
-        '<textarea id="chatInput" rows="1" placeholder="메시지 입력 (이미지는 Ctrl+V로 붙여넣기)"></textarea>' +
+        '<textarea id="chatInput" rows="1" placeholder="' + (IS_TOUCH ? '메시지 입력' : '메시지 입력 (이미지는 Ctrl+V로 붙여넣기)') + '"></textarea>' +
         '<button type="button" class="chat-send" id="chatSendBtn">보내기</button>' +
       '</div>' +
     '</div>';
 
   renderKindButtons();
   renderTargetButtons();
+
+  // 날짜를 바꾸면 위 제목의 날짜도 같이 바뀌게
+  document.getElementById('evDate').addEventListener('change', function(){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(this.value)) return;
+    document.getElementById('eventModalTitle').textContent = fmtDateKr(this.value) + (ev ? ' 일정' : (copyOf ? ' 일정 복사' : ' 일정 추가'));
+  });
 
   if(!Modal.readOnly){
     document.getElementById('kindAddBtn').addEventListener('click', function(){
@@ -769,15 +898,34 @@ async function handleSaveEvent(){
   const n = leadNum(label);
   const orderNum = isFinite(n) ? Math.min(n, 9999) : 9999;
   const ev = Modal.ev;
+  const dateEl = document.getElementById('evDate');
+  const newDate = (dateEl && /^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) ? dateEl.value : Modal.dateStr;
+
+  // 기존 일정을 다른 날짜로 바꿨으면 이동/복사를 먼저 묻는다
+  let moveTo = null;
+  if(ev && newDate !== ev.event_date){
+    const choice = await askMoveCopy(label, ev.event_date, newDate);
+    if(!choice) return;                        // 취소 - 창은 그대로
+    if(choice === 'copy'){
+      // 원래 일정은 그대로 두고, 지금 고친 내용으로 채운 복사 창을 연다
+      const draft = { label: label, kind: Modal.kind, color: Modal.color };
+      closeEventModal();
+      openEventModal(null, newDate, { copyOf: ev, draft: draft });
+      return;
+    }
+    moveTo = newDate;
+  }
+
   const btn = document.getElementById('evSaveTop');
   btn.disabled = true;
   try{
     if(ev){
-      const { error } = await supabaseClient.from('schedule_events').update({
-        label: label, kind: Modal.kind, color: Modal.color, order_num: orderNum, updated_at: new Date().toISOString()
-      }).eq('id', ev.id);
+      const patch = { label: label, kind: Modal.kind, color: Modal.color, order_num: orderNum, updated_at: new Date().toISOString() };
+      if(moveTo) patch.event_date = moveTo;
+      const { error } = await supabaseClient.from('schedule_events').update(patch).eq('id', ev.id);
       if(error){ alert('저장 실패: ' + error.message); return; }
     } else {
+      Modal.dateStr = newDate;
       const tgt = Modal.target;
       const calId = (tgt && tgt.indexOf('cal:') === 0) ? tgt.slice(4) : null;
       const isCommon = tgt === 'common';
@@ -1004,7 +1152,7 @@ function renderChatList(items){
   });
   const all = items.concat(pend);
   if(!all.length){
-    wrap.innerHTML = '<div class="chat-empty">💬 이 일정에 대한 대화를 남겨보세요<br><small>사진·PDF 첨부, 복사한 이미지는 Ctrl+V</small></div>';
+    wrap.innerHTML = '<div class="chat-empty">💬 이 일정에 대한 대화를 남겨보세요<br><small>' + (IS_TOUCH ? '📎 버튼으로 사진·PDF 첨부' : '사진·PDF 첨부, 복사한 이미지는 Ctrl+V') + '</small></div>';
     return;
   }
   wrap.innerHTML = all.map(function(m){
@@ -1060,9 +1208,10 @@ async function toggleIncheon(dateStr){
 function wireUi(){
   document.getElementById('prevMonthBtn').addEventListener('click', function(){ changeMonth(-1); });
   document.getElementById('nextMonthBtn').addEventListener('click', function(){ changeMonth(1); });
-  document.getElementById('todayBtn').addEventListener('click', function(){
+  document.getElementById('todayBtn').addEventListener('click', async function(){
     const now = new Date(); ViewYear = now.getFullYear(); ViewMonth = now.getMonth() + 1;
-    refreshMonth();
+    await refreshMonth();
+    scrollToToday();
   });
 
   document.querySelectorAll('#calToggles [data-cal]').forEach(function(b){
@@ -1109,8 +1258,43 @@ function wireUi(){
   document.addEventListener('click', function(){ memPop.classList.remove('open'); });
 
   // 날짜 칸 클릭 = 일정 추가, 일정 클릭 = 수정/삭제/대화
-  document.getElementById('calGrid').addEventListener('click', function(e){
+  const grid = document.getElementById('calGrid');
+  // PC: 일정을 다른 날짜 칸으로 끌어다 놓으면 이동/복사를 묻는다
+  let dragId = null, dropDay = null;
+  function clearDrop(){ if(dropDay){ dropDay.classList.remove('drop-target'); dropDay = null; } }
+  grid.addEventListener('dragstart', function(e){
+    const chip = e.target.closest('.sch-chip[draggable="true"]');
+    if(!chip){ return; }
+    dragId = chip.dataset.id;
+    e.dataTransfer.effectAllowed = 'copyMove';
+    try{ e.dataTransfer.setData('text/plain', dragId); }catch(err){}
+    chip.classList.add('dragging');
+  });
+  grid.addEventListener('dragend', function(e){
+    const chip = e.target.closest && e.target.closest('.sch-chip');
+    if(chip) chip.classList.remove('dragging');
+    clearDrop(); dragId = null;
+  });
+  grid.addEventListener('dragover', function(e){
+    if(!dragId) return;
+    const day = e.target.closest('.sch-day');
+    if(!day) return;
+    e.preventDefault();
+    if(day !== dropDay){ clearDrop(); dropDay = day; day.classList.add('drop-target'); }
+  });
+  grid.addEventListener('drop', function(e){
+    if(!dragId) return;
+    e.preventDefault();
+    const day = e.target.closest('.sch-day');
+    const id = dragId;
+    clearDrop(); dragId = null;
+    if(day) dropEventOn(id, day.dataset.date);
+  });
+
+  grid.addEventListener('click', function(e){
     if(e.target.closest('[data-incheon]')) return;
+    const x = e.target.closest('[data-delev]');
+    if(x){ e.stopPropagation(); quickDeleteEvent(x.dataset.delev); return; }
     const chip = e.target.closest('.sch-chip');
     if(chip){
       if(chip.dataset.id) openEventModal(chip.dataset.id, null);
@@ -1158,8 +1342,11 @@ function wireUi(){
     try{
       const canvas = await html2canvas(document.getElementById('calendarCapture'), {
         backgroundColor: '#ffffff', scale: 2,
-        ignoreElements: function(el){ return el.classList && el.classList.contains('sch-incheon-toggle'); },
+        // 휴대폰에서 저장해도 이미지는 PC 화면 모양(칸 상자 + 줄바꿈, 한 달 전체)으로 만든다
+        windowWidth: 1200,
+        ignoreElements: function(el){ return el.classList && (el.classList.contains('sch-incheon-toggle') || el.classList.contains('chip-x')); },
         onclone: function(doc){
+          const cap = doc.getElementById('calendarCapture'); if(cap) cap.style.width = '1100px';
           const t = doc.getElementById('capTitle'); if(t) t.style.display = 'block';
           // 이미지에는 오늘 표시(굵은 테두리)를 넣지 않는다
           doc.querySelectorAll('.sch-day.is-today').forEach(function(el){ el.classList.remove('is-today'); });
@@ -1208,6 +1395,7 @@ async function changeMonth(delta){
   document.getElementById('schBody').style.display = 'block';
   wireUi();
   await refreshMonth();
+  scrollToToday();
 })();
 </script>
 </body>
