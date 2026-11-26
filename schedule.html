@@ -138,25 +138,30 @@
   .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;font-family:inherit;}
   .sch-btn-sm:hover{border-color:var(--navy-600);}
   .sch-btn-sm.danger{color:var(--danger);}
-  /* ---- PC 달력: 구글 캘린더/타임트리처럼 일정 글씨를 더 크고 굵게, 왼쪽에 진한 색 줄.
+  /* ---- PC 달력: 구글 캘린더/타임트리처럼 일정 글씨를 더 크고 굵게, 항상 한 줄.
          날짜 칸도 조금 넉넉하게. (휴대폰 화면은 아래 모바일 설정을 그대로 씀) ---- */
   @media (min-width:761px){
+    /* 큰 모니터에서는 달력도 넓게 써서 칸이 커지면 긴 일정도 그만큼 다 보이게 */
+    .sch-wrap{max-width:1640px;}
     .sch-weekdays{font-size:13.5px;padding-bottom:10px;}
     .sch-grid{gap:8px;}
     .sch-day{min-height:124px;padding:8px 8px 9px;border-radius:12px;}
     .sch-day .d-num{font-size:14px;}
     .sch-day .d-hol{font-size:10.5px;margin-top:1px;}
     .sch-day .d-items{gap:4px;margin-top:6px;}
-    .sch-chip{font-size:12.5px;font-weight:600;line-height:1.4;padding:3px 7px 3px 9px;border-radius:6px;color:#1b2a3d;
-      box-shadow:inset 3px 0 0 rgba(15,37,69,.22);}
+    /* 일정은 항상 한 줄: 칸보다 길면 끝을 …로 줄이고, 화면이 넓어져 칸이 커지면 그만큼 다 보인다
+       (전체 제목은 마우스를 올리면 말풍선으로 보임) */
+    .sch-weekdays,.sch-grid{grid-template-columns:repeat(7,minmax(0,1fr));}
+    .sch-day{min-width:0;}
+    .sch-chip{font-size:12.5px;font-weight:600;line-height:1.4;padding:3px 8px;border-radius:6px;color:#1b2a3d;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* 한 줄로 잘리는 칸 안에서도 삭제 ×가 보이도록 일정 오른쪽 안쪽에 표시 */
+    .sch-chip .chip-x{top:50%;right:3px;transform:translateY(-50%);width:16px;height:16px;line-height:16px;}
     .sch-legend{font-size:13px;gap:14px;}
     .sch-legend .sw i{width:13px;height:13px;}
     /* 인천출근 체크박스(SM): 평소엔 옅게, 마우스를 올리거나 체크하면 진하게 - 달력이 덜 어수선하게 */
     .sch-incheon-toggle{width:14px;height:14px;top:9px;right:9px;opacity:.28;transition:opacity .12s;}
     .sch-day:hover .sch-incheon-toggle,.sch-incheon-toggle:checked{opacity:1;}
-  }
-  @media (min-width:761px) and (hover:hover){
-    .sch-chip:hover{box-shadow:inset 3px 0 0 rgba(15,37,69,.35), 0 0 0 1.5px rgba(15,37,69,.45);}
   }
 
   /* 일정 창이 열려 있으면 뒤 화면은 스크롤되지 않게(창 안에서만 스크롤) */
@@ -553,7 +558,7 @@ function renderLegend(){
 }
 
 function renderChip(e){
-  if(e.virtual) return '<div class="sch-chip" style="background:' + BIRTHDAY_COLOR + ';font-weight:600;" data-bday="1">🎁 ' + esc(e.label) + '</div>';
+  if(e.virtual) return '<div class="sch-chip" style="background:' + BIRTHDAY_COLOR + ';font-weight:600;" data-bday="1" title="' + esc(e.label) + '">🎁 ' + esc(e.label) + '</div>';
   const editable = canEditEvent(e);
   return '<div class="sch-chip' + (editable ? ' can-edit' : '') + '" style="background:' + esc(e.color) + '" data-id="' + e.id + '"' +
     (editable && !IS_TOUCH ? ' draggable="true"' : '') + ' title="' + esc(e.label) + '">' + esc(e.label) +
@@ -1415,6 +1420,10 @@ function wireUi(){
           const t = doc.getElementById('capTitle'); if(t) t.style.display = 'block';
           // 이미지에는 오늘 표시(굵은 테두리)를 넣지 않는다
           doc.querySelectorAll('.sch-day.is-today').forEach(function(el){ el.classList.remove('is-today'); });
+          // 저장 이미지는 마우스로 전체 제목을 볼 수 없으니 긴 일정도 잘리지 않게 줄바꿈해서 전부 보여준다
+          const st = doc.createElement('style');
+          st.textContent = '.sch-chip{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}';
+          doc.head.appendChild(st);
         }
       });
       const fname = '일정_' + ViewYear + '-' + pad2(ViewMonth) + '.png';
