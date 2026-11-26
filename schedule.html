@@ -9,18 +9,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   .sch-wrap{max-width:1120px;margin:0 auto;padding:40px 24px 80px;}
-  .sch-wrap h1{font-size:24px;color:var(--navy-950);margin:0 0 4px;}
-  .sch-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:22px 0 14px;}
+  .sch-wrap h1{font-size:24px;color:var(--navy-950);margin:0;}
+  .sch-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:20px 0 14px;}
   .sch-nav{display:flex;align-items:center;gap:10px;}
   .sch-nav button{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;color:var(--navy-900);}
   .sch-nav button:hover{border-color:var(--navy-600);}
   #monthLabel{font-weight:700;font-size:16px;color:var(--navy-950);min-width:108px;text-align:center;}
 
-  /* 맨 위 캘린더 켜기/끄기 - 파란색이면 켜진 것 */
+  /* 맨 위 일정 켜기/끄기 - 파란색이면 켜진 것 */
   .sch-cals{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
-  .sch-tab{padding:8px 15px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;color:var(--muted);font-weight:700;font-family:inherit;}
+  #calChips{display:contents;}
+  .sch-tab{padding:8px 15px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;color:var(--muted);font-weight:700;font-family:inherit;display:inline-flex;align-items:center;gap:6px;}
   .sch-tab:hover{border-color:#2b6fd6;}
   .sch-tab.on{background:#2b6fd6;color:#fff;border-color:#2b6fd6;}
+  .sch-tab .cal-edit{font-size:12px;opacity:.7;padding:0 2px;}
+  .sch-tab .cal-edit:hover{opacity:1;}
+  .sch-tab.add{border-style:dashed;font-weight:600;}
   .sch-mem-wrap{position:relative;}
   .sch-mem-pop{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(15,37,69,.18);width:260px;max-height:340px;overflow-y:auto;padding:8px;}
   .sch-mem-pop.open{display:block;}
@@ -50,14 +54,16 @@
   .sch-day .d-hol{font-size:9px;color:var(--danger);margin-top:-2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:3px;margin-top:4px;overflow:hidden;}
   .sch-chip{font-size:10.5px;padding:2px 5px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.5;color:var(--ink);}
-  .sch-chip .own{font-weight:800;opacity:.6;margin-right:3px;}
   .sch-incheon-toggle{position:absolute;top:5px;right:5px;width:15px;height:15px;cursor:pointer;margin:0;}
 
-  /* 일정 추가/수정 화면 */
+  /* 일정 화면 - 저장은 오른쪽 위, 아래는 대화창 */
+  .mh-acts{display:flex;align-items:center;gap:10px;}
+  .btn-save-top{background:var(--navy-900);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn-save-top:hover{background:var(--navy-800);}
+  .btn-save-top:disabled{background:#a9b6c6;cursor:default;}
   .ev-title{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-weight:600;font-family:inherit;}
   .ev-title:focus{outline:none;border-color:var(--navy-600);box-shadow:0 0 0 3px rgba(43,81,144,.12);}
-  .ev-hint{font-size:11.5px;color:var(--muted);margin-top:5px;}
-  .ev-sec{margin-top:16px;}
+  .ev-sec{margin-top:14px;}
   .ev-sec-t{font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:7px;}
   .kind-row{display:flex;align-items:flex-start;gap:8px;}
   .kind-btns{display:flex;flex-wrap:wrap;gap:6px;flex:1;}
@@ -74,21 +80,47 @@
   .kind-form input[type=text]{flex:1;min-width:110px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;}
   .kind-form input[type=color]{width:38px;height:34px;padding:2px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;}
   .tgt-btn{background:#eef2f8;}
-  .ev-meta{font-size:12px;color:var(--muted);margin-top:12px;}
-  .ev-acts{display:flex;gap:8px;margin-top:16px;}
-  .sch-comments{margin-top:18px;border-top:1px solid var(--line);padding-top:12px;}
-  .sch-comment{font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--line);}
-  .sch-comment:last-child{border-bottom:none;}
-  .sch-comment .nm{font-weight:700;color:var(--navy-800);}
-  .sch-comment .msg{margin-top:2px;white-space:pre-wrap;word-break:break-word;}
+  .ev-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);margin-top:12px;}
+  .link-del{background:none;border:none;color:var(--danger);font-size:12px;cursor:pointer;padding:0;font-family:inherit;}
+
+  .chat-box{margin-top:16px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .chat-list{height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f3f6fb;}
+  .chat-empty{margin:auto;color:var(--muted);font-size:12.5px;text-align:center;line-height:1.7;}
+  .cmsg{max-width:80%;align-self:flex-start;display:flex;flex-direction:column;}
+  .cmsg.me{align-self:flex-end;align-items:flex-end;}
+  .cmsg .who{font-size:11px;color:var(--muted);margin:0 2px 2px;}
+  .cmsg .bub{background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px 10px;font-size:13px;white-space:pre-wrap;word-break:break-word;color:var(--ink);}
+  .cmsg.me .bub{background:#2b6fd6;color:#fff;border-color:#2b6fd6;}
+  .cmsg .bub.media{padding:3px;background:#fff;border-color:var(--line);}
+  .cmsg .bub img{display:block;max-width:220px;max-height:220px;border-radius:9px;cursor:zoom-in;}
+  .cmsg .bub a.file{display:flex;align-items:center;gap:6px;padding:6px 8px;color:var(--navy-800);text-decoration:none;font-weight:600;}
+  .cmsg .bub a.file small{color:var(--muted);font-weight:400;}
+  .cmsg .t{font-size:10.5px;color:var(--muted);margin:2px 2px 0;}
+  .cmsg.pending{opacity:.6;}
+  .chat-pend{display:none;gap:6px;flex-wrap:wrap;padding:8px 10px 0;border-top:1px solid var(--line);background:#fff;}
+  .chat-pend.has{display:flex;}
+  .pend-item{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:11px;}
+  .pend-item img{display:block;width:56px;height:56px;object-fit:cover;}
+  .pend-item .fn{display:flex;align-items:center;justify-content:center;width:56px;height:56px;padding:4px;text-align:center;word-break:break-all;line-height:1.2;}
+  .pend-item .rm{position:absolute;top:1px;right:1px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(10,26,48,.7);color:#fff;font-size:11px;cursor:pointer;line-height:18px;padding:0;}
+  .chat-input{display:flex;align-items:flex-end;gap:6px;padding:8px;background:#fff;border-top:1px solid var(--line);}
+  .chat-input textarea{flex:1;resize:none;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:13.5px;font-family:inherit;line-height:1.45;max-height:110px;min-height:38px;}
+  .chat-input textarea:focus{outline:none;border-color:var(--navy-600);}
+  .chat-ic{flex:none;width:38px;height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;cursor:pointer;font-size:16px;}
+  .chat-ic:hover{border-color:var(--navy-600);}
+  .chat-send{flex:none;height:38px;padding:0 14px;border:none;border-radius:9px;background:#2b6fd6;color:#fff;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;}
+  .chat-send:disabled{background:#a9b6c6;cursor:default;}
+  .chat-box.drag{outline:2px dashed #2b6fd6;outline-offset:-2px;}
+
+  .cal-mem-list{max-height:300px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:6px;}
   .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;font-family:inherit;}
   .sch-btn-sm:hover{border-color:var(--navy-600);}
   .sch-btn-sm.danger{color:var(--danger);}
-  .sch-btn-sm.danger:hover{border-color:var(--danger);}
   @media (max-width:760px){
     .sch-day{min-height:88px;padding:4px;}
     .sch-chip{font-size:9.5px;}
     .sch-weekdays{font-size:11px;}
+    .chat-list{height:200px;}
   }
 </style>
 </head>
@@ -99,9 +131,8 @@
 </div>
 <div class="sch-wrap">
   <h1>📅 일정표</h1>
-  <p class="sub">날짜를 누르면 일정을 추가하고, 일정을 누르면 수정·삭제·메모할 수 있어요</p>
 
-  <div id="approvalNotice" style="display:none;" class="auth-card">승인 후 이용할 수 있습니다.</div>
+  <div id="approvalNotice" style="display:none;margin-top:20px;" class="auth-card">승인 후 이용할 수 있습니다.</div>
 
   <div id="schBody" style="display:none;">
     <div class="sch-toolbar">
@@ -117,10 +148,12 @@
     <div class="sch-cals" id="calToggles">
       <button type="button" class="sch-tab" data-cal="common">📢 공통일정</button>
       <button type="button" class="sch-tab" data-cal="mine">🙋 내 일정</button>
+      <span id="calChips"></span>
       <div class="sch-mem-wrap" id="memWrap" style="display:none;">
         <button type="button" class="sch-tab" id="memBtn">👥 팀원 일정 ▾</button>
         <div class="sch-mem-pop" id="memPop"></div>
       </div>
+      <button type="button" class="sch-tab add" id="calAddBtn" style="display:none;">＋ 일정 추가</button>
     </div>
 
     <div class="sch-grid-wrap" id="calendarCapture">
@@ -134,25 +167,61 @@
   </div>
 </div>
 
+<!-- 일정 추가/수정 + 대화창 -->
 <div id="eventModalOverlay" class="modal-overlay" style="display:none">
-  <div class="modal-card" style="max-width:460px;">
-    <div class="modal-header"><h2 id="eventModalTitle">일정</h2><button type="button" class="modal-close" id="eventModalClose" aria-label="닫기">&times;</button></div>
+  <div class="modal-card" style="max-width:480px;">
+    <div class="modal-header">
+      <h2 id="eventModalTitle">일정</h2>
+      <div class="mh-acts">
+        <button type="button" class="btn-save-top" id="evSaveTop">저장</button>
+        <button type="button" class="modal-close" id="eventModalClose" aria-label="닫기">&times;</button>
+      </div>
+    </div>
     <div class="modal-body" id="eventModalBody"></div>
   </div>
 </div>
+
+<!-- SM 전용: 공유 일정 만들기/수정 -->
+<div id="calModalOverlay" class="modal-overlay" style="display:none">
+  <div class="modal-card" style="max-width:420px;">
+    <div class="modal-header">
+      <h2 id="calModalTitle">일정 추가</h2>
+      <div class="mh-acts">
+        <button type="button" class="btn-save-top" id="calSaveBtn">저장</button>
+        <button type="button" class="modal-close" id="calModalClose" aria-label="닫기">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <input type="text" class="ev-title" id="calName" placeholder="일정 이름 (예: 교육팀, 인천지점)" maxlength="20">
+      <div class="ev-sec">
+        <div class="ev-sec-t" style="display:flex;justify-content:space-between;align-items:center;">
+          <span>같이 볼 사람 <span id="calMemCount" style="color:var(--muted);font-weight:400;"></span></span>
+          <span class="sch-mem-acts" style="border:none;padding:0;margin:0;gap:12px;"><button type="button" id="calMemAll">전체 선택</button><button type="button" id="calMemNone">전체 해제</button></span>
+        </div>
+        <div class="cal-mem-list" id="calMemList"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">선택한 사람은 이 일정을 보고 수정할 수 있어요.</div>
+      </div>
+      <div id="calDelWrap" style="margin-top:14px;text-align:right;display:none;"><button type="button" class="link-del" id="calDeleteBtn">🗑 이 일정 삭제</button></div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="chatFile" multiple accept="image/*,application/pdf,.pdf,.txt,.hwp,.doc,.docx,.xls,.xlsx,.ppt,.pptx" style="display:none">
 
 <script src="assets/supabase-client.js"></script>
 <script>
 /* ============================================================================
    일정표 (타임트리 느낌의 팀 공유 캘린더)
-   - 맨 위 "공통일정 / 내 일정 / 팀원 일정"을 켜고 끄면(파란색 = 켜짐) 켜진 것들이
-     한 달력에 겹쳐서 보인다. 팀원 일정은 버튼을 누르면 목록에서 골라 켠다.
+   - 맨 위 "공통일정 / 내 일정 / (SM이 만든 공유 일정들) / 팀원 일정"을 켜고 끄면
+     (파란색 = 켜짐) 켜진 것들이 한 달력에 겹쳐서 보인다.
+   - SM은 "＋ 일정 추가"로 공유 일정을 만들고 같이 볼 사람을 고른다. 고른 사람은
+     그 일정을 보고 고칠 수 있다.
    - 개인 일정 권한: 본인 + 담당 TL/SM + (역방향으로) 그 TL/SM을 관리자로 둔 팀원까지
      서로 보고 고칠 수 있다(팀벌금의 grade/tl_members 구조 재사용).
    - 공통일정: SM만 쓰고 지우지만, 보기는 전체 공개.
-   - 팀벌금에서 숨김/비활성화한 사람은 팀원 목록·생일에서 빠진다(본인 일정은 그대로 씀).
+   - 팀벌금에서 숨김/비활성화한 사람은 팀원 목록·공유 대상·생일에서 빠진다.
    - 순서: 제목 맨 앞의 숫자("09 장진수")를 그대로 읽어 숫자 순으로 나열한다.
-   - 생일: attendance_profiles.birth에서 매년 월/일만 뽑아 화면에서 계산(저장 안 함).
+   - 일정 화면 아래는 대화창: 글/이미지/PDF/파일, Ctrl+V로 복사한 이미지 붙여넣기.
    ============================================================================ */
 
 const PRESET_TYPES = [
@@ -165,17 +234,20 @@ const BIRTHDAY_COLOR = '#f9c9e0';
 const INCHEON_PALETTE = ['#e3ddf7', '#d7f2ea', '#f7e3cf', '#dde3f5', '#ececec'];
 const NEW_KIND_SUGGEST = ['#e3ddf7', '#d7f2ea', '#f7e3cf', '#c9eef2', '#e8d9c7', '#dcdcf5'];
 const ACTIVE_KEY = 'wp_schedule_cals_v1';
+const FILE_BUCKET = 'schedule-files';
+const MAX_FILE_MB = 20;
 
 let Me = null;
 let Roster = [];
 let RosterByUid = {};
 let Holidays = {};
 let ViewYear = 0, ViewMonth = 0;
-let Active = { common: true, mine: true, members: [] };
+let Active = { common: true, mine: true, members: [], calOff: [] };
 let Events = [];
 let DayFlags = {};
 let MyCategories = [];
 let CategoriesReady = true;
+let Calendars = [];
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 function pad2(n){ n = Math.max(0, Math.floor(Number(n) || 0)); return (n < 10 ? '0' : '') + n; }
@@ -184,8 +256,9 @@ function daysInMonth(y, m){ return new Date(y, m, 0).getDate(); }
 function mmdd(s){ return (s || '').slice(5, 10); }
 function myName(){ return (Me && (Me.nickname || Me.name || Me.email)) || ''; }
 function isSM(p){ return !!(p && p.role === 'admin'); }
-/** 제목 맨 앞의 숫자 - "09 장진수" -> 9. 숫자가 없으면 맨 뒤로 가도록 Infinity */
 function leadNum(label){ const m = /^\s*(\d{1,4})/.exec(label || ''); return m ? parseInt(m[1], 10) : Infinity; }
+function fmtSize(b){ b = Number(b) || 0; return b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(b / 1024)) + 'KB'; }
+function isImageType(t){ return /^image\//i.test(t || ''); }
 
 function fmtDateKr(dateStr){
   const p = dateStr.split('-').map(Number);
@@ -200,7 +273,7 @@ function fmtTime(iso){
 /* ---------------------------- 권한/명단 ---------------------------- */
 function myRosterEntry(){ return RosterByUid[Me.id] || null; }
 function canAccess(ownerUid){
-  if(!ownerUid) return true;
+  if(!ownerUid) return false;
   if(ownerUid === Me.id) return true;
   if(isSM(Me)) return true;
   const owner = RosterByUid[ownerUid];
@@ -210,11 +283,12 @@ function canAccess(ownerUid){
   if(owner && (owner.tlMembers || []).indexOf(Me.id) >= 0) return true;
   return false;
 }
-/** 팀원 일정 목록에 띄울 사람 - 숨김/비활성화된 사람은 빠진다 */
+function activePeople(){ return Roster.filter(function(u){ return !u.hidden && !u.disabled; }); }
 function teammates(){
-  return Roster.filter(function(u){ return u.uid !== Me.id && !u.hidden && !u.disabled && canAccess(u.uid); })
+  return activePeople().filter(function(u){ return u.uid !== Me.id && canAccess(u.uid); })
     .sort(function(a, b){ return (a.name || '').localeCompare(b.name || '', 'ko'); });
 }
+function calById(id){ return Calendars.find(function(c){ return c.id === id; }) || null; }
 
 /* ---------------------------- 켜기/끄기 상태 ---------------------------- */
 function loadActive(){
@@ -224,6 +298,7 @@ function loadActive(){
       Active.common = v.common !== false;
       Active.mine = v.mine !== false;
       Active.members = Array.isArray(v.members) ? v.members : [];
+      Active.calOff = Array.isArray(v.calOff) ? v.calOff : [];
     }
   }catch(e){}
   const allowed = {};
@@ -231,11 +306,16 @@ function loadActive(){
   Active.members = Active.members.filter(function(uid){ return allowed[uid]; });
 }
 function saveActive(){ try{ localStorage.setItem(ACTIVE_KEY, JSON.stringify(Active)); }catch(e){} }
-function activeOwners(){
-  const o = {};
-  if(Active.mine) o[Me.id] = true;
-  Active.members.forEach(function(uid){ o[uid] = true; });
-  return o;
+function calOn(id){ return !!calById(id) && Active.calOff.indexOf(id) < 0; }
+function setCalOn(id, on){
+  Active.calOff = Active.calOff.filter(function(x){ return x !== id; });
+  if(!on) Active.calOff.push(id);
+}
+function isVisible(e){
+  if(e.calendar_id) return calOn(e.calendar_id);
+  if(e.is_common) return Active.common;
+  if(e.owner_uid === Me.id) return Active.mine;
+  return Active.members.indexOf(e.owner_uid) >= 0;
 }
 
 /* ---------------------------- 데이터 불러오기 ---------------------------- */
@@ -270,6 +350,10 @@ async function loadCategories(){
   CategoriesReady = true;
   MyCategories = data || [];
 }
+async function loadCalendars(){
+  const { data, error } = await supabaseClient.from('schedule_calendars').select('*').order('created_at', { ascending: true });
+  Calendars = error ? [] : (data || []);
+}
 
 function gridDates(){
   const first = new Date(ViewYear, ViewMonth - 1, 1);
@@ -302,15 +386,11 @@ async function loadDayFlags(){
 function birthdaysFor(dateStr){
   if(!Active.common) return [];
   const target = mmdd(dateStr);
-  return Roster.filter(function(u){ return u.birth && !u.hidden && !u.disabled && mmdd(u.birth) === target; })
+  return activePeople().filter(function(u){ return u.birth && mmdd(u.birth) === target; })
     .map(function(u){ return { id: null, virtual: true, is_common: true, event_date: dateStr, kind: '생일', label: u.name + '님 생일', color: BIRTHDAY_COLOR }; });
 }
 function dayEventsFor(dateStr){
-  const owners = activeOwners();
-  const real = Events.filter(function(e){
-    if(e.event_date !== dateStr) return false;
-    return e.is_common ? Active.common : !!owners[e.owner_uid];
-  });
+  const real = Events.filter(function(e){ return e.event_date === dateStr && isVisible(e); });
   real.sort(function(a, b){
     const na = leadNum(a.label), nb = leadNum(b.label);
     if(na !== nb) return na < nb ? -1 : 1;
@@ -329,9 +409,15 @@ function renderToggles(){
   document.querySelectorAll('#calToggles [data-cal]').forEach(function(b){
     b.classList.toggle('on', !!Active[b.dataset.cal]);
   });
+  const sm = isSM(Me);
+  document.getElementById('calChips').innerHTML = Calendars.map(function(c){
+    return '<button type="button" class="sch-tab' + (calOn(c.id) ? ' on' : '') + '" data-calid="' + c.id + '">🗂 ' + esc(c.name) +
+      (sm ? '<span class="cal-edit" data-caledit="' + c.id + '" title="이름·같이 볼 사람 수정">⚙</span>' : '') + '</button>';
+  }).join('');
+  document.getElementById('calAddBtn').style.display = sm ? '' : 'none';
+
   const list = teammates();
-  const wrap = document.getElementById('memWrap');
-  wrap.style.display = list.length ? '' : 'none';
+  document.getElementById('memWrap').style.display = list.length ? '' : 'none';
   const n = Active.members.length;
   const memBtn = document.getElementById('memBtn');
   memBtn.textContent = '👥 팀원 일정' + (n ? ' (' + n + ')' : '') + ' ▾';
@@ -348,13 +434,10 @@ function renderToggles(){
 
 function renderLegend(){
   let html = PRESET_TYPES.map(function(t){ return '<span class="sw"><i style="background:' + t.color + '"></i>' + t.key + '</span>'; }).join('');
-  // 화면에 실제로 보이는 일정 중 직접 만든 종류도 범례에 같이 표시
   const seen = {};
   PRESET_TYPES.forEach(function(t){ seen[t.key] = true; });
-  const owners = activeOwners();
   Events.forEach(function(e){
-    const visible = e.is_common ? Active.common : !!owners[e.owner_uid];
-    if(!visible || !e.kind || seen[e.kind]) return;
+    if(!isVisible(e) || !e.kind || seen[e.kind]) return;
     seen[e.kind] = true;
     html += '<span class="sw"><i style="background:' + esc(e.color) + '"></i>' + esc(e.kind) + '</span>';
   });
@@ -405,14 +488,84 @@ async function refreshMonth(){
   renderAll();
 }
 
-/* ---------------------------- 일정 추가/수정 화면 ---------------------------- */
-let Modal = null; // { ev, dateStr, kind, color, target, extraKind }
+/* ---------------------------- SM: 공유 일정 만들기/수정 ---------------------------- */
+let CalEdit = null; // { id|null, members:{uid:true} }
 
-/** 새 일정을 저장할 수 있는 곳 - 지금 켜져 있는 것 중 내가 쓸 수 있는 것만 */
+function openCalModal(calId){
+  const c = calId ? calById(calId) : null;
+  const members = {};
+  (c ? (c.member_uids || []) : []).forEach(function(uid){ members[uid] = true; });
+  CalEdit = { id: c ? c.id : null, members: members };
+  document.getElementById('calModalTitle').textContent = c ? '일정 수정' : '일정 추가';
+  document.getElementById('calName').value = c ? c.name : '';
+  document.getElementById('calDelWrap').style.display = c ? '' : 'none';
+  renderCalMembers();
+  document.getElementById('calModalOverlay').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('calName').focus(); }, 30);
+}
+function calCandidates(){
+  return activePeople().filter(function(u){ return u.uid !== Me.id; })
+    .sort(function(a, b){ return (a.name || '').localeCompare(b.name || '', 'ko'); });
+}
+function renderCalMembers(){
+  const list = calCandidates();
+  document.getElementById('calMemList').innerHTML = list.length ? list.map(function(u){
+    return '<label class="sch-mem-row"><input type="checkbox" data-calmem="' + u.uid + '"' + (CalEdit.members[u.uid] ? ' checked' : '') + '>' +
+      '<span>' + esc(u.name) + '</span><span class="gr">' + esc(u.grade) + '</span></label>';
+  }).join('') : '<div style="padding:10px;color:var(--muted);font-size:13px;">선택할 팀원이 없어요</div>';
+  const n = list.filter(function(u){ return CalEdit.members[u.uid]; }).length;
+  document.getElementById('calMemCount').textContent = '(' + n + '명)';
+}
+function closeCalModal(){ document.getElementById('calModalOverlay').style.display = 'none'; CalEdit = null; }
+
+async function saveCalendar(){
+  if(!CalEdit) return;
+  const name = document.getElementById('calName').value.trim();
+  if(!name){ alert('일정 이름을 입력해주세요'); document.getElementById('calName').focus(); return; }
+  const valid = {};
+  calCandidates().forEach(function(u){ valid[u.uid] = true; });
+  const memberUids = Object.keys(CalEdit.members).filter(function(uid){ return CalEdit.members[uid] && valid[uid]; });
+  memberUids.push(Me.id); // 만든 사람도 항상 포함
+  const btn = document.getElementById('calSaveBtn');
+  btn.disabled = true;
+  let res;
+  if(CalEdit.id){
+    res = await supabaseClient.from('schedule_calendars').update({ name: name, member_uids: memberUids }).eq('id', CalEdit.id);
+  } else {
+    res = await supabaseClient.from('schedule_calendars').insert({ name: name, member_uids: memberUids, created_by: Me.id }).select().single();
+  }
+  btn.disabled = false;
+  if(res.error){
+    alert('저장 실패: ' + res.error.message + (/schedule_calendars/.test(res.error.message) ? '\n(schedule_migration_3.sql을 먼저 실행해야 해요)' : ''));
+    return;
+  }
+  if(!CalEdit.id && res.data) setCalOn(res.data.id, true);
+  saveActive();
+  closeCalModal();
+  await loadCalendars();
+  await refreshMonth();
+}
+async function deleteCalendar(){
+  if(!CalEdit || !CalEdit.id) return;
+  const c = calById(CalEdit.id);
+  if(!confirm('"' + (c ? c.name : '') + '" 일정을 삭제할까요?\n이 안에 적힌 일정과 대화도 모두 지워지고 되돌릴 수 없어요.')) return;
+  const { error } = await supabaseClient.from('schedule_calendars').delete().eq('id', CalEdit.id);
+  if(error){ alert('삭제 실패: ' + error.message); return; }
+  setCalOn(CalEdit.id, true);
+  saveActive();
+  closeCalModal();
+  await loadCalendars();
+  await refreshMonth();
+}
+
+/* ---------------------------- 일정 추가/수정 화면 ---------------------------- */
+let Modal = null; // { ev, dateStr, kind, color, target, targets, readOnly, extraKind, staged:[], pending:[], seenCount }
+
 function writableTargets(){
   const t = [];
   if(Active.mine) t.push({ id: Me.id, label: '내 일정' });
   if(Active.common && isSM(Me)) t.push({ id: 'common', label: '📢 공통일정' });
+  Calendars.forEach(function(c){ if(calOn(c.id)) t.push({ id: 'cal:' + c.id, label: '🗂 ' + c.name }); });
   Active.members.forEach(function(uid){
     const u = RosterByUid[uid];
     if(u && canAccess(uid)) t.push({ id: uid, label: u.name + ' 님' });
@@ -426,6 +579,12 @@ function kindList(){
   if(Modal && Modal.extraKind && !list.some(function(k){ return k.name === Modal.extraKind.name; })) list.push(Modal.extraKind);
   return list;
 }
+function whereLabel(ev){
+  if(ev.calendar_id){ const c = calById(ev.calendar_id); return '🗂 ' + (c ? c.name : '공유 일정'); }
+  if(ev.is_common) return '📢 공통일정';
+  if(ev.owner_uid === Me.id) return '내 일정';
+  return ((RosterByUid[ev.owner_uid] || {}).name || '?') + ' 님 일정';
+}
 
 function openEventModal(eventId, newDateStr){
   const ev = eventId ? Events.find(function(x){ return x.id === eventId; }) : null;
@@ -437,29 +596,34 @@ function openEventModal(eventId, newDateStr){
     color: ev ? ev.color : PRESET_TYPES[0].color,
     target: targets.length ? targets[0].id : null,
     targets: targets,
-    readOnly: ev ? (ev.is_common && !isSM(Me)) : false,
-    extraKind: null
+    readOnly: ev ? (!ev.calendar_id && ev.is_common && !isSM(Me)) : false,
+    extraKind: null,
+    staged: [],   // 대화창 입력칸 위에 올려둔(아직 안 보낸) 첨부
+    pending: [],  // 새 일정: 저장 전에 미리 써둔 대화(저장할 때 같이 올라감)
+    seenCount: -1,
+    poll: null
   };
-  // 남의 일정에 쓰인 종류(내 목록에 없는 것)도 선택된 채로 보이게 임시로 붙여둔다
   if(ev && !PRESET_TYPES.some(function(t){ return t.key === ev.kind; }) && !MyCategories.some(function(c){ return c.name === ev.kind; })){
     Modal.extraKind = { name: ev.kind || '기타', color: ev.color };
   }
 
   document.getElementById('eventModalTitle').textContent = fmtDateKr(dateStr) + (ev ? ' 일정' : ' 일정 추가');
+  document.getElementById('evSaveTop').style.display = Modal.readOnly ? 'none' : '';
+  document.getElementById('evSaveTop').disabled = false;
   const ro = Modal.readOnly ? ' disabled' : '';
   let whereHtml = '';
   if(ev){
-    const where = ev.is_common ? '📢 공통일정' : (ev.owner_uid === Me.id ? '내 일정' : ((RosterByUid[ev.owner_uid] || {}).name || '?') + ' 님 일정');
-    whereHtml = '<div class="ev-meta">📌 ' + esc(where) + ' · ✍️ 작성: ' + esc(ev.author_name || '-') + '</div>';
+    whereHtml = '<div class="ev-meta"><span>📌 ' + esc(whereLabel(ev)) + ' · ✍️ ' + esc(ev.author_name || '-') + '</span>' +
+      (Modal.readOnly ? '' : '<button type="button" class="link-del" id="evDeleteBtn">🗑 삭제</button>') + '</div>' +
+      (Modal.readOnly ? '<div class="ev-meta">공통일정은 SM만 수정할 수 있어요. 대화는 남길 수 있어요.</div>' : '');
   } else if(targets.length > 1){
     whereHtml = '<div class="ev-sec"><div class="ev-sec-t">저장할 곳</div><div class="kind-btns" id="tgtBtns"></div></div>';
   } else {
-    whereHtml = '<div class="ev-meta">📌 ' + esc(targets[0].label) + '에 저장돼요</div>';
+    whereHtml = '<div class="ev-meta"><span>📌 ' + esc(targets[0].label) + '에 저장돼요</span></div>';
   }
 
   document.getElementById('eventModalBody').innerHTML =
     '<input type="text" class="ev-title" id="evLabel" placeholder="제목 (예: 09 장진수)" value="' + esc(ev ? ev.label : '') + '"' + ro + '>' +
-    '<div class="ev-hint">맨 앞 숫자 순서대로 나열돼요 (예: 09 장진수, 14 김철수)</div>' +
     '<div class="ev-sec"><div class="ev-sec-t">종류</div>' +
       '<div class="kind-row"><div class="kind-btns" id="kindBtns"></div>' +
       (Modal.readOnly ? '' : '<button type="button" class="kind-add" id="kindAddBtn">+ 새 항목</button>') + '</div>' +
@@ -468,11 +632,15 @@ function openEventModal(eventId, newDateStr){
       '<button type="button" class="sch-btn-sm" id="kindSaveBtn">추가</button><button type="button" class="sch-btn-sm" id="kindCancelBtn">취소</button></div>' +
     '</div>' +
     whereHtml +
-    (Modal.readOnly ? '<div class="ev-meta">공통일정은 SM만 수정할 수 있어요. 메모는 남길 수 있어요.</div>' :
-      '<div class="ev-acts"><button type="button" class="btn-primary" id="evSaveBtn" style="flex:1;margin-top:0;">저장</button>' +
-      (ev ? '<button type="button" class="sch-btn-sm danger" id="evDeleteBtn">삭제</button>' : '') + '</div>') +
-    (ev ? ('<div class="sch-comments"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">💬 메모</div><div id="commentList">불러오는 중...</div>' +
-      '<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" id="commentInput" placeholder="메모 남기기" style="flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;"><button type="button" class="sch-btn-sm" id="commentSendBtn">보내기</button></div></div>') : '');
+    '<div class="chat-box" id="chatBox">' +
+      '<div class="chat-list" id="chatList"></div>' +
+      '<div class="chat-pend" id="chatPend"></div>' +
+      '<div class="chat-input">' +
+        '<button type="button" class="chat-ic" id="chatAttachBtn" title="사진·PDF·파일 첨부">📎</button>' +
+        '<textarea id="chatInput" rows="1" placeholder="메시지 입력 (이미지는 Ctrl+V로 붙여넣기)"></textarea>' +
+        '<button type="button" class="chat-send" id="chatSendBtn">보내기</button>' +
+      '</div>' +
+    '</div>';
 
   renderKindButtons();
   renderTargetButtons();
@@ -486,21 +654,30 @@ function openEventModal(eventId, newDateStr){
     document.getElementById('kindCancelBtn').addEventListener('click', function(){ document.getElementById('kindForm').classList.remove('open'); });
     document.getElementById('kindSaveBtn').addEventListener('click', addCategory);
     document.getElementById('kindName').addEventListener('keydown', function(e){ if(e.key === 'Enter') addCategory(); });
-    document.getElementById('evSaveBtn').addEventListener('click', handleSaveEvent);
     document.getElementById('evLabel').addEventListener('keydown', function(e){ if(e.key === 'Enter') handleSaveEvent(); });
     const del = document.getElementById('evDeleteBtn');
     if(del) del.addEventListener('click', handleDeleteEvent);
   }
-  if(ev){
-    refreshComments(ev.id);
-    document.getElementById('commentSendBtn').addEventListener('click', function(){ submitComment(ev.id); });
-    document.getElementById('commentInput').addEventListener('keydown', function(e){ if(e.key === 'Enter') submitComment(ev.id); });
-  }
+  wireChat();
 
   document.getElementById('eventModalOverlay').style.display = 'flex';
-  if(!ev) setTimeout(function(){ const t = document.getElementById('evLabel'); if(t) t.focus(); }, 30);
+  if(ev){
+    refreshChat(true);
+    Modal.poll = setInterval(function(){ refreshChat(false); }, 10000);
+  } else {
+    renderChatList([]);
+    setTimeout(function(){ const t = document.getElementById('evLabel'); if(t) t.focus(); }, 30);
+  }
 }
-function closeEventModal(){ document.getElementById('eventModalOverlay').style.display = 'none'; Modal = null; }
+function closeEventModal(){
+  if(Modal){
+    if(Modal.poll) clearInterval(Modal.poll);
+    Modal.staged.forEach(function(s){ if(s.preview) URL.revokeObjectURL(s.preview); });
+    Modal.pending.forEach(function(p){ if(p.preview) URL.revokeObjectURL(p.preview); });
+  }
+  document.getElementById('eventModalOverlay').style.display = 'none';
+  Modal = null;
+}
 
 function suggestNewColor(){
   const used = {};
@@ -568,11 +745,8 @@ async function deleteCategory(catId){
   const { error } = await supabaseClient.from('schedule_categories').delete().eq('id', catId);
   if(error){ alert('삭제 실패: ' + error.message); return; }
   MyCategories = MyCategories.filter(function(x){ return x.id !== catId; });
-  if(Modal && Modal.kind === c.name && !(Modal.ev && Modal.ev.kind === c.name)){
-    Modal.kind = PRESET_TYPES[0].key; Modal.color = PRESET_TYPES[0].color;
-  } else if(Modal && Modal.ev && Modal.ev.kind === c.name){
-    Modal.extraKind = { name: c.name, color: c.color };
-  }
+  if(Modal && Modal.ev && Modal.ev.kind === c.name) Modal.extraKind = { name: c.name, color: c.color };
+  else if(Modal && Modal.kind === c.name){ Modal.kind = PRESET_TYPES[0].key; Modal.color = PRESET_TYPES[0].color; }
   renderKindButtons();
 }
 
@@ -583,57 +757,249 @@ async function handleSaveEvent(){
   const n = leadNum(label);
   const orderNum = isFinite(n) ? Math.min(n, 9999) : 9999;
   const ev = Modal.ev;
-  const btn = document.getElementById('evSaveBtn');
+  const btn = document.getElementById('evSaveTop');
   btn.disabled = true;
-  if(ev){
-    const { error } = await supabaseClient.from('schedule_events').update({
-      label: label, kind: Modal.kind, color: Modal.color, order_num: orderNum, updated_at: new Date().toISOString()
-    }).eq('id', ev.id);
-    if(error){ btn.disabled = false; alert('저장 실패: ' + error.message); return; }
-  } else {
-    const isCommon = Modal.target === 'common';
-    const owner = isCommon ? null : Modal.target;
-    const { error } = await supabaseClient.from('schedule_events').insert({
-      owner_uid: owner, is_common: isCommon, event_date: Modal.dateStr, order_num: orderNum,
-      kind: Modal.kind, label: label, color: Modal.color, author_uid: Me.id, author_name: myName()
-    });
-    if(error){ btn.disabled = false; alert('저장 실패: ' + error.message); return; }
-    // 꺼져 있는 캘린더에 저장했으면 바로 보이도록 켜준다
-    if(isCommon) Active.common = true;
-    else if(owner === Me.id) Active.mine = true;
-    else if(Active.members.indexOf(owner) < 0) Active.members.push(owner);
-    saveActive();
+  try{
+    if(ev){
+      const { error } = await supabaseClient.from('schedule_events').update({
+        label: label, kind: Modal.kind, color: Modal.color, order_num: orderNum, updated_at: new Date().toISOString()
+      }).eq('id', ev.id);
+      if(error){ alert('저장 실패: ' + error.message); return; }
+    } else {
+      const tgt = Modal.target;
+      const calId = (tgt && tgt.indexOf('cal:') === 0) ? tgt.slice(4) : null;
+      const isCommon = tgt === 'common';
+      const owner = (calId || isCommon) ? null : tgt;
+      const { data, error } = await supabaseClient.from('schedule_events').insert({
+        owner_uid: owner, is_common: isCommon, calendar_id: calId, event_date: Modal.dateStr, order_num: orderNum,
+        kind: Modal.kind, label: label, color: Modal.color, author_uid: Me.id, author_name: myName()
+      }).select().single();
+      if(error){ alert('저장 실패: ' + error.message); return; }
+      // 저장 전에 미리 써둔 대화/첨부(아직 보내기 안 누른 것 포함)도 같이 올린다
+      const queued = Modal.pending.slice();
+      const leftText = document.getElementById('chatInput').value.trim();
+      if(leftText || Modal.staged.length) queued.push.apply(queued, buildRows(leftText, Modal.staged));
+      for(const row of queued){
+        const r = await postChatRow(data.id, row);
+        if(!r.ok){ alert('대화 일부를 올리지 못했어요: ' + r.message); break; }
+      }
+      // 꺼져 있는 곳에 저장했으면 바로 보이도록 켜준다
+      if(calId) setCalOn(calId, true);
+      else if(isCommon) Active.common = true;
+      else if(owner === Me.id) Active.mine = true;
+      else if(Active.members.indexOf(owner) < 0) Active.members.push(owner);
+      saveActive();
+    }
+    closeEventModal();
+    await refreshMonth();
+  } finally {
+    if(btn) btn.disabled = false;
   }
-  closeEventModal();
-  await refreshMonth();
 }
 async function handleDeleteEvent(){
   if(!Modal || !Modal.ev) return;
-  if(!confirm('이 일정을 삭제할까요?')) return;
+  if(!confirm('이 일정을 삭제할까요?\n(대화 내용도 같이 지워져요)')) return;
   const { error } = await supabaseClient.from('schedule_events').delete().eq('id', Modal.ev.id);
   if(error){ alert('삭제 실패: ' + error.message); return; }
   closeEventModal();
   await refreshMonth();
 }
 
-async function refreshComments(eventId){
-  const wrap = document.getElementById('commentList');
-  if(!wrap) return;
-  const { data, error } = await supabaseClient.from('schedule_comments').select('*').eq('event_id', eventId).order('created_at', { ascending: true });
-  if(error){ wrap.textContent = '불러오기 실패'; return; }
-  if(!data || !data.length){ wrap.innerHTML = '<div style="color:var(--muted);font-size:12.5px;">아직 메모가 없습니다</div>'; return; }
-  wrap.innerHTML = data.map(function(c){
-    return '<div class="sch-comment"><span class="nm">' + esc(c.author_name || '-') + '</span> <span style="color:var(--muted);font-size:11px;">' + fmtTime(c.created_at) + '</span><div class="msg">' + esc(c.message) + '</div></div>';
-  }).join('');
+/* ---------------------------- 대화창 ---------------------------- */
+function wireChat(){
+  const input = document.getElementById('chatInput');
+  const box = document.getElementById('chatBox');
+  document.getElementById('chatAttachBtn').addEventListener('click', function(){
+    const f = document.getElementById('chatFile');
+    f.value = '';
+    f.click();
+  });
+  document.getElementById('chatSendBtn').addEventListener('click', sendChat);
+  input.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); sendChat(); }
+  });
+  input.addEventListener('input', function(){ input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 110) + 'px'; });
+  box.addEventListener('dragover', function(e){ e.preventDefault(); box.classList.add('drag'); });
+  box.addEventListener('dragleave', function(){ box.classList.remove('drag'); });
+  box.addEventListener('drop', function(e){
+    e.preventDefault(); box.classList.remove('drag');
+    if(e.dataTransfer && e.dataTransfer.files) stageFiles(e.dataTransfer.files);
+  });
 }
-async function submitComment(eventId){
-  const input = document.getElementById('commentInput');
-  const msg = input.value.trim();
-  if(!msg) return;
-  const { error } = await supabaseClient.from('schedule_comments').insert({ event_id: eventId, uid: Me.id, author_name: myName(), message: msg });
-  if(error){ alert('전송 실패: ' + error.message); return; }
-  input.value = '';
-  await refreshComments(eventId);
+
+/** 복사해둔 이미지를 일정 화면 어디서든 Ctrl+V 하면 대화창에 올린다(글자 붙여넣기는 그대로) */
+function onModalPaste(e){
+  if(!Modal) return;
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  const files = [];
+  for(let i = 0; i < items.length; i++){
+    if(items[i].kind === 'file'){ const f = items[i].getAsFile(); if(f) files.push(f); }
+  }
+  if(!files.length) return;
+  e.preventDefault();
+  stageFiles(files);
+  const input = document.getElementById('chatInput');
+  if(input) input.focus();
+}
+
+function stageFiles(fileList){
+  if(!Modal) return;
+  Array.prototype.forEach.call(fileList, function(f){
+    if(f.size > MAX_FILE_MB * 1048576){ alert('"' + (f.name || '파일') + '"은(는) ' + MAX_FILE_MB + 'MB를 넘어서 올릴 수 없어요.'); return; }
+    let name = f.name;
+    if(!name || name === 'image.png'){ // 붙여넣은 이미지는 이름이 없거나 image.png로 온다
+      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+      name = '붙여넣은이미지_' + Date.now() + '.' + ext;
+    }
+    Modal.staged.push({ file: f, name: name, type: f.type || 'application/octet-stream', preview: isImageType(f.type) ? URL.createObjectURL(f) : null });
+  });
+  renderStaged();
+}
+function renderStaged(){
+  const wrap = document.getElementById('chatPend');
+  if(!wrap || !Modal) return;
+  wrap.classList.toggle('has', Modal.staged.length > 0);
+  wrap.innerHTML = Modal.staged.map(function(s, i){
+    return '<div class="pend-item">' + (s.preview ? '<img src="' + s.preview + '" alt="">' : '<div class="fn">' + (s.type === 'application/pdf' ? '📄 ' : '📎 ') + esc(s.name) + '</div>') +
+      '<button type="button" class="rm" data-unstage="' + i + '">×</button></div>';
+  }).join('');
+  wrap.onclick = function(e){
+    const b = e.target.closest('[data-unstage]');
+    if(!b) return;
+    const s = Modal.staged.splice(Number(b.dataset.unstage), 1)[0];
+    if(s && s.preview) URL.revokeObjectURL(s.preview);
+    renderStaged();
+  };
+}
+
+/** 보낼 묶음 -> 대화 한 줄씩(글 1개 + 파일마다 1개) */
+function buildRows(text, staged){
+  const rows = [];
+  if(text) rows.push({ message: text });
+  staged.forEach(function(s){ rows.push({ file: s.file, name: s.name, type: s.type, preview: s.preview }); });
+  return rows;
+}
+
+/** 큰 사진은 올리기 전에 줄인다(휴대폰 원본 사진은 수 MB라 대화창이 느려짐) */
+async function shrinkImage(file, type){
+  if(!isImageType(type) || /gif|svg/i.test(type) || file.size < 1.5 * 1048576) return { blob: file, type: type };
+  try{
+    const url = URL.createObjectURL(file);
+    const img = await new Promise(function(res, rej){ const im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = url; });
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(function(res){ c.toBlob(res, 'image/jpeg', 0.85); });
+    return blob ? { blob: blob, type: 'image/jpeg' } : { blob: file, type: type };
+  }catch(e){ return { blob: file, type: type }; }
+}
+
+async function postChatRow(eventId, row){
+  const base = { event_id: eventId, uid: Me.id, author_name: myName() };
+  if(!row.file){
+    const { error } = await supabaseClient.from('schedule_comments').insert(Object.assign(base, { message: row.message }));
+    return error ? { ok: false, message: error.message } : { ok: true };
+  }
+  const shrunk = await shrinkImage(row.file, row.type);
+  const extMatch = /\.([A-Za-z0-9]{1,6})$/.exec(row.name || '');
+  const ext = shrunk.type === 'image/jpeg' && shrunk.blob !== row.file ? 'jpg' : (extMatch ? extMatch[1].toLowerCase() : 'bin');
+  const path = Me.id + '/' + eventId + '/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+  const up = await supabaseClient.storage.from(FILE_BUCKET).upload(path, shrunk.blob, { contentType: shrunk.type, upsert: false });
+  if(up.error) return { ok: false, message: up.error.message + (/bucket/i.test(up.error.message) ? ' (schedule_migration_3.sql을 먼저 실행해야 해요)' : '') };
+  const { error } = await supabaseClient.from('schedule_comments').insert(Object.assign(base, {
+    message: null, file_path: path, file_name: row.name, file_type: shrunk.type, file_size: shrunk.blob.size
+  }));
+  return error ? { ok: false, message: error.message } : { ok: true };
+}
+
+async function sendChat(){
+  if(!Modal) return;
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if(!text && !Modal.staged.length) return;
+  const rows = buildRows(text, Modal.staged);
+  input.value = ''; input.style.height = '';
+  Modal.staged = [];
+  renderStaged();
+
+  if(!Modal.ev){
+    // 아직 저장 전인 새 일정 - 저장 버튼을 누를 때 같이 올라간다
+    rows.forEach(function(r){ r.at = new Date().toISOString(); Modal.pending.push(r); });
+    renderChatList([]);
+    return;
+  }
+  const sendBtn = document.getElementById('chatSendBtn');
+  sendBtn.disabled = true;
+  const eventId = Modal.ev.id;
+  try{
+    for(const r of rows){
+      const res = await postChatRow(eventId, r);
+      if(!res.ok){ alert('전송 실패: ' + res.message); break; }
+    }
+  } finally {
+    rows.forEach(function(r){ if(r.preview) URL.revokeObjectURL(r.preview); });
+    if(Modal && Modal.ev && Modal.ev.id === eventId){
+      sendBtn.disabled = false;
+      await refreshChat(true);
+    }
+  }
+}
+
+async function refreshChat(force){
+  if(!Modal || !Modal.ev) return;
+  const eventId = Modal.ev.id;
+  const { data, error } = await supabaseClient.from('schedule_comments').select('*').eq('event_id', eventId).order('created_at', { ascending: true });
+  if(!Modal || !Modal.ev || Modal.ev.id !== eventId) return;
+  if(error){ document.getElementById('chatList').innerHTML = '<div class="chat-empty">대화를 불러오지 못했어요</div>'; return; }
+  const rows = data || [];
+  if(!force && rows.length === Modal.seenCount) return; // 새 대화가 없으면 그대로(이미지 깜빡임 방지)
+  Modal.seenCount = rows.length;
+  const paths = rows.filter(function(r){ return r.file_path; }).map(function(r){ return r.file_path; });
+  const urls = {};
+  if(paths.length){
+    const s = await supabaseClient.storage.from(FILE_BUCKET).createSignedUrls(paths, 3600);
+    (s.data || []).forEach(function(x){ if(x && x.path && x.signedUrl) urls[x.path] = x.signedUrl; });
+  }
+  if(!Modal || !Modal.ev || Modal.ev.id !== eventId) return;
+  renderChatList(rows.map(function(r){
+    return { mine: r.uid === Me.id, who: r.author_name, at: r.created_at, message: r.message,
+      name: r.file_name, type: r.file_type, size: r.file_size, url: r.file_path ? (urls[r.file_path] || '') : null };
+  }));
+}
+
+function renderChatList(items){
+  const wrap = document.getElementById('chatList');
+  if(!wrap || !Modal) return;
+  const pend = Modal.pending.map(function(p){
+    return { mine: true, who: myName(), at: p.at, message: p.message, name: p.name, type: p.type, size: p.file ? p.file.size : 0, url: p.preview || (p.file ? '#' : null), pending: true };
+  });
+  const all = items.concat(pend);
+  if(!all.length){
+    wrap.innerHTML = '<div class="chat-empty">💬 이 일정에 대한 대화를 남겨보세요<br><small>사진·PDF 첨부, 복사한 이미지는 Ctrl+V</small></div>';
+    return;
+  }
+  wrap.innerHTML = all.map(function(m){
+    let bub;
+    if(m.message != null && m.message !== '' && !m.name){
+      bub = '<div class="bub">' + esc(m.message) + '</div>';
+    } else if(isImageType(m.type) && m.url && m.url !== '#'){
+      bub = '<div class="bub media"><img src="' + esc(m.url) + '" alt="' + esc(m.name || '') + '" data-open="' + esc(m.url) + '"></div>';
+    } else {
+      const icon = m.type === 'application/pdf' ? '📄' : (isImageType(m.type) ? '🖼️' : '📎');
+      const link = (m.url && m.url !== '#' && !m.pending) ? ' href="' + esc(m.url) + '" target="_blank" rel="noopener"' : '';
+      bub = '<div class="bub media"><a class="file"' + link + '>' + icon + ' ' + esc(m.name || '파일') + ' <small>' + fmtSize(m.size) + '</small></a></div>';
+    }
+    return '<div class="cmsg' + (m.mine ? ' me' : '') + (m.pending ? ' pending' : '') + '">' +
+      (m.mine ? '' : '<div class="who">' + esc(m.who || '-') + '</div>') + bub +
+      '<div class="t">' + (m.pending ? '저장하면 올라가요' : fmtTime(m.at)) + '</div></div>';
+  }).join('');
+  wrap.scrollTop = wrap.scrollHeight;
+  wrap.onclick = function(e){
+    const im = e.target.closest('[data-open]');
+    if(im && !im.closest('.pending')) window.open(im.dataset.open, '_blank', 'noopener');
+  };
 }
 
 /* ---------------------------- 인천출근(SM 전용) ---------------------------- */
@@ -672,6 +1038,17 @@ function wireUi(){
       renderAll();
     });
   });
+  document.getElementById('calChips').addEventListener('click', function(e){
+    const ed = e.target.closest('[data-caledit]');
+    if(ed){ e.stopPropagation(); openCalModal(ed.dataset.caledit); return; }
+    const b = e.target.closest('[data-calid]');
+    if(!b) return;
+    setCalOn(b.dataset.calid, !calOn(b.dataset.calid));
+    saveActive();
+    renderAll();
+  });
+  document.getElementById('calAddBtn').addEventListener('click', function(){ openCalModal(null); });
+
   const memPop = document.getElementById('memPop');
   document.getElementById('memBtn').addEventListener('click', function(e){
     e.stopPropagation();
@@ -692,12 +1069,12 @@ function wireUi(){
     Active.members = Active.members.filter(function(x){ return x !== uid; });
     if(cb.checked) Active.members.push(uid);
     saveActive();
-    renderToggles(); renderLegend(); renderGrid();
+    renderAll();
     memPop.classList.add('open');
   });
   document.addEventListener('click', function(){ memPop.classList.remove('open'); });
 
-  // 날짜 칸 클릭 = 일정 추가, 일정 클릭 = 수정/삭제/메모
+  // 날짜 칸 클릭 = 일정 추가, 일정 클릭 = 수정/삭제/대화
   document.getElementById('calGrid').addEventListener('click', function(e){
     if(e.target.closest('[data-incheon]')) return;
     const chip = e.target.closest('.sch-chip');
@@ -713,8 +1090,33 @@ function wireUi(){
     if(cb) toggleIncheon(cb.dataset.incheon);
   });
 
+  document.getElementById('evSaveTop').addEventListener('click', handleSaveEvent);
   document.getElementById('eventModalClose').addEventListener('click', closeEventModal);
   document.getElementById('eventModalOverlay').addEventListener('click', function(e){ if(e.target.id === 'eventModalOverlay') closeEventModal(); });
+  document.getElementById('eventModalOverlay').addEventListener('paste', onModalPaste);
+  document.getElementById('chatFile').addEventListener('change', function(){ if(this.files && this.files.length) stageFiles(this.files); });
+
+  document.getElementById('calSaveBtn').addEventListener('click', saveCalendar);
+  document.getElementById('calDeleteBtn').addEventListener('click', deleteCalendar);
+  document.getElementById('calModalClose').addEventListener('click', closeCalModal);
+  document.getElementById('calModalOverlay').addEventListener('click', function(e){ if(e.target.id === 'calModalOverlay') closeCalModal(); });
+  document.getElementById('calName').addEventListener('keydown', function(e){ if(e.key === 'Enter') saveCalendar(); });
+  document.getElementById('calMemList').addEventListener('change', function(e){
+    const cb = e.target.closest('[data-calmem]');
+    if(!cb || !CalEdit) return;
+    CalEdit.members[cb.dataset.calmem] = cb.checked;
+    renderCalMembers();
+  });
+  document.getElementById('calMemAll').addEventListener('click', function(){
+    if(!CalEdit) return;
+    calCandidates().forEach(function(u){ CalEdit.members[u.uid] = true; });
+    renderCalMembers();
+  });
+  document.getElementById('calMemNone').addEventListener('click', function(){
+    if(!CalEdit) return;
+    CalEdit.members = {};
+    renderCalMembers();
+  });
 
   document.getElementById('exportImgBtn').addEventListener('click', async function(){
     const btn = this;
@@ -764,7 +1166,7 @@ async function changeMonth(delta){
   loadActive();
   const now = new Date();
   ViewYear = now.getFullYear(); ViewMonth = now.getMonth() + 1;
-  await Promise.all([loadHolidays(), loadCategories()]);
+  await Promise.all([loadHolidays(), loadCategories(), loadCalendars()]);
   document.getElementById('schBody').style.display = 'block';
   wireUi();
   await refreshMonth();
