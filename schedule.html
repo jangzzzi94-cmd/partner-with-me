@@ -299,6 +299,24 @@
 </div>
 
 <!-- 다른 날짜로 옮길 때: 이동할지 복사할지 -->
+<!-- 아이폰: 만든 이미지를 보여주고 "사진에 저장"(공유 창 → 이미지 저장) -->
+<div id="imgSaveOverlay" class="modal-overlay" style="display:none;z-index:140;">
+  <div class="modal-card" style="max-width:520px;max-height:94vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <h2 style="font-size:16px;">🖼️ 이미지 저장</h2>
+      <button type="button" class="modal-close" id="imgSaveClose" aria-label="닫기">×</button>
+    </div>
+    <div class="modal-body" style="padding:14px 16px 18px;overflow-y:auto;">
+      <button type="button" class="btn-save-top" id="imgShareBtn" style="width:100%;padding:13px;font-size:15px;background:#2b6fd6;">📥 사진에 저장</button>
+      <div id="imgSaveHint" style="font-size:12px;color:var(--muted);line-height:1.6;margin:10px 2px 12px;">
+        누르면 공유 창이 열려요 → <b>「이미지 저장」</b>을 누르면 사진첩에 저장돼요.<br>
+        아래 이미지를 <b>길게 눌러 「사진 앱에 추가」</b>해도 돼요.
+      </div>
+      <img id="imgSavePreview" alt="일정 이미지" style="display:block;width:100%;border:1px solid var(--line);border-radius:10px;-webkit-touch-callout:default;">
+    </div>
+  </div>
+</div>
+
 <div id="mcOverlay" class="modal-overlay" style="display:none;z-index:130;">
   <div class="modal-card" style="max-width:360px;">
     <div class="modal-body" style="padding:22px;">
@@ -345,6 +363,8 @@ const ACTIVE_KEY = 'wp_schedule_cals_v1';
 const FILE_BUCKET = 'schedule-files';
 const MAX_FILE_MB = 20;
 /** 휴대폰처럼 마우스가 없는 기기 - Ctrl+V 안내를 빼는 데 쓴다 */
+/** 아이폰·아이패드(아이패드는 PC처럼 "Macintosh"로 보일 때가 있어 터치 여부로 구분) */
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const IS_TOUCH = (function(){ try{ return window.matchMedia('(hover: none)').matches; }catch(e){ return false; } })();
 
 let Me = null;
@@ -785,7 +805,7 @@ function fitMemPop(){
 
 /** 일정 창이 하나라도 열려 있으면 뒤쪽 페이지가 같이 스크롤되지 않게 막는다 */
 function syncScrollLock(){
-  const open = ['eventModalOverlay', 'calModalOverlay', 'mcOverlay'].some(function(id){ const el = document.getElementById(id); return el && el.style.display === 'flex'; });
+  const open = ['eventModalOverlay', 'calModalOverlay', 'mcOverlay', 'imgSaveOverlay'].some(function(id){ const el = document.getElementById(id); return el && el.style.display === 'flex'; });
   document.documentElement.classList.toggle('modal-open', open);
 }
 
@@ -1368,6 +1388,36 @@ async function toggleIncheon(dateStr){
 }
 
 /* ---------------------------- 이벤트 연결 ---------------------------- */
+/* ---- 아이폰 이미지 저장 창 ---- */
+let ImgSave = null;
+function openImgSave(blob, dataUrl, fname){
+  const file = blob ? new File([blob], fname, { type: 'image/png' }) : null;
+  ImgSave = { file: file };
+  const canShare = !!(file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+  document.getElementById('imgShareBtn').style.display = canShare ? '' : 'none';
+  document.getElementById('imgSaveHint').innerHTML = canShare
+    ? '누르면 공유 창이 열려요 → <b>「이미지 저장」</b>을 누르면 사진첩에 저장돼요.<br>아래 이미지를 <b>길게 눌러 「사진 앱에 추가」</b>해도 돼요.'
+    : '아래 이미지를 <b>길게 눌러 「사진 앱에 추가」</b>를 누르면 사진첩에 저장돼요.';
+  document.getElementById('imgSavePreview').src = dataUrl;
+  document.getElementById('imgSaveOverlay').style.display = 'flex';
+  syncScrollLock();
+}
+function closeImgSave(){
+  document.getElementById('imgSaveOverlay').style.display = 'none';
+  document.getElementById('imgSavePreview').removeAttribute('src');
+  ImgSave = null;
+  syncScrollLock();
+}
+async function shareImg(){
+  if(!ImgSave || !ImgSave.file) return;
+  try{
+    await navigator.share({ files: [ImgSave.file] });
+  }catch(err){
+    if(err && err.name === 'AbortError') return;   // 공유 창에서 취소
+    alert('공유 창을 열지 못했어요. 아래 이미지를 길게 눌러 「사진 앱에 추가」로 저장해 주세요.');
+  }
+}
+
 function wireUi(){
   document.getElementById('prevMonthBtn').addEventListener('click', function(){ changeMonth(-1); });
   document.getElementById('nextMonthBtn').addEventListener('click', function(){ changeMonth(1); });
@@ -1479,11 +1529,14 @@ function wireUi(){
   });
 
   // 창 바깥(어두운 배경)을 손가락으로 밀어도 뒤 화면이 움직이지 않게
-  ['eventModalOverlay', 'calModalOverlay', 'mcOverlay'].forEach(function(id){
+  ['eventModalOverlay', 'calModalOverlay', 'mcOverlay', 'imgSaveOverlay'].forEach(function(id){
     document.getElementById(id).addEventListener('touchmove', function(e){ if(e.target === this) e.preventDefault(); }, { passive: false });
   });
 
   document.getElementById('evSaveTop').addEventListener('click', handleSaveEvent);
+  document.getElementById('imgShareBtn').addEventListener('click', shareImg);
+  document.getElementById('imgSaveClose').addEventListener('click', closeImgSave);
+  document.getElementById('imgSaveOverlay').addEventListener('click', function(e){ if(e.target.id === 'imgSaveOverlay') closeImgSave(); });
   document.getElementById('eventModalClose').addEventListener('click', closeEventModal);
   document.getElementById('eventModalOverlay').addEventListener('click', function(e){ if(e.target.id === 'eventModalOverlay') closeEventModal(); });
   document.getElementById('eventModalOverlay').addEventListener('paste', onModalPaste);
@@ -1538,6 +1591,11 @@ function wireUi(){
         // 위드파트너스 앱: 휴대폰 갤러리(사진 > 위드파트너스 앨범)에 바로 저장
         const ok = bridge.saveImageToGallery(dataUrl.slice(dataUrl.indexOf(',') + 1), fname);
         if(ok === false) alert('갤러리 저장에 실패했어요. 다시 시도해주세요.');
+      } else if(IS_IOS){
+        // 아이폰: 다운로드하면 사진첩이 아니라 '파일' 앱에 들어가고, 홈 화면 앱에서는 아예 반응이 없다.
+        // → 이미지를 먼저 보여주고 「사진에 저장」(공유 창 → 이미지 저장) 또는 길게 눌러 저장
+        const blob = await new Promise(function(res){ canvas.toBlob(res, 'image/png'); });
+        openImgSave(blob, dataUrl, fname);
       } else {
         // PC/휴대폰 브라우저: 다운로드. 링크를 화면에 붙였다가 눌러야 휴대폰·예전 앱에서도 저장된다
         // (붙이지 않고 누르면 앱 안 브라우저는 아무 반응이 없었다 - "어디 저장됐는지 모르는" 원인)
