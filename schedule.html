@@ -369,12 +369,7 @@ function renderLegend(){
 
 function renderChip(e){
   if(e.virtual) return '<div class="sch-chip" style="background:' + BIRTHDAY_COLOR + ';font-weight:600;" data-bday="1">🎁 ' + esc(e.label) + '</div>';
-  let own = '';
-  if(!e.is_common && e.owner_uid !== Me.id){
-    const o = RosterByUid[e.owner_uid];
-    own = '<span class="own">' + esc(o ? o.name : '?') + '</span>';
-  }
-  return '<div class="sch-chip" style="background:' + esc(e.color) + '" data-id="' + e.id + '">' + own + esc(e.label) + '</div>';
+  return '<div class="sch-chip" style="background:' + esc(e.color) + '" data-id="' + e.id + '">' + esc(e.label) + '</div>';
 }
 
 function renderGrid(){
