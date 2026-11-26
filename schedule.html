@@ -43,20 +43,33 @@
   .sch-weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:12.5px;font-weight:700;color:var(--navy-800);padding-bottom:8px;}
   .sch-weekdays .sat{color:#2b6fd6;}
   .sch-weekdays .sun{color:var(--danger);}
-  .sch-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-  .sch-day{min-height:112px;border:1px solid var(--line);border-radius:10px;padding:6px;position:relative;background:#fff;display:flex;flex-direction:column;cursor:pointer;transition:border-color .12s;}
-  .sch-day:hover{border-color:var(--navy-600);}
-  .sch-day.other-month{opacity:.38;}
-  .sch-day.is-today{border-color:var(--navy-600);box-shadow:0 0 0 1px var(--navy-600) inset;}
-  .sch-day .d-num{font-size:12.5px;font-weight:700;color:var(--navy-900);padding-right:18px;}
+  /* ---- 타임트리처럼: 칸은 상자 대신 얇은 선으로만 나누고, 여러 날 일정은 칸을 가로지르는 막대로 맨 위에.
+     막대는 같은 주(가로줄)의 grid 안에 칸과 겹쳐서 놓고(grid-column: 시작 / 끝),
+     각 칸은 막대 줄 수만큼 위를 비워둔 뒤 하루짜리 일정을 아래에 나열한다 ---- */
+  .sch-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;border-top:1px solid #e3e7ee;
+    --head-base:30px;--hol-h:13px;--bar-h:20px;--bar-gap:3px;}
+  .sch-day,.sch-bar{--head:calc(var(--head-base) + var(--hh, 0) * var(--hol-h));}
+  .sch-day{min-height:112px;min-width:0;border-bottom:1px solid #e3e7ee;border-right:1px solid #e3e7ee;padding:0 3px 6px;position:relative;background-color:#fff;display:flex;flex-direction:column;cursor:pointer;transition:background-color .12s;}
+  .sch-day.c7{border-right:none;}
+  .sch-day:hover{background-color:#f5f8fd;}
+  .sch-day.other-month .d-head{opacity:.4;}
+  .sch-day.other-month .d-items{opacity:.55;}
+  .sch-day .d-head{height:var(--head);padding-top:5px;display:flex;flex-direction:column;align-items:center;flex:none;min-width:0;}
+  .sch-day .d-num{font-size:12.5px;font-weight:700;color:var(--navy-900);line-height:1;}
+  .sch-day .d-num span{display:inline-block;min-width:22px;height:22px;line-height:22px;border-radius:11px;text-align:center;padding:0 3px;}
+  .sch-day.is-today .d-num span{background:var(--navy-900);color:#fff;}
   .sch-day .d-num.sat{color:#2b6fd6;}
   .sch-day .d-num.sun,.sch-day .d-num.holiday{color:var(--danger);}
-  .sch-day .d-hol{font-size:9px;color:var(--danger);margin-top:-2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  /* 일정이 많거나 제목이 길어도 자르지 않고 아래로 계속 나열 - 칸이 커지면 같은 주(가로줄)의
-     칸들도 grid가 자동으로 같은 높이로 맞춘다 */
-  .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:3px;margin-top:4px;}
-  .sch-chip{font-size:10.5px;padding:2px 5px;border-radius:5px;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;cursor:pointer;line-height:1.45;color:var(--ink);}
-  .sch-incheon-toggle{position:absolute;top:5px;right:5px;width:15px;height:15px;cursor:pointer;margin:0;}
+  .sch-day .d-hol{font-size:9.5px;line-height:var(--hol-h);color:var(--danger);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:var(--bar-gap);min-width:0;}
+  .sch-day .d-gap{flex:none;}
+  /* 일정은 항상 한 줄 - 칸보다 길면 끝을 …로 줄인다(전체 제목은 마우스를 올리면 말풍선) */
+  .sch-chip{font-size:10.5px;height:var(--bar-h);line-height:var(--bar-h);padding:0 6px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;color:var(--ink);font-weight:600;flex:none;}
+  /* 여러 날 일정 막대: 맨 위 줄부터 차례로. 주가 바뀌어 이어지는 쪽은 모서리를 각지게 */
+  .sch-bar{align-self:start;z-index:2;margin:calc(var(--head) + var(--lane, 0) * (var(--bar-h) + var(--bar-gap))) 4px 0;min-width:0;}
+  .sch-bar.cont-l{margin-left:0;border-top-left-radius:0;border-bottom-left-radius:0;}
+  .sch-bar.cont-r{margin-right:0;border-top-right-radius:0;border-bottom-right-radius:0;}
+  .sch-incheon-toggle{position:absolute;top:6px;right:6px;width:14px;height:14px;cursor:pointer;margin:0;}
   /* PC: 일정에 마우스를 올리면 진해지고 오른쪽 위에 작은 × (바로 삭제) */
   .sch-chip{position:relative;transition:filter .12s, box-shadow .12s;}
   .sch-chip .chip-x{display:none;position:absolute;top:-6px;right:-6px;width:17px;height:17px;border:none;border-radius:50%;background:rgba(10,26,48,.78);color:#fff;font-size:11px;line-height:17px;padding:0;cursor:pointer;z-index:3;font-family:inherit;}
@@ -67,10 +80,12 @@
   }
   @media (hover:none){ .sch-incheon-toggle{display:none;} }  /* 휴대폰/앱: 인천출근 체크박스는 PC에서만 */
   .sch-chip.dragging{opacity:.4;}
-  .sch-day.drop-target{outline:2px dashed #2b6fd6;outline-offset:-3px;background:#eef4ff;}
+  .sch-day.drop-target{outline:2px dashed #2b6fd6;outline-offset:-3px;background-color:#eef4ff;}
   .ev-date-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:13px;font-weight:600;color:var(--navy-900);}
   .ev-date-row input{padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;color:var(--ink);}
-  .ev-date-row small{font-weight:400;color:var(--muted);font-size:11.5px;}
+  .ev-date-row input{min-width:0;flex:0 1 160px;}
+  .ev-date-row .ev-tilde{color:var(--muted);font-weight:400;}
+  .ev-date-row small{font-weight:400;color:var(--muted);font-size:11.5px;flex-basis:100%;}
 
   /* 일정 화면 - 저장은 오른쪽 위, 아래는 대화창 */
   .mh-acts{display:flex;align-items:center;gap:10px;}
@@ -138,29 +153,23 @@
   .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;font-family:inherit;}
   .sch-btn-sm:hover{border-color:var(--navy-600);}
   .sch-btn-sm.danger{color:var(--danger);}
-  /* ---- PC 달력: 구글 캘린더/타임트리처럼 일정 글씨를 더 크고 굵게, 항상 한 줄.
-         날짜 칸도 조금 넉넉하게. (휴대폰 화면은 아래 모바일 설정을 그대로 씀) ---- */
+  /* ---- PC 달력: 글씨를 더 크고 굵게, 큰 모니터에서는 달력도 넓게(칸이 커지면 긴 일정도 그만큼 다 보임)
+         (휴대폰 화면은 아래 모바일 설정을 그대로 씀) ---- */
   @media (min-width:761px){
-    /* 큰 모니터에서는 달력도 넓게 써서 칸이 커지면 긴 일정도 그만큼 다 보이게 */
     .sch-wrap{max-width:1640px;}
     .sch-weekdays{font-size:13.5px;padding-bottom:10px;}
-    .sch-grid{gap:8px;}
-    .sch-day{min-height:124px;padding:8px 8px 9px;border-radius:12px;}
+    .sch-grid{--head-base:32px;--hol-h:14px;--bar-h:23px;--bar-gap:3px;}
+    .sch-day{min-height:124px;padding:0 4px 8px;}
     .sch-day .d-num{font-size:14px;}
-    .sch-day .d-hol{font-size:10.5px;margin-top:1px;}
-    .sch-day .d-items{gap:4px;margin-top:6px;}
-    /* 일정은 항상 한 줄: 칸보다 길면 끝을 …로 줄이고, 화면이 넓어져 칸이 커지면 그만큼 다 보인다
-       (전체 제목은 마우스를 올리면 말풍선으로 보임) */
-    .sch-weekdays,.sch-grid{grid-template-columns:repeat(7,minmax(0,1fr));}
-    .sch-day{min-width:0;}
-    .sch-chip{font-size:12.5px;font-weight:600;line-height:1.4;padding:3px 8px;border-radius:6px;color:#1b2a3d;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .sch-day .d-num span{min-width:26px;height:26px;line-height:26px;border-radius:13px;}
+    .sch-day .d-hol{font-size:10.5px;}
+    .sch-chip{font-size:12.5px;padding:0 8px;border-radius:6px;color:#1b2a3d;}
     /* 한 줄로 잘리는 칸 안에서도 삭제 ×가 보이도록 일정 오른쪽 안쪽에 표시 */
     .sch-chip .chip-x{top:50%;right:3px;transform:translateY(-50%);width:16px;height:16px;line-height:16px;}
     .sch-legend{font-size:13px;gap:14px;}
     .sch-legend .sw i{width:13px;height:13px;}
     /* 인천출근 체크박스(SM): 평소엔 옅게, 마우스를 올리거나 체크하면 진하게 - 달력이 덜 어수선하게 */
-    .sch-incheon-toggle{width:14px;height:14px;top:9px;right:9px;opacity:.28;transition:opacity .12s;}
+    .sch-incheon-toggle{top:8px;right:8px;opacity:.28;transition:opacity .12s;}
     .sch-day:hover .sch-incheon-toggle,.sch-incheon-toggle:checked{opacity:1;}
   }
 
@@ -169,7 +178,7 @@
   html, body{overflow-x:clip;}
   .modal-overlay, .modal-card, .chat-list{overscroll-behavior:contain;}
 
-  /* ---- 모바일: 바깥 큰 테두리는 없애고 날짜마다 작은 네모 칸은 유지, 일정은 한 줄.
+  /* ---- 모바일: 바깥 큰 테두리는 없애고 칸은 얇은 선으로만 나눔, 일정은 한 줄.
          글씨가 잘리지 않게 칸을 넓히고 달력만 좌우로 밀어서 본다 ---- */
   @media (max-width:760px){
     /* 맨 위 메뉴(대시보드/프로필/로그아웃) 한 줄로 */
@@ -187,20 +196,17 @@
     #monthLabel{min-width:96px;font-size:15.5px;}
     #exportImgBtn{padding:7px 10px;white-space:nowrap;}
     #exportImgBtn .tx-long{display:none;}
-    .sch-grid-wrap{border:none;border-radius:0;background:transparent;padding:0;}
+    .sch-grid-wrap{border:none;border-radius:0;background:#fff;padding:0;}
     .sch-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:0 10px 4px;}
     /* 일정 칸 가로폭 113px 고정 - 이보다 긴 일정은 뒤를 "…"로 생략 */
     .sch-inner{width:max-content;}
     .sch-weekdays,.sch-grid{grid-template-columns:repeat(7,113px);}
     .sch-weekdays{font-size:12px;padding:4px 0 6px;}
-    .sch-grid{gap:5px;}
-    .sch-day{min-height:96px;padding:5px 4px 6px;border-radius:9px;}
-    .sch-day.is-today{border-color:var(--navy-600);box-shadow:none;}
-    .sch-day .d-num{padding-right:0;font-size:13px;}
-    .sch-day .d-num span{display:inline-block;min-width:22px;height:22px;line-height:22px;border-radius:11px;text-align:center;}
-    .sch-day.is-today .d-num span{background:var(--navy-900);color:#fff;}
-    .sch-day .d-items{gap:2px;margin-top:3px;}
-    .sch-chip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;font-weight:600;padding:2px 5px;border-radius:4px;}
+    .sch-grid{--head-base:30px;--hol-h:12px;--bar-h:20px;--bar-gap:2px;}
+    .sch-day{min-height:96px;padding:0 2px 5px;}
+    .sch-day .d-num{font-size:13px;}
+    .sch-bar{margin-left:3px;margin-right:3px;}
+    .sch-chip{font-size:11.5px;padding:0 5px;border-radius:4px;}
     .sch-incheon-toggle{display:none;}  /* 모바일에서는 인천출근 체크박스 숨김(PC에서만 사용) */
     .modal-overlay{padding:8px;}
     .chat-list{max-height:max(220px, calc(94vh - 380px));}
@@ -351,6 +357,7 @@ let Events = [];
 let DayFlags = {};
 let MyCategories = [];
 let CategoriesReady = true;
+let EndDateReady = true;   // schedule_events.end_date(여러 날 일정) 칸이 DB에 있는지 - schedule_migration_4.sql
 let Calendars = [];
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
@@ -358,6 +365,13 @@ function pad2(n){ n = Math.max(0, Math.floor(Number(n) || 0)); return (n < 10 ? 
 function ymd(y, m, d){ return y + '-' + pad2(m) + '-' + pad2(d); }
 function daysInMonth(y, m){ return new Date(y, m, 0).getDate(); }
 function mmdd(s){ return (s || '').slice(5, 10); }
+function parseYmd(s){ const p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function dateToYmd(d){ return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+function addDays(s, n){ const d = parseYmd(s); d.setDate(d.getDate() + n); return dateToYmd(d); }
+function dayDiff(a, b){ return Math.round((parseYmd(b) - parseYmd(a)) / 86400000); }
+/** 여러 날 일정이면 끝나는 날, 하루짜리면 시작일 */
+function endOf(e){ return (e && e.end_date && e.end_date > e.event_date) ? e.end_date : e.event_date; }
+function isMulti(e){ return !!e && !!e.end_date && e.end_date > e.event_date; }
 /** 화면 표기는 별명이 아니라 이름(실명). 저장할 때도 이름으로 남긴다. */
 function myName(){ return (Me && (Me.name || Me.nickname || Me.email)) || ''; }
 /** 이미 별명으로 저장된 예전 기록도 이름으로 보이게, 사람(uid)으로 이름을 다시 찾는다 */
@@ -367,6 +381,8 @@ function leadNum(label){ const m = /^\s*(\d{1,4})/.exec(label || ''); return m ?
 function fmtSize(b){ b = Number(b) || 0; return b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(b / 1024)) + 'KB'; }
 function isImageType(t){ return /^image\//i.test(t || ''); }
 
+/** "11월 11일 (화) ~ 11월 14일 (금)" */
+function fmtRangeKr(s, e){ return (e && e > s) ? fmtDateKr(s) + ' ~ ' + fmtDateKr(e) : fmtDateKr(s); }
 function fmtDateKr(dateStr){
   const p = dateStr.split('-').map(Number);
   const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(p[0], p[1] - 1, p[2]).getDay()];
@@ -477,9 +493,16 @@ function visibleRange(){
 }
 async function loadEvents(){
   const r = visibleRange();
-  const { data, error } = await supabaseClient.from('schedule_events').select('*')
-    .gte('event_date', r.start).lte('event_date', r.end).order('event_date', { ascending: true });
-  Events = error ? [] : (data || []);
+  // 달력 첫날 전에 시작했어도 이 달까지 이어지는 여러 날 일정은 같이 가져온다
+  let res = await supabaseClient.from('schedule_events').select('*')
+    .lte('event_date', r.end).or('event_date.gte.' + r.start + ',end_date.gte.' + r.start).order('event_date', { ascending: true });
+  EndDateReady = !res.error;
+  if(res.error){
+    // end_date 칸이 아직 없으면(schedule_migration_4.sql 실행 전) 예전 방식으로
+    res = await supabaseClient.from('schedule_events').select('*')
+      .gte('event_date', r.start).lte('event_date', r.end).order('event_date', { ascending: true });
+  }
+  Events = res.error ? [] : (res.data || []);
 }
 async function loadDayFlags(){
   const r = visibleRange();
@@ -496,8 +519,9 @@ function birthdaysFor(dateStr){
   return activePeople().filter(function(u){ return u.birth && mmdd(u.birth) === target; })
     .map(function(u){ return { id: null, virtual: true, is_common: true, event_date: dateStr, kind: '생일', label: u.name + '님 생일', color: BIRTHDAY_COLOR }; });
 }
+/** 그 날의 하루짜리 일정(여러 날 일정은 막대로 따로 그림) */
 function dayEventsFor(dateStr){
-  const real = Events.filter(function(e){ return e.event_date === dateStr && isVisible(e); });
+  const real = Events.filter(function(e){ return e.event_date === dateStr && !isMulti(e) && isVisible(e); });
   real.sort(function(a, b){
     const na = leadNum(a.label), nb = leadNum(b.label);
     if(na !== nb) return na < nb ? -1 : 1;
@@ -565,28 +589,69 @@ function renderChip(e){
     (editable ? '<button type="button" class="chip-x" data-delev="' + e.id + '" title="삭제">×</button>' : '') + '</div>';
 }
 
+/** 여러 날 일정 막대 */
+function renderBar(e, row, c1, c2, lane, contL, contR, hh){
+  const editable = canEditEvent(e);
+  const tip = e.label + ' (' + fmtRangeKr(e.event_date, endOf(e)) + ')';
+  return '<div class="sch-chip sch-bar' + (editable ? ' can-edit' : '') + (contL ? ' cont-l' : '') + (contR ? ' cont-r' : '') + '"' +
+    ' style="grid-row:' + row + ';grid-column:' + c1 + ' / ' + (c2 + 1) + ';--lane:' + lane + ';--hh:' + hh + ';background:' + esc(e.color) + '"' +
+    ' data-id="' + e.id + '"' + (editable && !IS_TOUCH ? ' draggable="true"' : '') + ' title="' + esc(tip) + '">' + esc(e.label) +
+    (editable ? '<button type="button" class="chip-x" data-delev="' + e.id + '" title="삭제">×</button>' : '') + '</div>';
+}
+
 function renderGrid(){
   const list = gridDates();
   const now = new Date();
   const todayStr = ymd(now.getFullYear(), now.getMonth() + 1, now.getDate());
   const showIncheon = Active.common;
   const canToggleIncheon = isSM(Me) && Active.common;
-  let html = '';
-  list.forEach(function(d){
-    const dateStr = ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
-    const inMonth = (d.getMonth() + 1) === ViewMonth;
-    const dow0 = d.getDay();
-    const holName = Holidays[dateStr];
-    const numClass = holName ? 'holiday' : (dow0 === 0 ? 'sun' : (dow0 === 6 ? 'sat' : ''));
-    const flag = DayFlags[dateStr];
-    const bg = (showIncheon && flag && flag.incheon) ? (' style="background:' + esc(flag.incheon_color || INCHEON_PALETTE[0]) + '"') : '';
-    html += '<div class="sch-day' + (inMonth ? '' : ' other-month') + (dateStr === todayStr ? ' is-today' : '') + '"' + bg + ' data-date="' + dateStr + '">' +
-      (canToggleIncheon ? ('<input type="checkbox" class="sch-incheon-toggle" title="인천출근 표시" data-incheon="' + dateStr + '"' + (flag && flag.incheon ? ' checked' : '') + '>') : '') +
-      '<div class="d-num ' + numClass + '"><span>' + d.getDate() + '</span></div>' +
-      (holName ? ('<div class="d-hol">' + esc(holName) + '</div>') : '') +
-      '<div class="d-items">' + dayEventsFor(dateStr).map(renderChip).join('') + '</div>' +
-      '</div>';
+  // 여러 날 일정: 먼저 시작하는 것, 같은 날 시작이면 긴 것부터 위 줄에
+  const multi = Events.filter(function(e){ return isMulti(e) && isVisible(e); }).sort(function(a, b){
+    if(a.event_date !== b.event_date) return a.event_date < b.event_date ? -1 : 1;
+    const la = dayDiff(a.event_date, endOf(a)), lb = dayDiff(b.event_date, endOf(b));
+    if(la !== lb) return lb - la;
+    return String(a.created_at || '').localeCompare(String(b.created_at || ''));
   });
+  let html = '';
+  for(let w = 0; w < list.length / 7; w++){
+    const week = list.slice(w * 7, w * 7 + 7).map(dateToYmd);
+    const wStart = week[0], wEnd = week[6];
+    const row = w + 1;
+    const hh = week.some(function(ds){ return !!Holidays[ds]; }) ? 1 : 0;
+    // 이번 주에 걸친 막대를 빈 줄(lane)에 차례로 배치
+    const lanes = [];   // lanes[k] = 그 줄에서 이미 쓰인 마지막 칸 번호
+    const used = [0, 0, 0, 0, 0, 0, 0];   // 칸마다 막대 줄 수
+    let bars = '';
+    multi.forEach(function(e){
+      const s = e.event_date, en = endOf(e);
+      if(en < wStart || s > wEnd) return;
+      const c1 = s < wStart ? 0 : week.indexOf(s);
+      const c2 = en > wEnd ? 6 : week.indexOf(en);
+      let lane = 0;
+      while(lanes[lane] != null && lanes[lane] >= c1) lane++;
+      lanes[lane] = c2;
+      for(let c = c1; c <= c2; c++) used[c] = Math.max(used[c], lane + 1);
+      bars += renderBar(e, row, c1 + 1, c2 + 1, lane, s < wStart, en > wEnd, hh);
+    });
+    week.forEach(function(dateStr, c){
+      const d = list[w * 7 + c];
+      const inMonth = (d.getMonth() + 1) === ViewMonth;
+      const dow0 = d.getDay();
+      const holName = Holidays[dateStr];
+      const numClass = holName ? 'holiday' : (dow0 === 0 ? 'sun' : (dow0 === 6 ? 'sat' : ''));
+      const flag = DayFlags[dateStr];
+      const bg = (showIncheon && flag && flag.incheon) ? ('background-color:' + esc(flag.incheon_color || INCHEON_PALETTE[0]) + ';') : '';
+      const gapH = used[c] ? ('<div class="d-gap" style="height:calc(' + used[c] + ' * (var(--bar-h) + var(--bar-gap)) - var(--bar-gap))"></div>') : '';
+      html += '<div class="sch-day' + (c === 6 ? ' c7' : '') + (inMonth ? '' : ' other-month') + (dateStr === todayStr ? ' is-today' : '') + '"' +
+        ' style="grid-row:' + row + ';grid-column:' + (c + 1) + ';--hh:' + hh + ';' + bg + '" data-date="' + dateStr + '">' +
+        (canToggleIncheon ? ('<input type="checkbox" class="sch-incheon-toggle" title="인천출근 표시" data-incheon="' + dateStr + '"' + (flag && flag.incheon ? ' checked' : '') + '>') : '') +
+        '<div class="d-head"><div class="d-num ' + numClass + '"><span>' + d.getDate() + '</span></div>' +
+        (holName ? ('<div class="d-hol">' + esc(holName) + '</div>') : '') + '</div>' +
+        '<div class="d-items">' + gapH + dayEventsFor(dateStr).map(renderChip).join('') + '</div>' +
+        '</div>';
+    });
+    html += bars;   // 막대는 칸보다 뒤에 넣어야 칸 위에 그려진다
+  }
   document.getElementById('calGrid').innerHTML = html;
 }
 
@@ -747,9 +812,12 @@ function askMoveCopy(label, fromDate, toDate){
 async function dropEventOn(eventId, toDate){
   const ev = Events.find(function(x){ return x.id === eventId; });
   if(!ev || !canEditEvent(ev) || ev.event_date === toDate) return;
+  const span = dayDiff(ev.event_date, endOf(ev));
   const choice = await askMoveCopy(ev.label, ev.event_date, toDate);
   if(choice === 'move'){
-    const { error } = await supabaseClient.from('schedule_events').update({ event_date: toDate, updated_at: new Date().toISOString() }).eq('id', ev.id);
+    const patch = { event_date: toDate, updated_at: new Date().toISOString() };
+    if(isMulti(ev)) patch.end_date = addDays(toDate, span);   // 여러 날 일정은 기간 그대로 옮긴다
+    const { error } = await supabaseClient.from('schedule_events').update(patch).eq('id', ev.id);
     if(error){ alert('이동 실패: ' + error.message); return; }
     await refreshMonth();
   } else if(choice === 'copy'){
@@ -783,6 +851,9 @@ function openEventModal(eventId, newDateStr, opts){
   const draft = (opts && opts.draft) || null;
   const ev = eventId ? Events.find(function(x){ return x.id === eventId; }) : null;
   const dateStr = ev ? ev.event_date : newDateStr;
+  // 끝나는 날: 기존 일정은 그대로, 복사는 원래 기간만큼, 새 일정은 시작일과 같게(=하루)
+  const spanSrc = draft || copyOf || ev;
+  const endStr = ev ? endOf(ev) : (spanSrc && isMulti(spanSrc) ? addDays(dateStr, dayDiff(spanSrc.event_date, spanSrc.end_date)) : dateStr);
   const targets = ev ? [] : (copyOf ? [targetOf(copyOf)] : writableTargets());
   const base = draft || copyOf || ev;
   Modal = {
@@ -802,7 +873,7 @@ function openEventModal(eventId, newDateStr, opts){
     Modal.extraKind = { name: base.kind || '기타', color: base.color };
   }
 
-  document.getElementById('eventModalTitle').textContent = fmtDateKr(dateStr) + (ev ? ' 일정' : (copyOf ? ' 일정 복사' : ' 일정 추가'));
+  document.getElementById('eventModalTitle').textContent = fmtRangeKr(dateStr, endStr) + (ev ? ' 일정' : (copyOf ? ' 일정 복사' : ' 일정 추가'));
   document.getElementById('evSaveTop').style.display = Modal.readOnly ? 'none' : '';
   document.getElementById('evSaveTop').disabled = false;
   const ro = Modal.readOnly ? ' disabled' : '';
@@ -820,7 +891,8 @@ function openEventModal(eventId, newDateStr, opts){
   document.getElementById('eventModalBody').innerHTML =
     '<input type="text" class="ev-title" id="evLabel" placeholder="제목 (예: 09 장진수)" value="' + esc(base ? base.label : '') + '"' + ro + '>' +
     '<div class="ev-date-row"><span>📅 날짜</span><input type="date" id="evDate" value="' + esc(dateStr) + '"' + ro + '>' +
-      (ev && !Modal.readOnly ? '<small>다른 날짜로 바꾸면 이동/복사를 골라요</small>' : '') + '</div>' +
+      '<span class="ev-tilde">~</span><input type="date" id="evEndDate" value="' + esc(endStr) + '" min="' + esc(dateStr) + '" title="끝나는 날 (하루 일정이면 시작일과 같게)"' + ro + '>' +
+      '<small>' + (Modal.readOnly ? '' : '여러 날 일정이면 끝나는 날을 바꿔주세요' + (ev ? ' · 시작일을 바꾸면 이동/복사를 골라요' : '')) + '</small></div>' +
     '<div class="ev-sec"><div class="ev-sec-t">종류</div>' +
       '<div class="kind-row"><div class="kind-btns" id="kindBtns"></div>' +
       (Modal.readOnly ? '' : '<button type="button" class="kind-add" id="kindAddBtn">+ 새 항목</button>') + '</div>' +
@@ -842,10 +914,26 @@ function openEventModal(eventId, newDateStr, opts){
   renderKindButtons();
   renderTargetButtons();
 
-  // 날짜를 바꾸면 위 제목의 날짜도 같이 바뀌게
-  document.getElementById('evDate').addEventListener('change', function(){
+  // 날짜를 바꾸면 위 제목의 날짜도 같이 바뀌게. 시작일을 옮기면 끝나는 날도 기간 그대로 같이 옮긴다
+  const startEl = document.getElementById('evDate'), endEl = document.getElementById('evEndDate');
+  let lastStart = dateStr;
+  function syncTitle(){
+    const st = startEl.value, en = endEl.value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(st)) return;
+    document.getElementById('eventModalTitle').textContent = fmtRangeKr(st, en > st ? en : st) + (ev ? ' 일정' : (copyOf ? ' 일정 복사' : ' 일정 추가'));
+  }
+  startEl.addEventListener('change', function(){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(this.value)) return;
-    document.getElementById('eventModalTitle').textContent = fmtDateKr(this.value) + (ev ? ' 일정' : (copyOf ? ' 일정 복사' : ' 일정 추가'));
+    if(/^\d{4}-\d{2}-\d{2}$/.test(endEl.value) && /^\d{4}-\d{2}-\d{2}$/.test(lastStart)){
+      endEl.value = addDays(this.value, Math.max(0, dayDiff(lastStart, endEl.value)));
+    } else endEl.value = this.value;
+    endEl.min = this.value;
+    lastStart = this.value;
+    syncTitle();
+  });
+  endEl.addEventListener('change', function(){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(this.value) || this.value < startEl.value) this.value = startEl.value;
+    syncTitle();
   });
 
   if(!Modal.readOnly){
@@ -964,6 +1052,14 @@ async function handleSaveEvent(){
   const ev = Modal.ev;
   const dateEl = document.getElementById('evDate');
   const newDate = (dateEl && /^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) ? dateEl.value : Modal.dateStr;
+  const endEl = document.getElementById('evEndDate');
+  let newEnd = (endEl && /^\d{4}-\d{2}-\d{2}$/.test(endEl.value)) ? endEl.value : newDate;
+  if(newEnd < newDate) newEnd = newDate;
+  const endVal = newEnd > newDate ? newEnd : null;   // 하루 일정은 비워 둔다
+  if(endVal && !EndDateReady){
+    alert('여러 날 일정 기능이 아직 준비되지 않았어요.\n관리자가 schedule_migration_4.sql을 먼저 실행해야 해요.\n(지금은 끝나는 날을 시작일과 같게 하면 저장돼요)');
+    return;
+  }
 
   // 기존 일정을 다른 날짜로 바꿨으면 이동/복사를 먼저 묻는다
   let moveTo = null;
@@ -972,7 +1068,7 @@ async function handleSaveEvent(){
     if(!choice) return;                        // 취소 - 창은 그대로
     if(choice === 'copy'){
       // 원래 일정은 그대로 두고, 지금 고친 내용으로 채운 복사 창을 연다
-      const draft = { label: label, kind: Modal.kind, color: Modal.color };
+      const draft = { label: label, kind: Modal.kind, color: Modal.color, event_date: newDate, end_date: endVal };
       closeEventModal();
       openEventModal(null, newDate, { copyOf: ev, draft: draft });
       return;
@@ -986,6 +1082,7 @@ async function handleSaveEvent(){
     if(ev){
       const patch = { label: label, kind: Modal.kind, color: Modal.color, order_num: orderNum, updated_at: new Date().toISOString() };
       if(moveTo) patch.event_date = moveTo;
+      if(EndDateReady) patch.end_date = endVal;
       const { error } = await supabaseClient.from('schedule_events').update(patch).eq('id', ev.id);
       if(error){ alert('저장 실패: ' + error.message); return; }
     } else {
@@ -994,10 +1091,12 @@ async function handleSaveEvent(){
       const calId = (tgt && tgt.indexOf('cal:') === 0) ? tgt.slice(4) : null;
       const isCommon = tgt === 'common';
       const owner = (calId || isCommon) ? null : tgt;
-      const { data, error } = await supabaseClient.from('schedule_events').insert({
+      const row = {
         owner_uid: owner, is_common: isCommon, calendar_id: calId, event_date: Modal.dateStr, order_num: orderNum,
         kind: Modal.kind, label: label, color: Modal.color, author_uid: Me.id, author_name: myName()
-      }).select().single();
+      };
+      if(endVal) row.end_date = endVal;
+      const { data, error } = await supabaseClient.from('schedule_events').insert(row).select().single();
       if(error){ alert('저장 실패: ' + error.message); return; }
       // 저장 전에 미리 써둔 대화/첨부(아직 보내기 안 누른 것 포함)도 같이 올린다
       const queued = Modal.pending.slice();
@@ -1327,6 +1426,12 @@ function wireUi(){
   // PC: 일정을 다른 날짜 칸으로 끌어다 놓으면 이동/복사를 묻는다
   let dragId = null, dropDay = null;
   function clearDrop(){ if(dropDay){ dropDay.classList.remove('drop-target'); dropDay = null; } }
+  // 여러 날 막대 위에 놓아도 그 아래 날짜 칸을 찾는다
+  function dayAt(e){
+    const d = e.target.closest && e.target.closest('.sch-day');
+    if(d) return d;
+    return document.elementsFromPoint(e.clientX, e.clientY).find(function(el){ return el.classList && el.classList.contains('sch-day'); }) || null;
+  }
   grid.addEventListener('dragstart', function(e){
     const chip = e.target.closest('.sch-chip[draggable="true"]');
     if(!chip){ return; }
@@ -1342,7 +1447,7 @@ function wireUi(){
   });
   grid.addEventListener('dragover', function(e){
     if(!dragId) return;
-    const day = e.target.closest('.sch-day');
+    const day = dayAt(e);
     if(!day) return;
     e.preventDefault();
     if(day !== dropDay){ clearDrop(); dropDay = day; day.classList.add('drop-target'); }
@@ -1350,7 +1455,7 @@ function wireUi(){
   grid.addEventListener('drop', function(e){
     if(!dragId) return;
     e.preventDefault();
-    const day = e.target.closest('.sch-day');
+    const day = dayAt(e);
     const id = dragId;
     clearDrop(); dragId = null;
     if(day) dropEventOn(id, day.dataset.date);
@@ -1422,7 +1527,7 @@ function wireUi(){
           doc.querySelectorAll('.sch-day.is-today').forEach(function(el){ el.classList.remove('is-today'); });
           // 저장 이미지는 마우스로 전체 제목을 볼 수 없으니 긴 일정도 잘리지 않게 줄바꿈해서 전부 보여준다
           const st = doc.createElement('style');
-          st.textContent = '.sch-chip{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}';
+          st.textContent = '.sch-chip:not(.sch-bar){white-space:normal !important;overflow:visible !important;text-overflow:clip !important;height:auto !important;line-height:1.4 !important;padding-top:3px !important;padding-bottom:3px !important;word-break:keep-all;overflow-wrap:anywhere;}';
           doc.head.appendChild(st);
         }
       });
