@@ -26,14 +26,14 @@
   .sch-tab .cal-edit:hover{opacity:1;}
   .sch-tab.add{border-style:dashed;font-weight:600;}
   .sch-mem-wrap{position:relative;}
-  .sch-mem-pop{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(15,37,69,.18);width:260px;max-height:340px;overflow-y:auto;padding:8px;}
+  .sch-mem-pop{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(15,37,69,.18);width:240px;max-width:calc(100vw - 20px);max-height:340px;overflow-y:auto;padding:8px;}
   .sch-mem-pop.open{display:block;}
   .sch-mem-acts{display:flex;justify-content:space-between;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;font-size:12px;}
   .sch-mem-acts button{background:none;border:none;color:var(--navy-600);cursor:pointer;font-size:12px;padding:0;font-family:inherit;}
   .sch-mem-row{display:flex;align-items:center;gap:8px;padding:8px 6px;border-radius:8px;cursor:pointer;font-size:13.5px;}
   .sch-mem-row:hover{background:var(--navy-100);}
   .sch-mem-row input{margin:0;width:16px;height:16px;}
-  .sch-mem-row .gr{margin-left:auto;font-size:11px;color:var(--muted);}
+  .sch-mem-row .gr{margin-left:2px;font-size:11px;font-weight:700;color:var(--navy-700);background:var(--navy-100);border-radius:6px;padding:1px 6px;}
 
   .sch-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:12px;color:var(--muted);align-items:center;}
   .sch-legend .sw{display:inline-flex;align-items:center;gap:5px;}
@@ -140,6 +140,7 @@
   .sch-btn-sm.danger{color:var(--danger);}
   /* 일정 창이 열려 있으면 뒤 화면은 스크롤되지 않게(창 안에서만 스크롤) */
   html.modal-open, html.modal-open body{overflow:hidden;}
+  html, body{overflow-x:clip;}
   .modal-overlay, .modal-card, .chat-list{overscroll-behavior:contain;}
 
   /* ---- 모바일: 바깥 큰 테두리는 없애고 날짜마다 작은 네모 칸은 유지, 일정은 한 줄.
@@ -162,7 +163,7 @@
     #exportImgBtn .tx-long{display:none;}
     .sch-grid-wrap{border:none;border-radius:0;background:transparent;padding:0;}
     .sch-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:0 10px 4px;}
-    .sch-inner{min-width:910px;}
+    .sch-inner{min-width:819px;}
     .sch-weekdays{font-size:12px;padding:4px 0 6px;}
     .sch-grid{gap:5px;}
     .sch-day{min-height:96px;padding:5px 4px 6px;border-radius:9px;}
@@ -677,6 +678,16 @@ function whereLabel(ev){
   if(ev.is_common) return '📢 공통일정';
   if(ev.owner_uid === Me.id) return '내 일정';
   return ((RosterByUid[ev.owner_uid] || {}).name || '?') + ' 님 일정';
+}
+
+/** 팀원 일정 목록 창이 화면 오른쪽 밖으로 나가면 왼쪽으로 당겨서 화면 안에 맞춘다 */
+function fitMemPop(){
+  const pop = document.getElementById('memPop');
+  pop.style.left = '0px';
+  if(!pop.classList.contains('open')) return;
+  const r = pop.getBoundingClientRect();
+  const over = r.right - (document.documentElement.clientWidth - 10);
+  if(over > 0) pop.style.left = (-Math.min(over, r.left - 10)) + 'px';
 }
 
 /** 일정 창이 하나라도 열려 있으면 뒤쪽 페이지가 같이 스크롤되지 않게 막는다 */
@@ -1261,6 +1272,7 @@ function wireUi(){
   document.getElementById('memBtn').addEventListener('click', function(e){
     e.stopPropagation();
     memPop.classList.toggle('open');
+    fitMemPop();
   });
   memPop.addEventListener('click', function(e){
     e.stopPropagation();
