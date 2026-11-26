@@ -84,15 +84,21 @@
   .link-del{background:none;border:none;color:var(--danger);font-size:12px;cursor:pointer;padding:0;font-family:inherit;}
 
   .chat-box{margin-top:16px;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
-  .chat-list{height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px;background:#f3f6fb;}
+  /* 대화가 짧으면 있는 만큼 다 보이고, 길어지면 화면 높이까지만 늘어나고 그 안에서 스크롤 */
+  .chat-list{min-height:150px;max-height:max(260px, calc(94vh - 360px));overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px;background:#f3f6fb;}
   .chat-empty{margin:auto;color:var(--muted);font-size:12.5px;text-align:center;line-height:1.7;}
-  .cmsg{max-width:80%;align-self:flex-start;display:flex;flex-direction:column;}
+  .cmsg{max-width:80%;align-self:flex-start;display:flex;flex-direction:column;flex:none;}
   .cmsg.me{align-self:flex-end;align-items:flex-end;}
   .cmsg .who{font-size:11px;color:var(--muted);margin:0 2px 2px;}
-  .cmsg .bub{background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px 10px;font-size:13px;white-space:pre-wrap;word-break:break-word;color:var(--ink);}
+  .cmsg .bwrap{position:relative;max-width:100%;}
+  .cmsg .bub{background:#fff;border:1px solid var(--line);border-radius:12px;padding:7px 10px;font-size:13.5px;white-space:pre-wrap;word-break:break-word;color:var(--ink);}
   .cmsg.me .bub{background:#2b6fd6;color:#fff;border-color:#2b6fd6;}
   .cmsg .bub.media{padding:3px;background:#fff;border-color:var(--line);}
-  .cmsg .bub img{display:block;max-width:220px;max-height:220px;border-radius:9px;cursor:zoom-in;}
+  .cmsg .bub img{display:block;max-width:280px;max-height:280px;border-radius:9px;cursor:zoom-in;}
+  .cmsg .cdel{display:none;position:absolute;top:-7px;right:-7px;width:19px;height:19px;border:none;border-radius:50%;background:rgba(10,26,48,.72);color:#fff;font-size:12px;line-height:19px;padding:0;cursor:pointer;z-index:2;}
+  .cmsg .cdel:hover{background:var(--danger);}
+  .cmsg:hover .cdel{display:block;}
+  @media (hover:none){ .cmsg .cdel{display:block;opacity:.75;} }
   .cmsg .bub a.file{display:flex;align-items:center;gap:6px;padding:6px 8px;color:var(--navy-800);text-decoration:none;font-weight:600;}
   .cmsg .bub a.file small{color:var(--muted);font-weight:400;}
   .cmsg .t{font-size:10.5px;color:var(--muted);margin:2px 2px 0;}
@@ -120,7 +126,8 @@
     .sch-day{min-height:88px;padding:4px;}
     .sch-chip{font-size:9.5px;}
     .sch-weekdays{font-size:11px;}
-    .chat-list{height:200px;}
+    .chat-list{max-height:max(220px, calc(94vh - 380px));}
+    .cmsg .bub img{max-width:220px;max-height:220px;}
   }
 </style>
 </head>
@@ -169,7 +176,7 @@
 
 <!-- 일정 추가/수정 + 대화창 -->
 <div id="eventModalOverlay" class="modal-overlay" style="display:none">
-  <div class="modal-card" style="max-width:480px;">
+  <div class="modal-card" style="max-width:560px;max-height:94vh;">
     <div class="modal-header">
       <h2 id="eventModalTitle">일정</h2>
       <div class="mh-acts">
@@ -964,16 +971,31 @@ async function refreshChat(force){
   }
   if(!Modal || !Modal.ev || Modal.ev.id !== eventId) return;
   renderChatList(rows.map(function(r){
-    return { mine: r.uid === Me.id, who: r.author_name, at: r.created_at, message: r.message,
+    return { id: r.id, canDel: r.uid === Me.id || isSM(Me), mine: r.uid === Me.id, who: r.author_name, at: r.created_at, message: r.message,
       name: r.file_name, type: r.file_type, size: r.file_size, url: r.file_path ? (urls[r.file_path] || '') : null };
   }));
+}
+
+/** 대화 지우기 - 내가 쓴 것(SM은 전부). 저장 전 새 일정의 대화는 목록에서만 뺀다. */
+async function deleteChatItem(btn){
+  if(!Modal) return;
+  if(!confirm('이 대화를 지울까요?')) return;
+  if(btn.dataset.delpend != null){
+    const p = Modal.pending.splice(Number(btn.dataset.delpend), 1)[0];
+    if(p && p.preview) URL.revokeObjectURL(p.preview);
+    renderChatList([]);
+    return;
+  }
+  const { error } = await supabaseClient.from('schedule_comments').delete().eq('id', btn.dataset.delmsg);
+  if(error){ alert('삭제 실패: ' + error.message); return; }
+  await refreshChat(true);
 }
 
 function renderChatList(items){
   const wrap = document.getElementById('chatList');
   if(!wrap || !Modal) return;
-  const pend = Modal.pending.map(function(p){
-    return { mine: true, who: myName(), at: p.at, message: p.message, name: p.name, type: p.type, size: p.file ? p.file.size : 0, url: p.preview || (p.file ? '#' : null), pending: true };
+  const pend = Modal.pending.map(function(p, i){
+    return { pendIdx: i, canDel: true, mine: true, who: myName(), at: p.at, message: p.message, name: p.name, type: p.type, size: p.file ? p.file.size : 0, url: p.preview || (p.file ? '#' : null), pending: true };
   });
   const all = items.concat(pend);
   if(!all.length){
@@ -991,12 +1013,19 @@ function renderChatList(items){
       const link = (m.url && m.url !== '#' && !m.pending) ? ' href="' + esc(m.url) + '" target="_blank" rel="noopener"' : '';
       bub = '<div class="bub media"><a class="file"' + link + '>' + icon + ' ' + esc(m.name || '파일') + ' <small>' + fmtSize(m.size) + '</small></a></div>';
     }
+    let del = '';
+    if(m.canDel) del = m.pending
+      ? '<button type="button" class="cdel" data-delpend="' + m.pendIdx + '" title="지우기">×</button>'
+      : '<button type="button" class="cdel" data-delmsg="' + esc(m.id) + '" title="지우기">×</button>';
     return '<div class="cmsg' + (m.mine ? ' me' : '') + (m.pending ? ' pending' : '') + '">' +
-      (m.mine ? '' : '<div class="who">' + esc(m.who || '-') + '</div>') + bub +
+      (m.mine ? '' : '<div class="who">' + esc(m.who || '-') + '</div>') +
+      '<div class="bwrap">' + bub + del + '</div>' +
       '<div class="t">' + (m.pending ? '저장하면 올라가요' : fmtTime(m.at)) + '</div></div>';
   }).join('');
   wrap.scrollTop = wrap.scrollHeight;
   wrap.onclick = function(e){
+    const d = e.target.closest('.cdel');
+    if(d){ e.stopPropagation(); deleteChatItem(d); return; }
     const im = e.target.closest('[data-open]');
     if(im && !im.closest('.pending')) window.open(im.dataset.open, '_blank', 'noopener');
   };
