@@ -457,7 +457,7 @@ function renderLegend(){
     html += '<span class="sw"><i style="background:' + BIRTHDAY_COLOR + '"></i>생일 🎁</span>';
     let inc = null;
     Object.keys(DayFlags).forEach(function(k){ if(DayFlags[k].incheon && !inc) inc = DayFlags[k]; });
-    if(inc) html += '<span class="sw"><i style="background:' + esc(inc.incheon_color || INCHEON_PALETTE[0]) + '"></i>' + esc(nameOf(inc.set_by_uid, inc.set_by_name || 'SM')) + '님 배경은 인천출근</span>';
+    if(inc) html += '<span class="sw"><i style="background:' + esc(inc.incheon_color || INCHEON_PALETTE[0]) + '"></i>' + '인천출근</span>';
   }
   document.getElementById('legendRow').innerHTML = html;
 }
