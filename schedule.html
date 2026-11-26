@@ -52,8 +52,10 @@
   .sch-day .d-num.sat{color:#2b6fd6;}
   .sch-day .d-num.sun,.sch-day .d-num.holiday{color:var(--danger);}
   .sch-day .d-hol{font-size:9px;color:var(--danger);margin-top:-2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:3px;margin-top:4px;overflow:hidden;}
-  .sch-chip{font-size:10.5px;padding:2px 5px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.5;color:var(--ink);}
+  /* 일정이 많거나 제목이 길어도 자르지 않고 아래로 계속 나열 - 칸이 커지면 같은 주(가로줄)의
+     칸들도 grid가 자동으로 같은 높이로 맞춘다 */
+  .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:3px;margin-top:4px;}
+  .sch-chip{font-size:10.5px;padding:2px 5px;border-radius:5px;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;cursor:pointer;line-height:1.45;color:var(--ink);}
   .sch-incheon-toggle{position:absolute;top:5px;right:5px;width:15px;height:15px;cursor:pointer;margin:0;}
 
   /* 일정 화면 - 저장은 오른쪽 위, 아래는 대화창 */
@@ -261,7 +263,10 @@ function pad2(n){ n = Math.max(0, Math.floor(Number(n) || 0)); return (n < 10 ? 
 function ymd(y, m, d){ return y + '-' + pad2(m) + '-' + pad2(d); }
 function daysInMonth(y, m){ return new Date(y, m, 0).getDate(); }
 function mmdd(s){ return (s || '').slice(5, 10); }
-function myName(){ return (Me && (Me.nickname || Me.name || Me.email)) || ''; }
+/** 화면 표기는 별명이 아니라 이름(실명). 저장할 때도 이름으로 남긴다. */
+function myName(){ return (Me && (Me.name || Me.nickname || Me.email)) || ''; }
+/** 이미 별명으로 저장된 예전 기록도 이름으로 보이게, 사람(uid)으로 이름을 다시 찾는다 */
+function nameOf(uid, fallback){ const u = uid && RosterByUid[uid]; return (u && u.name) || fallback || '-'; }
 function isSM(p){ return !!(p && p.role === 'admin'); }
 function leadNum(label){ const m = /^\s*(\d{1,4})/.exec(label || ''); return m ? parseInt(m[1], 10) : Infinity; }
 function fmtSize(b){ b = Number(b) || 0; return b >= 1048576 ? (b / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(b / 1024)) + 'KB'; }
@@ -452,7 +457,7 @@ function renderLegend(){
     html += '<span class="sw"><i style="background:' + BIRTHDAY_COLOR + '"></i>생일 🎁</span>';
     let inc = null;
     Object.keys(DayFlags).forEach(function(k){ if(DayFlags[k].incheon && !inc) inc = DayFlags[k]; });
-    if(inc) html += '<span class="sw"><i style="background:' + esc(inc.incheon_color || INCHEON_PALETTE[0]) + '"></i>' + esc(inc.set_by_name || 'SM') + '님 배경은 인천출근</span>';
+    if(inc) html += '<span class="sw"><i style="background:' + esc(inc.incheon_color || INCHEON_PALETTE[0]) + '"></i>' + esc(nameOf(inc.set_by_uid, inc.set_by_name || 'SM')) + '님 배경은 인천출근</span>';
   }
   document.getElementById('legendRow').innerHTML = html;
 }
@@ -620,7 +625,7 @@ function openEventModal(eventId, newDateStr){
   const ro = Modal.readOnly ? ' disabled' : '';
   let whereHtml = '';
   if(ev){
-    whereHtml = '<div class="ev-meta"><span>📌 ' + esc(whereLabel(ev)) + ' · ✍️ ' + esc(ev.author_name || '-') + '</span>' +
+    whereHtml = '<div class="ev-meta"><span>📌 ' + esc(whereLabel(ev)) + ' · ✍️ ' + esc(nameOf(ev.author_uid, ev.author_name)) + '</span>' +
       (Modal.readOnly ? '' : '<button type="button" class="link-del" id="evDeleteBtn">🗑 삭제</button>') + '</div>' +
       (Modal.readOnly ? '<div class="ev-meta">공통일정은 SM만 수정할 수 있어요. 대화는 남길 수 있어요.</div>' : '');
   } else if(targets.length > 1){
@@ -971,7 +976,7 @@ async function refreshChat(force){
   }
   if(!Modal || !Modal.ev || Modal.ev.id !== eventId) return;
   renderChatList(rows.map(function(r){
-    return { id: r.id, canDel: r.uid === Me.id || isSM(Me), mine: r.uid === Me.id, who: r.author_name, at: r.created_at, message: r.message,
+    return { id: r.id, canDel: r.uid === Me.id || isSM(Me), mine: r.uid === Me.id, who: nameOf(r.uid, r.author_name), at: r.created_at, message: r.message,
       name: r.file_name, type: r.file_type, size: r.file_size, url: r.file_path ? (urls[r.file_path] || '') : null };
   }));
 }
@@ -1154,7 +1159,11 @@ function wireUi(){
       const canvas = await html2canvas(document.getElementById('calendarCapture'), {
         backgroundColor: '#ffffff', scale: 2,
         ignoreElements: function(el){ return el.classList && el.classList.contains('sch-incheon-toggle'); },
-        onclone: function(doc){ const t = doc.getElementById('capTitle'); if(t) t.style.display = 'block'; }
+        onclone: function(doc){
+          const t = doc.getElementById('capTitle'); if(t) t.style.display = 'block';
+          // 이미지에는 오늘 표시(굵은 테두리)를 넣지 않는다
+          doc.querySelectorAll('.sch-day.is-today').forEach(function(el){ el.classList.remove('is-today'); });
+        }
       });
       const link = document.createElement('a');
       link.download = '일정표_' + ViewYear + '-' + pad2(ViewMonth) + '.png';
