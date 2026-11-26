@@ -138,6 +138,27 @@
   .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;font-family:inherit;}
   .sch-btn-sm:hover{border-color:var(--navy-600);}
   .sch-btn-sm.danger{color:var(--danger);}
+  /* ---- PC 달력: 구글 캘린더/타임트리처럼 일정 글씨를 더 크고 굵게, 왼쪽에 진한 색 줄.
+         날짜 칸도 조금 넉넉하게. (휴대폰 화면은 아래 모바일 설정을 그대로 씀) ---- */
+  @media (min-width:761px){
+    .sch-weekdays{font-size:13.5px;padding-bottom:10px;}
+    .sch-grid{gap:8px;}
+    .sch-day{min-height:124px;padding:8px 8px 9px;border-radius:12px;}
+    .sch-day .d-num{font-size:14px;}
+    .sch-day .d-hol{font-size:10.5px;margin-top:1px;}
+    .sch-day .d-items{gap:4px;margin-top:6px;}
+    .sch-chip{font-size:12.5px;font-weight:600;line-height:1.4;padding:3px 7px 3px 9px;border-radius:6px;color:#1b2a3d;
+      box-shadow:inset 3px 0 0 rgba(15,37,69,.22);}
+    .sch-legend{font-size:13px;gap:14px;}
+    .sch-legend .sw i{width:13px;height:13px;}
+    /* 인천출근 체크박스(SM): 평소엔 옅게, 마우스를 올리거나 체크하면 진하게 - 달력이 덜 어수선하게 */
+    .sch-incheon-toggle{width:14px;height:14px;top:9px;right:9px;opacity:.28;transition:opacity .12s;}
+    .sch-day:hover .sch-incheon-toggle,.sch-incheon-toggle:checked{opacity:1;}
+  }
+  @media (min-width:761px) and (hover:hover){
+    .sch-chip:hover{box-shadow:inset 3px 0 0 rgba(15,37,69,.35), 0 0 0 1.5px rgba(15,37,69,.45);}
+  }
+
   /* 일정 창이 열려 있으면 뒤 화면은 스크롤되지 않게(창 안에서만 스크롤) */
   html.modal-open, html.modal-open body{overflow:hidden;}
   html, body{overflow-x:clip;}
