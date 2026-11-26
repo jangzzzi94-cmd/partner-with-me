@@ -163,7 +163,9 @@
     #exportImgBtn .tx-long{display:none;}
     .sch-grid-wrap{border:none;border-radius:0;background:transparent;padding:0;}
     .sch-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;padding:0 10px 4px;}
-    .sch-inner{min-width:819px;}
+    /* 일정 칸 가로폭 113px 고정 - 이보다 긴 일정은 뒤를 "…"로 생략 */
+    .sch-inner{width:max-content;}
+    .sch-weekdays,.sch-grid{grid-template-columns:repeat(7,113px);}
     .sch-weekdays{font-size:12px;padding:4px 0 6px;}
     .sch-grid{gap:5px;}
     .sch-day{min-height:96px;padding:5px 4px 6px;border-radius:9px;}

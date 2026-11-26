@@ -6,6 +6,13 @@
 <title>회원 관리 | With Partners</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* 관리 항목 칸 - 설명 없이 작게(아이콘+제목+펼치기만). 펼치면 그 칸만 넓게 쓴다 */
+  .admin-inner-compact > .admin-section-card{padding:14px 16px;border-radius:12px;box-shadow:none;}
+  .admin-inner-compact > .admin-section-card > .icon{font-size:19px !important;margin-bottom:4px !important;}
+  .admin-inner-compact > .admin-section-card > h2{font-size:14px !important;margin:0 0 10px !important;}
+  .admin-inner-compact > .admin-section-card > .btn-ghost{padding:6px 12px;font-size:12.5px;}
+</style>
 </head>
 <body>
 <div class="navbar">
@@ -27,12 +34,10 @@
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">⚙️</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">관리자 설정</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드에 보이는 기능 카드(병력정리, 보장분석표 등)의 순서를 바꿉니다. 저장하면 모든 회원의 대시보드에 바로 반영됩니다.</p>
   <button type="button" class="btn-ghost" id="toggleAdminSettingsSectionBtn">펼치기</button>
 
   <div id="adminSettingsSectionBody" style="display:none;margin-top:16px;">
     <h3 style="font-size:14px;margin:0 0 6px;color:var(--navy-950);">대시보드 카드 순서</h3>
-    <p class="sub" style="margin:0 0 12px;font-size:12.5px;">위에 있는 카드일수록 대시보드에서 먼저(왼쪽 위부터) 보입니다. ▲ ▼ 버튼으로 옮긴 뒤 「순서 저장」을 눌러주세요.</p>
     <div id="dashOrderRows">불러오는 중...</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
       <button type="button" class="btn-primary" id="saveDashOrderBtn" style="width:auto;padding:10px 18px;">순서 저장</button>
@@ -42,12 +47,10 @@
 
     <div style="border-top:1px solid var(--line);margin-top:20px;padding-top:18px;">
       <h3 style="font-size:14px;margin:0 0 4px;color:var(--navy-950);">관리 항목</h3>
-      <p class="sub" style="margin:0 0 14px;font-size:12.5px;">이용 규칙, Market J, 누적포인트 상품, 표지 스타일, 포인트 로그를 여기서 관리합니다. 각 항목의 「펼치기」를 눌러 사용하세요.</p>
-      <div id="adminInnerGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+      <div id="adminInnerGrid" class="admin-inner-compact" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">📋</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">이용 규칙 관리</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드의 "규칙" 버튼을 눌렀을 때 회원에게 보여지는 이용 규칙/안내 목록입니다.</p>
   <button type="button" class="btn-ghost" id="toggleSiteRulesSectionBtn">펼치기</button>
 
   <div id="siteRulesSectionBody" style="display:none;margin-top:16px;">
@@ -71,7 +74,6 @@
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">🛒</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">Market J 상품 관리</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드의 "Market J" 버튼을 눌렀을 때 회원에게 보여지는 상품 목록입니다. 몇 포인트로 살 수 있는지 여기서 정하면 바로 반영됩니다.</p>
   <button type="button" class="btn-ghost" id="toggleMarketItemsSectionBtn">펼치기</button>
 
   <div id="marketItemsSectionBody" style="display:none;margin-top:16px;">
@@ -99,7 +101,6 @@
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">🧾</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">Market J 구매 내역</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">회원이 Market J에서 상품을 구매하면 여기에 기록됩니다. 처리가 끝나면 "완료 처리"를 눌러주세요.</p>
   <button type="button" class="btn-ghost" id="toggleMarketOrdersSectionBtn">펼치기</button>
 
   <div id="marketOrdersSectionBody" style="display:none;margin-top:16px;">
@@ -124,7 +125,6 @@
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">🎁</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">누적포인트 상품 관리</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">대시보드 누적 포인트 순위 카드의 "누적포인트 상품" 버튼을 눌렀을 때 회원에게 보여지는 안내 문구입니다. 특정 누적 포인트를 달성하면 무엇을 주는지 자유롭게 적어주세요.</p>
   <button type="button" class="btn-ghost" id="toggleCumulativeRewardSectionBtn">펼치기</button>
 
   <div id="cumulativeRewardSectionBody" style="display:none;margin-top:16px;">
@@ -140,11 +140,9 @@
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">🎨</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">보장분석표 표지 스타일 관리</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">보장분석표 엑셀 다운로드 시 첫 페이지(표지)에 사용할 스타일을 여러 개 등록할 수 있습니다.</p>
   <button type="button" class="btn-ghost" id="toggleStyleSectionBtn">펼치기</button>
 
   <div id="styleSectionBody" style="display:none;margin-top:16px;">
-    <p class="sub" style="margin:0 0 16px;">회원이 프로필에서 스타일을 고르지 않으면 아래 "기본" 스타일이 자동으로 사용됩니다.</p>
 
     <div id="styleListWrap" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:22px;">불러오는 중...</div>
 
@@ -178,7 +176,6 @@
 <div class="auth-card admin-section-card" style="max-width:100%;">
   <div class="icon" style="font-size:24px;margin-bottom:10px;">💰</div>
   <h2 style="font-size:15px;margin:0 0 6px;color:var(--navy-950);">포인트 지급/사용 로그</h2>
-  <p class="sub" style="margin:0 0 14px;font-size:12.5px;">관리자가 지급한 포인트와 회원이 병력정리/보장분석표 등을 이용하며 차감된 포인트 내역입니다(최근 200건, 최신순).</p>
   <button type="button" class="btn-ghost" id="togglePointLogBtn">펼치기</button>
 
   <div id="pointLogSectionBody" style="display:none;margin-top:16px;">
@@ -1470,15 +1467,36 @@ document.getElementById("logoutLink").addEventListener("click", async (e)=>{
    dashboard.html이 같은 값을 읽어 카드를 그 순서로 보여준다.
    ========================================================================= */
 const DASH_ORDER_KEY = "dashboard_card_order";
-const DASH_CARDS = [
+// 카드 목록은 dashboard.html에 실제로 있는 카드(.feature-card[data-card-id])를 그대로 읽어 온다.
+// 그래서 대시보드에 카드를 새로 추가하면 여기 순서 목록에도 자동으로 나타난다(따로 고칠 필요 없음).
+// 아래는 dashboard.html을 못 읽었을 때만 쓰는 예비 목록이다.
+let DASH_CARDS = [
   { id: "history",    icon: "📋",     name: "병력정리" },
   { id: "coverage",   icon: "📊",     name: "보장분석표" },
   { id: "family",     icon: "👨‍👩‍👧‍👦", name: "가족보장분석" },
   { id: "confirm",    icon: "✅",     name: "3종확인서" },
-  { id: "attendance", icon: "🗓️",    name: "팀 벌금" },
   { id: "customers",  icon: "👥",     name: "고객리스트" },
+  { id: "attendance", icon: "🗓️",    name: "팀 벌금" },
+  { id: "schedule",   icon: "📅",     name: "일정" },
 ];
 let dashOrder = DASH_CARDS.map(function(c){ return c.id; });
+
+async function loadDashCards(){
+  try{
+    const res = await fetch("dashboard.html", { cache: "no-cache" });
+    if(!res.ok) return;
+    const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+    const cards = [];
+    doc.querySelectorAll(".feature-card[data-card-id]").forEach(function(el){
+      const id = el.getAttribute("data-card-id");
+      const nameEl = el.querySelector("h3");
+      const iconEl = el.querySelector(".icon");
+      if(!id || !nameEl || cards.some(function(c){ return c.id === id; })) return;
+      cards.push({ id: id, icon: iconEl ? iconEl.textContent.trim() : "", name: nameEl.textContent.trim() });
+    });
+    if(cards.length) DASH_CARDS = cards;
+  }catch(e){ console.error("대시보드 카드 목록 읽기 실패", e); }
+}
 
 function normalizeDashOrder(saved){
   const ids = DASH_CARDS.map(function(c){ return c.id; });
@@ -1528,6 +1546,7 @@ function moveDashCard(i, delta){
   dashOrderMsg("순서를 바꿨어요. 「순서 저장」을 눌러야 대시보드에 반영됩니다.", true);
 }
 async function loadDashboardOrder(){
+  await loadDashCards();
   const { data, error } = await supabaseClient.from("site_settings").select("value").eq("key", DASH_ORDER_KEY).maybeSingle();
   if(error){
     console.error(error);
