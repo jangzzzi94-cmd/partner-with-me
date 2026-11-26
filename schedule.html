@@ -15,18 +15,33 @@
   .sch-nav button{background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:15px;color:var(--navy-900);}
   .sch-nav button:hover{border-color:var(--navy-600);}
   #monthLabel{font-weight:700;font-size:16px;color:var(--navy-950);min-width:108px;text-align:center;}
-  .sch-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-  .sch-tab{padding:7px 14px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12.5px;cursor:pointer;color:var(--muted);font-weight:600;}
-  .sch-tab.active{background:var(--navy-900);color:#fff;border-color:var(--navy-900);}
+
+  /* 맨 위 캘린더 켜기/끄기 - 파란색이면 켜진 것 */
+  .sch-cals{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .sch-tab{padding:8px 15px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;color:var(--muted);font-weight:700;font-family:inherit;}
+  .sch-tab:hover{border-color:#2b6fd6;}
+  .sch-tab.on{background:#2b6fd6;color:#fff;border-color:#2b6fd6;}
+  .sch-mem-wrap{position:relative;}
+  .sch-mem-pop{display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:50;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px rgba(15,37,69,.18);width:260px;max-height:340px;overflow-y:auto;padding:8px;}
+  .sch-mem-pop.open{display:block;}
+  .sch-mem-acts{display:flex;justify-content:space-between;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;font-size:12px;}
+  .sch-mem-acts button{background:none;border:none;color:var(--navy-600);cursor:pointer;font-size:12px;padding:0;font-family:inherit;}
+  .sch-mem-row{display:flex;align-items:center;gap:8px;padding:8px 6px;border-radius:8px;cursor:pointer;font-size:13.5px;}
+  .sch-mem-row:hover{background:var(--navy-100);}
+  .sch-mem-row input{margin:0;width:16px;height:16px;}
+  .sch-mem-row .gr{margin-left:auto;font-size:11px;color:var(--muted);}
+
   .sch-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:12px;color:var(--muted);align-items:center;}
   .sch-legend .sw{display:inline-flex;align-items:center;gap:5px;}
   .sch-legend .sw i{width:12px;height:12px;border-radius:4px;display:inline-block;border:1px solid rgba(0,0,0,.08);}
   .sch-grid-wrap{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;}
+  .cap-title{display:none;font-size:18px;font-weight:800;color:var(--navy-950);margin:0 0 10px;}
   .sch-weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:12.5px;font-weight:700;color:var(--navy-800);padding-bottom:8px;}
   .sch-weekdays .sat{color:#2b6fd6;}
   .sch-weekdays .sun{color:var(--danger);}
   .sch-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-  .sch-day{min-height:112px;border:1px solid var(--line);border-radius:10px;padding:6px;position:relative;background:#fff;display:flex;flex-direction:column;}
+  .sch-day{min-height:112px;border:1px solid var(--line);border-radius:10px;padding:6px;position:relative;background:#fff;display:flex;flex-direction:column;cursor:pointer;transition:border-color .12s;}
+  .sch-day:hover{border-color:var(--navy-600);}
   .sch-day.other-month{opacity:.38;}
   .sch-day.is-today{border-color:var(--navy-600);box-shadow:0 0 0 1px var(--navy-600) inset;}
   .sch-day .d-num{font-size:12.5px;font-weight:700;color:var(--navy-900);padding-right:18px;}
@@ -35,17 +50,41 @@
   .sch-day .d-hol{font-size:9px;color:var(--danger);margin-top:-2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .sch-day .d-items{flex:1;display:flex;flex-direction:column;gap:3px;margin-top:4px;overflow:hidden;}
   .sch-chip{font-size:10.5px;padding:2px 5px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;line-height:1.5;color:var(--ink);}
-  .sch-addbtn{font-size:10.5px;color:var(--muted);background:transparent;border:none;cursor:pointer;align-self:flex-start;padding:2px 0;margin-top:2px;}
-  .sch-addbtn:hover{color:var(--navy-700);}
+  .sch-chip .own{font-weight:800;opacity:.6;margin-right:3px;}
   .sch-incheon-toggle{position:absolute;top:5px;right:5px;width:15px;height:15px;cursor:pointer;margin:0;}
-  .field select{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;font-family:inherit;}
-  .sch-comments{margin-top:16px;border-top:1px solid var(--line);padding-top:12px;}
+
+  /* 일정 추가/수정 화면 */
+  .ev-title{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:9px;font-size:16px;font-weight:600;font-family:inherit;}
+  .ev-title:focus{outline:none;border-color:var(--navy-600);box-shadow:0 0 0 3px rgba(43,81,144,.12);}
+  .ev-hint{font-size:11.5px;color:var(--muted);margin-top:5px;}
+  .ev-sec{margin-top:16px;}
+  .ev-sec-t{font-size:13px;font-weight:600;color:var(--navy-900);margin-bottom:7px;}
+  .kind-row{display:flex;align-items:flex-start;gap:8px;}
+  .kind-btns{display:flex;flex-wrap:wrap;gap:6px;flex:1;}
+  .kind-btn{border:2px solid transparent;border-radius:8px;padding:6px 11px;font-size:13px;cursor:pointer;color:var(--ink);font-weight:600;font-family:inherit;line-height:1.3;}
+  .kind-btn.sel{border-color:var(--navy-900);}
+  .kind-btn.sel::before{content:'✓ ';}
+  .kind-btn .x{margin-left:6px;opacity:.45;font-weight:400;}
+  .kind-btn .x:hover{opacity:1;}
+  .kind-btn:disabled{cursor:default;}
+  .kind-add{flex:none;border:1px dashed #b7c2d1;background:#fff;color:var(--muted);border-radius:8px;padding:5px 8px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+  .kind-add:hover{border-color:var(--navy-600);color:var(--navy-800);}
+  .kind-form{display:none;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--paper);gap:6px;align-items:center;flex-wrap:wrap;}
+  .kind-form.open{display:flex;}
+  .kind-form input[type=text]{flex:1;min-width:110px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;}
+  .kind-form input[type=color]{width:38px;height:34px;padding:2px;border:1px solid var(--line);border-radius:7px;background:#fff;cursor:pointer;}
+  .tgt-btn{background:#eef2f8;}
+  .ev-meta{font-size:12px;color:var(--muted);margin-top:12px;}
+  .ev-acts{display:flex;gap:8px;margin-top:16px;}
+  .sch-comments{margin-top:18px;border-top:1px solid var(--line);padding-top:12px;}
   .sch-comment{font-size:12.5px;padding:7px 0;border-bottom:1px solid var(--line);}
   .sch-comment:last-child{border-bottom:none;}
   .sch-comment .nm{font-weight:700;color:var(--navy-800);}
   .sch-comment .msg{margin-top:2px;white-space:pre-wrap;word-break:break-word;}
-  .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;}
+  .sch-btn-sm{padding:8px 13px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;cursor:pointer;flex:none;font-family:inherit;}
   .sch-btn-sm:hover{border-color:var(--navy-600);}
+  .sch-btn-sm.danger{color:var(--danger);}
+  .sch-btn-sm.danger:hover{border-color:var(--danger);}
   @media (max-width:760px){
     .sch-day{min-height:88px;padding:4px;}
     .sch-chip{font-size:9.5px;}
@@ -60,7 +99,7 @@
 </div>
 <div class="sch-wrap">
   <h1>📅 일정표</h1>
-  <p class="sub">타임트리처럼 팀 일정을 함께 확인하고 기록하세요</p>
+  <p class="sub">날짜를 누르면 일정을 추가하고, 일정을 누르면 수정·삭제·메모할 수 있어요</p>
 
   <div id="approvalNotice" style="display:none;" class="auth-card">승인 후 이용할 수 있습니다.</div>
 
@@ -75,10 +114,18 @@
       <button type="button" id="exportImgBtn" class="btn-ghost">🖼️ 이미지로 저장</button>
     </div>
 
-    <div class="sch-tabs" id="ownerTabs"></div>
-    <div class="sch-legend" id="legendRow"></div>
+    <div class="sch-cals" id="calToggles">
+      <button type="button" class="sch-tab" data-cal="common">📢 공통일정</button>
+      <button type="button" class="sch-tab" data-cal="mine">🙋 내 일정</button>
+      <div class="sch-mem-wrap" id="memWrap" style="display:none;">
+        <button type="button" class="sch-tab" id="memBtn">👥 팀원 일정 ▾</button>
+        <div class="sch-mem-pop" id="memPop"></div>
+      </div>
+    </div>
 
     <div class="sch-grid-wrap" id="calendarCapture">
+      <div class="cap-title" id="capTitle"></div>
+      <div class="sch-legend" id="legendRow"></div>
       <div class="sch-weekdays">
         <span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span><span class="sun">일</span>
       </div>
@@ -88,7 +135,7 @@
 </div>
 
 <div id="eventModalOverlay" class="modal-overlay" style="display:none">
-  <div class="modal-card" style="max-width:440px;">
+  <div class="modal-card" style="max-width:460px;">
     <div class="modal-header"><h2 id="eventModalTitle">일정</h2><button type="button" class="modal-close" id="eventModalClose" aria-label="닫기">&times;</button></div>
     <div class="modal-body" id="eventModalBody"></div>
   </div>
@@ -98,11 +145,14 @@
 <script>
 /* ============================================================================
    일정표 (타임트리 느낌의 팀 공유 캘린더)
-   - 개인 일정: 본인 + 담당 TL/SM + (역방향으로) 그 TL/SM을 관리자로 둔 팀원까지
-     서로 보고 고칠 수 있다(attendance 팀벌금 구조의 grade/tl_members를 그대로 재사용).
+   - 맨 위 "공통일정 / 내 일정 / 팀원 일정"을 켜고 끄면(파란색 = 켜짐) 켜진 것들이
+     한 달력에 겹쳐서 보인다. 팀원 일정은 버튼을 누르면 목록에서 골라 켠다.
+   - 개인 일정 권한: 본인 + 담당 TL/SM + (역방향으로) 그 TL/SM을 관리자로 둔 팀원까지
+     서로 보고 고칠 수 있다(팀벌금의 grade/tl_members 구조 재사용).
    - 공통일정: SM만 쓰고 지우지만, 보기는 전체 공개.
-   - 생일: attendance_profiles.birth(이미 "생일 달 지급" 개직 기능이 쓰는 생년월일)에서
-     매년 월/일만 뽑아 화면에서 바로 계산한다 - 따로 저장하지 않는 가상 일정이다.
+   - 팀벌금에서 숨김/비활성화한 사람은 팀원 목록·생일에서 빠진다(본인 일정은 그대로 씀).
+   - 순서: 제목 맨 앞의 숫자("09 장진수")를 그대로 읽어 숫자 순으로 나열한다.
+   - 생일: attendance_profiles.birth에서 매년 월/일만 뽑아 화면에서 계산(저장 안 함).
    ============================================================================ */
 
 const PRESET_TYPES = [
@@ -113,15 +163,19 @@ const PRESET_TYPES = [
 ];
 const BIRTHDAY_COLOR = '#f9c9e0';
 const INCHEON_PALETTE = ['#e3ddf7', '#d7f2ea', '#f7e3cf', '#dde3f5', '#ececec'];
+const NEW_KIND_SUGGEST = ['#e3ddf7', '#d7f2ea', '#f7e3cf', '#c9eef2', '#e8d9c7', '#dcdcf5'];
+const ACTIVE_KEY = 'wp_schedule_cals_v1';
 
 let Me = null;
 let Roster = [];
 let RosterByUid = {};
 let Holidays = {};
 let ViewYear = 0, ViewMonth = 0;
-let ViewOwnerUid = null;
+let Active = { common: true, mine: true, members: [] };
 let Events = [];
 let DayFlags = {};
+let MyCategories = [];
+let CategoriesReady = true;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 function pad2(n){ n = Math.max(0, Math.floor(Number(n) || 0)); return (n < 10 ? '0' : '') + n; }
@@ -130,20 +184,20 @@ function daysInMonth(y, m){ return new Date(y, m, 0).getDate(); }
 function mmdd(s){ return (s || '').slice(5, 10); }
 function myName(){ return (Me && (Me.nickname || Me.name || Me.email)) || ''; }
 function isSM(p){ return !!(p && p.role === 'admin'); }
+/** 제목 맨 앞의 숫자 - "09 장진수" -> 9. 숫자가 없으면 맨 뒤로 가도록 Infinity */
+function leadNum(label){ const m = /^\s*(\d{1,4})/.exec(label || ''); return m ? parseInt(m[1], 10) : Infinity; }
 
 function fmtDateKr(dateStr){
-  const parts = dateStr.split('-').map(Number);
-  const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(parts[0], parts[1] - 1, parts[2]).getDay()];
-  return parts[0] + '.' + pad2(parts[1]) + '.' + pad2(parts[2]) + ' (' + dow + ')';
+  const p = dateStr.split('-').map(Number);
+  const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(p[0], p[1] - 1, p[2]).getDay()];
+  return p[0] + '.' + pad2(p[1]) + '.' + pad2(p[2]) + ' (' + dow + ')';
 }
 function fmtTime(iso){
-  try{
-    const d = new Date(iso);
-    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-  }catch(e){ return ''; }
+  try{ const d = new Date(iso); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  catch(e){ return ''; }
 }
 
-/* ---------------------------- 권한 ---------------------------- */
+/* ---------------------------- 권한/명단 ---------------------------- */
 function myRosterEntry(){ return RosterByUid[Me.id] || null; }
 function canAccess(ownerUid){
   if(!ownerUid) return true;
@@ -156,140 +210,179 @@ function canAccess(ownerUid){
   if(owner && (owner.tlMembers || []).indexOf(Me.id) >= 0) return true;
   return false;
 }
+/** 팀원 일정 목록에 띄울 사람 - 숨김/비활성화된 사람은 빠진다 */
+function teammates(){
+  return Roster.filter(function(u){ return u.uid !== Me.id && !u.hidden && !u.disabled && canAccess(u.uid); })
+    .sort(function(a, b){ return (a.name || '').localeCompare(b.name || '', 'ko'); });
+}
+
+/* ---------------------------- 켜기/끄기 상태 ---------------------------- */
+function loadActive(){
+  try{
+    const v = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
+    if(v && typeof v === 'object'){
+      Active.common = v.common !== false;
+      Active.mine = v.mine !== false;
+      Active.members = Array.isArray(v.members) ? v.members : [];
+    }
+  }catch(e){}
+  const allowed = {};
+  teammates().forEach(function(u){ allowed[u.uid] = true; });
+  Active.members = Active.members.filter(function(uid){ return allowed[uid]; });
+}
+function saveActive(){ try{ localStorage.setItem(ACTIVE_KEY, JSON.stringify(Active)); }catch(e){} }
+function activeOwners(){
+  const o = {};
+  if(Active.mine) o[Me.id] = true;
+  Active.members.forEach(function(uid){ o[uid] = true; });
+  return o;
+}
 
 /* ---------------------------- 데이터 불러오기 ---------------------------- */
 async function loadRoster(){
   const [namesRes, attRes] = await Promise.all([
     supabaseClient.rpc('get_team_names'),
-    supabaseClient.from('attendance_profiles').select('uid, grade, tl_members, birth, hidden')
+    supabaseClient.from('attendance_profiles').select('uid, grade, tl_members, birth, hidden, disabled')
   ]);
   const attByUid = {};
   (attRes.data || []).forEach(function(r){ attByUid[r.uid] = r; });
   Roster = (namesRes.data || []).map(function(n){
     const a = attByUid[n.id] || {};
     return {
-      uid: n.id,
-      name: n.name || '',
-      role: n.role,
+      uid: n.id, name: n.name || '', role: n.role,
       grade: n.role === 'admin' ? 'SM' : (a.grade || '후보자'),
       tlMembers: Array.isArray(a.tl_members) ? a.tl_members : [],
-      birth: a.birth || '',
-      hidden: !!a.hidden
+      birth: a.birth || '', hidden: !!a.hidden, disabled: !!a.disabled
     };
   });
   RosterByUid = {};
   Roster.forEach(function(u){ RosterByUid[u.uid] = u; });
 }
-
 async function loadHolidays(){
   const { data, error } = await supabaseClient.from('attendance_holidays').select('id, data');
   Holidays = {};
   if(error) return;
   (data || []).forEach(function(r){ if(r.data && r.data.name) Holidays[r.id] = r.data.name; });
 }
+async function loadCategories(){
+  const { data, error } = await supabaseClient.from('schedule_categories').select('*').eq('owner_uid', Me.id).order('created_at', { ascending: true });
+  if(error){ CategoriesReady = false; MyCategories = []; return; }
+  CategoriesReady = true;
+  MyCategories = data || [];
+}
 
 function gridDates(){
   const first = new Date(ViewYear, ViewMonth - 1, 1);
-  const lead = (first.getDay() + 6) % 7; // 월요일 시작 기준 앞쪽 공백 칸 수
-  const start = new Date(ViewYear, ViewMonth - 1, 1 - lead);
+  const lead = (first.getDay() + 6) % 7; // 월요일 시작
   const total = Math.ceil((lead + daysInMonth(ViewYear, ViewMonth)) / 7) * 7;
   const list = [];
-  for(let i = 0; i < total; i++){
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    list.push(d);
-  }
+  for(let i = 0; i < total; i++) list.push(new Date(ViewYear, ViewMonth - 1, 1 - lead + i));
   return list;
 }
 function visibleRange(){
   const list = gridDates();
-  const toStr = function(d){ return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); };
-  return { start: toStr(list[0]), end: toStr(list[list.length - 1]) };
+  const s = function(d){ return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); };
+  return { start: s(list[0]), end: s(list[list.length - 1]) };
 }
-
 async function loadEvents(){
-  const range = visibleRange();
-  const { data, error } = await supabaseClient
-    .from('schedule_events')
-    .select('*')
-    .gte('event_date', range.start)
-    .lte('event_date', range.end)
-    .order('event_date', { ascending: true })
-    .order('order_num', { ascending: true });
+  const r = visibleRange();
+  const { data, error } = await supabaseClient.from('schedule_events').select('*')
+    .gte('event_date', r.start).lte('event_date', r.end).order('event_date', { ascending: true });
   Events = error ? [] : (data || []);
 }
 async function loadDayFlags(){
-  const range = visibleRange();
-  const { data, error } = await supabaseClient
-    .from('schedule_day_flags')
-    .select('*')
-    .gte('event_date', range.start)
-    .lte('event_date', range.end);
+  const r = visibleRange();
+  const { data, error } = await supabaseClient.from('schedule_day_flags').select('*')
+    .gte('event_date', r.start).lte('event_date', r.end);
   DayFlags = {};
   if(error) return;
-  (data || []).forEach(function(r){ DayFlags[r.event_date] = r; });
+  (data || []).forEach(function(x){ DayFlags[x.event_date] = x; });
 }
 
 function birthdaysFor(dateStr){
+  if(!Active.common) return [];
   const target = mmdd(dateStr);
-  return Roster.filter(function(u){ return u.birth && !u.hidden && mmdd(u.birth) === target; })
-    .map(function(u){
-      return { id: null, virtual: true, is_common: true, event_date: dateStr, order_num: -1,
-        kind: '생일', label: u.name + '님 생일', color: BIRTHDAY_COLOR, author_name: '' };
-    });
+  return Roster.filter(function(u){ return u.birth && !u.hidden && !u.disabled && mmdd(u.birth) === target; })
+    .map(function(u){ return { id: null, virtual: true, is_common: true, event_date: dateStr, kind: '생일', label: u.name + '님 생일', color: BIRTHDAY_COLOR }; });
 }
 function dayEventsFor(dateStr){
-  const real = Events.filter(function(e){ return e.event_date === dateStr && (e.is_common || e.owner_uid === ViewOwnerUid); });
-  const list = birthdaysFor(dateStr).concat(real);
-  list.sort(function(a, b){ return (a.order_num || 0) - (b.order_num || 0); });
-  return list;
-}
-function nextOrderNum(dateStr){
-  const items = dayEventsFor(dateStr).filter(function(e){ return !e.virtual; });
-  if(!items.length) return 0;
-  let mx = 0;
-  items.forEach(function(e){ if((e.order_num || 0) > mx) mx = e.order_num; });
-  return Math.min(99, mx + 1);
+  const owners = activeOwners();
+  const real = Events.filter(function(e){
+    if(e.event_date !== dateStr) return false;
+    return e.is_common ? Active.common : !!owners[e.owner_uid];
+  });
+  real.sort(function(a, b){
+    const na = leadNum(a.label), nb = leadNum(b.label);
+    if(na !== nb) return na < nb ? -1 : 1;
+    return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+  });
+  return birthdaysFor(dateStr).concat(real);
 }
 
 /* ---------------------------- 렌더링 ---------------------------- */
-function renderMonthLabel(){ document.getElementById('monthLabel').textContent = ViewYear + '년 ' + ViewMonth + '월'; }
+function renderMonthLabel(){
+  document.getElementById('monthLabel').textContent = ViewYear + '년 ' + ViewMonth + '월';
+  document.getElementById('capTitle').textContent = ViewYear + '년 ' + ViewMonth + '월 일정표';
+}
 
-function renderOwnerTabs(){
-  const list = Roster.filter(function(u){ return canAccess(u.uid); });
-  list.sort(function(a, b){
-    if(a.uid === Me.id) return -1;
-    if(b.uid === Me.id) return 1;
-    return (a.name || '').localeCompare(b.name || '', 'ko');
+function renderToggles(){
+  document.querySelectorAll('#calToggles [data-cal]').forEach(function(b){
+    b.classList.toggle('on', !!Active[b.dataset.cal]);
   });
-  document.getElementById('ownerTabs').innerHTML = list.map(function(u){
-    const label = u.uid === Me.id ? '내 일정' : (u.name + ' 님');
-    return '<button type="button" class="sch-tab' + (u.uid === ViewOwnerUid ? ' active' : '') + '" data-uid="' + u.uid + '">' + esc(label) + '</button>';
-  }).join('');
+  const list = teammates();
+  const wrap = document.getElementById('memWrap');
+  wrap.style.display = list.length ? '' : 'none';
+  const n = Active.members.length;
+  const memBtn = document.getElementById('memBtn');
+  memBtn.textContent = '👥 팀원 일정' + (n ? ' (' + n + ')' : '') + ' ▾';
+  memBtn.classList.toggle('on', n > 0);
+  const sel = {};
+  Active.members.forEach(function(uid){ sel[uid] = true; });
+  document.getElementById('memPop').innerHTML =
+    '<div class="sch-mem-acts"><button type="button" data-memall="1">전체 선택</button><button type="button" data-memall="0">전체 해제</button></div>' +
+    list.map(function(u){
+      return '<label class="sch-mem-row"><input type="checkbox" data-mem="' + u.uid + '"' + (sel[u.uid] ? ' checked' : '') + '>' +
+        '<span>' + esc(u.name) + '</span><span class="gr">' + esc(u.grade) + '</span></label>';
+    }).join('');
 }
 
 function renderLegend(){
   let html = PRESET_TYPES.map(function(t){ return '<span class="sw"><i style="background:' + t.color + '"></i>' + t.key + '</span>'; }).join('');
-  html += '<span class="sw"><i style="background:' + BIRTHDAY_COLOR + '"></i>생일 🎁 (자동)</span>';
-  let incheonEntry = null;
-  Object.keys(DayFlags).forEach(function(k){ if(DayFlags[k].incheon && !incheonEntry) incheonEntry = DayFlags[k]; });
-  if(incheonEntry){
-    html += '<span class="sw"><i style="background:' + esc(incheonEntry.incheon_color || INCHEON_PALETTE[0]) + '"></i>' + esc(incheonEntry.set_by_name || 'SM') + '님 배경은 인천출근</span>';
+  // 화면에 실제로 보이는 일정 중 직접 만든 종류도 범례에 같이 표시
+  const seen = {};
+  PRESET_TYPES.forEach(function(t){ seen[t.key] = true; });
+  const owners = activeOwners();
+  Events.forEach(function(e){
+    const visible = e.is_common ? Active.common : !!owners[e.owner_uid];
+    if(!visible || !e.kind || seen[e.kind]) return;
+    seen[e.kind] = true;
+    html += '<span class="sw"><i style="background:' + esc(e.color) + '"></i>' + esc(e.kind) + '</span>';
+  });
+  if(Active.common){
+    html += '<span class="sw"><i style="background:' + BIRTHDAY_COLOR + '"></i>생일 🎁</span>';
+    let inc = null;
+    Object.keys(DayFlags).forEach(function(k){ if(DayFlags[k].incheon && !inc) inc = DayFlags[k]; });
+    if(inc) html += '<span class="sw"><i style="background:' + esc(inc.incheon_color || INCHEON_PALETTE[0]) + '"></i>' + esc(inc.set_by_name || 'SM') + '님 배경은 인천출근</span>';
   }
   document.getElementById('legendRow').innerHTML = html;
 }
 
 function renderChip(e){
-  if(e.kind === '생일'){
-    return '<div class="sch-chip" style="background:' + BIRTHDAY_COLOR + ';font-weight:600;">🎁 ' + esc(e.label) + '</div>';
+  if(e.virtual) return '<div class="sch-chip" style="background:' + BIRTHDAY_COLOR + ';font-weight:600;" data-bday="1">🎁 ' + esc(e.label) + '</div>';
+  let own = '';
+  if(!e.is_common && e.owner_uid !== Me.id){
+    const o = RosterByUid[e.owner_uid];
+    own = '<span class="own">' + esc(o ? o.name : '?') + '</span>';
   }
-  return '<div class="sch-chip" style="background:' + esc(e.color) + '" data-id="' + e.id + '">' + pad2(e.order_num) + ' ' + esc(e.label) + '</div>';
+  return '<div class="sch-chip" style="background:' + esc(e.color) + '" data-id="' + e.id + '">' + own + esc(e.label) + '</div>';
 }
 
 function renderGrid(){
   const list = gridDates();
   const now = new Date();
   const todayStr = ymd(now.getFullYear(), now.getMonth() + 1, now.getDate());
-  const canToggleIncheon = isSM(Me);
+  const showIncheon = Active.common;
+  const canToggleIncheon = isSM(Me) && Active.common;
   let html = '';
   list.forEach(function(d){
     const dateStr = ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
@@ -298,126 +391,232 @@ function renderGrid(){
     const holName = Holidays[dateStr];
     const numClass = holName ? 'holiday' : (dow0 === 0 ? 'sun' : (dow0 === 6 ? 'sat' : ''));
     const flag = DayFlags[dateStr];
-    const bgStyle = (flag && flag.incheon) ? (' style="background:' + esc(flag.incheon_color || INCHEON_PALETTE[0]) + '"') : '';
-    const items = dayEventsFor(dateStr).map(renderChip).join('');
-    html += '<div class="sch-day' + (inMonth ? '' : ' other-month') + (dateStr === todayStr ? ' is-today' : '') + '"' + bgStyle + ' data-date="' + dateStr + '">' +
+    const bg = (showIncheon && flag && flag.incheon) ? (' style="background:' + esc(flag.incheon_color || INCHEON_PALETTE[0]) + '"') : '';
+    html += '<div class="sch-day' + (inMonth ? '' : ' other-month') + (dateStr === todayStr ? ' is-today' : '') + '"' + bg + ' data-date="' + dateStr + '">' +
       (canToggleIncheon ? ('<input type="checkbox" class="sch-incheon-toggle" title="인천출근 표시" data-incheon="' + dateStr + '"' + (flag && flag.incheon ? ' checked' : '') + '>') : '') +
       '<div class="d-num ' + numClass + '">' + d.getDate() + '</div>' +
       (holName ? ('<div class="d-hol">' + esc(holName) + '</div>') : '') +
-      '<div class="d-items">' + items + '</div>' +
-      '<button type="button" class="sch-addbtn" data-add="' + dateStr + '">+ 추가</button>' +
+      '<div class="d-items">' + dayEventsFor(dateStr).map(renderChip).join('') + '</div>' +
       '</div>';
   });
   document.getElementById('calGrid').innerHTML = html;
 }
 
+function renderAll(){ renderToggles(); renderLegend(); renderGrid(); }
+
 async function refreshMonth(){
   await Promise.all([loadEvents(), loadDayFlags()]);
   renderMonthLabel();
-  renderLegend();
-  renderGrid();
+  renderAll();
 }
 
-/* ---------------------------- 일정 추가/수정 모달 ---------------------------- */
+/* ---------------------------- 일정 추가/수정 화면 ---------------------------- */
+let Modal = null; // { ev, dateStr, kind, color, target, extraKind }
+
+/** 새 일정을 저장할 수 있는 곳 - 지금 켜져 있는 것 중 내가 쓸 수 있는 것만 */
+function writableTargets(){
+  const t = [];
+  if(Active.mine) t.push({ id: Me.id, label: '내 일정' });
+  if(Active.common && isSM(Me)) t.push({ id: 'common', label: '📢 공통일정' });
+  Active.members.forEach(function(uid){
+    const u = RosterByUid[uid];
+    if(u && canAccess(uid)) t.push({ id: uid, label: u.name + ' 님' });
+  });
+  if(!t.length) t.push({ id: Me.id, label: '내 일정' });
+  return t;
+}
+function kindList(){
+  const list = PRESET_TYPES.map(function(t){ return { name: t.key, color: t.color }; });
+  MyCategories.forEach(function(c){ list.push({ name: c.name, color: c.color, catId: c.id }); });
+  if(Modal && Modal.extraKind && !list.some(function(k){ return k.name === Modal.extraKind.name; })) list.push(Modal.extraKind);
+  return list;
+}
+
 function openEventModal(eventId, newDateStr){
   const ev = eventId ? Events.find(function(x){ return x.id === eventId; }) : null;
-  const isNew = !ev;
   const dateStr = ev ? ev.event_date : newDateStr;
-  const ownerForNew = ViewOwnerUid;
-  const canEditCommon = isSM(Me);
-  const readOnly = ev ? (ev.is_common && !isSM(Me)) : false;
-
-  document.getElementById('eventModalTitle').textContent = fmtDateKr(dateStr) + (isNew ? ' 일정 추가' : ' 일정');
-
-  const kindOptions = PRESET_TYPES.map(function(t){
-    const selected = ev ? (ev.kind === t.key) : (t.key === '일반만남');
-    return '<option value="' + t.key + '"' + (selected ? ' selected' : '') + '>' + t.key + '</option>';
-  }).join('') + '<option value="기타"' + (ev && !PRESET_TYPES.some(function(t){ return t.key === ev.kind; }) ? ' selected' : '') + '>기타 (직접 입력)</option>';
-
-  const body = document.getElementById('eventModalBody');
-  body.innerHTML =
-    '<div class="field"><label>날짜</label><div style="padding:6px 0;color:var(--navy-900);font-weight:600;">' + fmtDateKr(dateStr) + '</div></div>' +
-    (canEditCommon ? ('<div class="field"><label><input type="checkbox" id="evIsCommon" style="width:auto;margin-right:6px;vertical-align:-2px;"' + (ev && ev.is_common ? ' checked' : '') + '>공통일정으로 등록 (전체 공개, SM만 수정 가능)</label></div>') : '') +
-    '<div class="field"><label>종류</label><select id="evKind">' + kindOptions + '</select></div>' +
-    '<div class="field" id="evColorField" style="display:none;"><label>색상</label><input type="color" id="evColor" value="' + (ev && !PRESET_TYPES.some(function(t){ return t.key === ev.kind; }) ? ev.color : '#e0e0e0') + '"></div>' +
-    '<div class="field"><label>순서 번호 (0~99, 숫자가 작을수록 위로)</label><input type="number" id="evOrder" min="0" max="99" value="' + (ev ? ev.order_num : nextOrderNum(dateStr)) + '"></div>' +
-    '<div class="field"><label>내용</label><input type="text" id="evLabel" value="' + esc(ev ? ev.label : '') + '" placeholder="예: 장진수님"></div>' +
-    (ev ? ('<div style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">✍️ 작성: ' + esc(ev.author_name || '-') + '</div>') : '') +
-    '<div style="display:flex;gap:8px;margin-top:4px;">' +
-      '<button type="button" class="btn-primary" id="evSaveBtn" style="flex:1;margin-top:0;">저장</button>' +
-      (ev ? '<button type="button" class="sch-btn-sm" id="evDeleteBtn">삭제</button>' : '') +
-    '</div>' +
-    (ev ? ('<div class="sch-comments"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">💬 메모</div><div id="commentList">불러오는 중...</div>' +
-      '<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" id="commentInput" placeholder="메모 남기기" style="flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;"><button type="button" class="sch-btn-sm" id="commentSendBtn">보내기</button></div></div>') : '');
-
-  const kindSel = document.getElementById('evKind');
-  const colorField = document.getElementById('evColorField');
-  const labelInput = document.getElementById('evLabel');
-  function syncKind(){
-    const preset = PRESET_TYPES.find(function(t){ return t.key === kindSel.value; });
-    if(preset){
-      colorField.style.display = 'none';
-      if(!labelInput.value || PRESET_TYPES.some(function(t){ return t.key === labelInput.value; })) labelInput.value = kindSel.value;
-    } else {
-      colorField.style.display = 'block';
-    }
+  const targets = ev ? [] : writableTargets();
+  Modal = {
+    ev: ev, dateStr: dateStr,
+    kind: ev ? ev.kind : PRESET_TYPES[0].key,
+    color: ev ? ev.color : PRESET_TYPES[0].color,
+    target: targets.length ? targets[0].id : null,
+    targets: targets,
+    readOnly: ev ? (ev.is_common && !isSM(Me)) : false,
+    extraKind: null
+  };
+  // 남의 일정에 쓰인 종류(내 목록에 없는 것)도 선택된 채로 보이게 임시로 붙여둔다
+  if(ev && !PRESET_TYPES.some(function(t){ return t.key === ev.kind; }) && !MyCategories.some(function(c){ return c.name === ev.kind; })){
+    Modal.extraKind = { name: ev.kind || '기타', color: ev.color };
   }
-  kindSel.addEventListener('change', syncKind);
-  syncKind();
 
-  document.getElementById('evSaveBtn').addEventListener('click', function(){ handleSaveEvent(ev, dateStr, ownerForNew); });
-  const delBtn = document.getElementById('evDeleteBtn');
-  if(delBtn) delBtn.addEventListener('click', async function(){
-    if(!confirm('이 일정을 삭제할까요?')) return;
-    const { error } = await supabaseClient.from('schedule_events').delete().eq('id', ev.id);
-    if(error){ alert('삭제 실패: ' + error.message); return; }
-    closeEventModal();
-    await refreshMonth();
-  });
+  document.getElementById('eventModalTitle').textContent = fmtDateKr(dateStr) + (ev ? ' 일정' : ' 일정 추가');
+  const ro = Modal.readOnly ? ' disabled' : '';
+  let whereHtml = '';
+  if(ev){
+    const where = ev.is_common ? '📢 공통일정' : (ev.owner_uid === Me.id ? '내 일정' : ((RosterByUid[ev.owner_uid] || {}).name || '?') + ' 님 일정');
+    whereHtml = '<div class="ev-meta">📌 ' + esc(where) + ' · ✍️ 작성: ' + esc(ev.author_name || '-') + '</div>';
+  } else if(targets.length > 1){
+    whereHtml = '<div class="ev-sec"><div class="ev-sec-t">저장할 곳</div><div class="kind-btns" id="tgtBtns"></div></div>';
+  } else {
+    whereHtml = '<div class="ev-meta">📌 ' + esc(targets[0].label) + '에 저장돼요</div>';
+  }
 
+  document.getElementById('eventModalBody').innerHTML =
+    '<input type="text" class="ev-title" id="evLabel" placeholder="제목 (예: 09 장진수)" value="' + esc(ev ? ev.label : '') + '"' + ro + '>' +
+    '<div class="ev-hint">맨 앞 숫자 순서대로 나열돼요 (예: 09 장진수, 14 김철수)</div>' +
+    '<div class="ev-sec"><div class="ev-sec-t">종류</div>' +
+      '<div class="kind-row"><div class="kind-btns" id="kindBtns"></div>' +
+      (Modal.readOnly ? '' : '<button type="button" class="kind-add" id="kindAddBtn">+ 새 항목</button>') + '</div>' +
+      '<div class="kind-form" id="kindForm"><input type="text" id="kindName" placeholder="항목 이름 (예: 교육)" maxlength="12">' +
+      '<input type="color" id="kindColor" value="' + suggestNewColor() + '">' +
+      '<button type="button" class="sch-btn-sm" id="kindSaveBtn">추가</button><button type="button" class="sch-btn-sm" id="kindCancelBtn">취소</button></div>' +
+    '</div>' +
+    whereHtml +
+    (Modal.readOnly ? '<div class="ev-meta">공통일정은 SM만 수정할 수 있어요. 메모는 남길 수 있어요.</div>' :
+      '<div class="ev-acts"><button type="button" class="btn-primary" id="evSaveBtn" style="flex:1;margin-top:0;">저장</button>' +
+      (ev ? '<button type="button" class="sch-btn-sm danger" id="evDeleteBtn">삭제</button>' : '') + '</div>') +
+    (ev ? ('<div class="sch-comments"><div style="font-weight:700;font-size:13px;margin-bottom:8px;">💬 메모</div><div id="commentList">불러오는 중...</div>' +
+      '<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" id="commentInput" placeholder="메모 남기기" style="flex:1;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;"><button type="button" class="sch-btn-sm" id="commentSendBtn">보내기</button></div></div>') : '');
+
+  renderKindButtons();
+  renderTargetButtons();
+
+  if(!Modal.readOnly){
+    document.getElementById('kindAddBtn').addEventListener('click', function(){
+      const f = document.getElementById('kindForm');
+      f.classList.toggle('open');
+      if(f.classList.contains('open')) document.getElementById('kindName').focus();
+    });
+    document.getElementById('kindCancelBtn').addEventListener('click', function(){ document.getElementById('kindForm').classList.remove('open'); });
+    document.getElementById('kindSaveBtn').addEventListener('click', addCategory);
+    document.getElementById('kindName').addEventListener('keydown', function(e){ if(e.key === 'Enter') addCategory(); });
+    document.getElementById('evSaveBtn').addEventListener('click', handleSaveEvent);
+    document.getElementById('evLabel').addEventListener('keydown', function(e){ if(e.key === 'Enter') handleSaveEvent(); });
+    const del = document.getElementById('evDeleteBtn');
+    if(del) del.addEventListener('click', handleDeleteEvent);
+  }
   if(ev){
     refreshComments(ev.id);
     document.getElementById('commentSendBtn').addEventListener('click', function(){ submitComment(ev.id); });
     document.getElementById('commentInput').addEventListener('keydown', function(e){ if(e.key === 'Enter') submitComment(ev.id); });
   }
 
-  if(readOnly){
-    body.querySelectorAll('input, select, button').forEach(function(el){ el.disabled = true; });
-  }
-
   document.getElementById('eventModalOverlay').style.display = 'flex';
+  if(!ev) setTimeout(function(){ const t = document.getElementById('evLabel'); if(t) t.focus(); }, 30);
 }
-function closeEventModal(){ document.getElementById('eventModalOverlay').style.display = 'none'; }
+function closeEventModal(){ document.getElementById('eventModalOverlay').style.display = 'none'; Modal = null; }
 
-async function handleSaveEvent(ev, dateStr, ownerForNew){
-  const kind = document.getElementById('evKind').value;
-  const preset = PRESET_TYPES.find(function(t){ return t.key === kind; });
-  const colorEl = document.getElementById('evColor');
-  const color = preset ? preset.color : (colorEl ? colorEl.value : '#e0e0e0');
-  const label = document.getElementById('evLabel').value.trim();
-  const orderNum = Math.max(0, Math.min(99, parseInt(document.getElementById('evOrder').value, 10) || 0));
-  if(!label){ alert('내용을 입력해주세요'); return; }
-  const isCommonEl = document.getElementById('evIsCommon');
-  const isCommon = isCommonEl ? isCommonEl.checked : (ev ? ev.is_common : false);
+function suggestNewColor(){
+  const used = {};
+  PRESET_TYPES.forEach(function(t){ used[t.color] = true; });
+  MyCategories.forEach(function(c){ used[String(c.color).toLowerCase()] = true; });
+  return NEW_KIND_SUGGEST.find(function(c){ return !used[c]; }) || NEW_KIND_SUGGEST[0];
+}
 
-  if(ev){
-    const patch = { kind: kind, color: color, label: label, order_num: orderNum, is_common: isCommon, updated_at: new Date().toISOString() };
-    patch.owner_uid = isCommon ? null : (ev.owner_uid || ownerForNew);
-    const { error } = await supabaseClient.from('schedule_events').update(patch).eq('id', ev.id);
-    if(error){ alert('저장 실패: ' + error.message); return; }
-  } else {
-    const row = {
-      owner_uid: isCommon ? null : ownerForNew,
-      is_common: isCommon,
-      event_date: dateStr,
-      order_num: orderNum,
-      kind: kind, label: label, color: color,
-      author_uid: Me.id,
-      author_name: myName()
-    };
-    const { error } = await supabaseClient.from('schedule_events').insert(row);
-    if(error){ alert('저장 실패: ' + error.message); return; }
+function renderKindButtons(){
+  const wrap = document.getElementById('kindBtns');
+  if(!wrap || !Modal) return;
+  const ro = Modal.readOnly ? ' disabled' : '';
+  wrap.innerHTML = kindList().map(function(k){
+    const sel = k.name === Modal.kind;
+    return '<button type="button" class="kind-btn' + (sel ? ' sel' : '') + '" style="background:' + esc(k.color) + '" data-kind="' + esc(k.name) + '" data-color="' + esc(k.color) + '"' + ro + '>' +
+      esc(k.name) + (k.catId && !Modal.readOnly ? '<span class="x" data-delcat="' + k.catId + '" title="이 항목 지우기">×</span>' : '') + '</button>';
+  }).join('');
+  wrap.onclick = function(e){
+    if(Modal.readOnly) return;
+    const x = e.target.closest('[data-delcat]');
+    if(x){ e.stopPropagation(); deleteCategory(x.dataset.delcat); return; }
+    const b = e.target.closest('[data-kind]');
+    if(!b) return;
+    Modal.kind = b.dataset.kind;
+    Modal.color = b.dataset.color;
+    renderKindButtons();
+  };
+}
+function renderTargetButtons(){
+  const wrap = document.getElementById('tgtBtns');
+  if(!wrap || !Modal) return;
+  wrap.innerHTML = Modal.targets.map(function(t){
+    return '<button type="button" class="kind-btn tgt-btn' + (t.id === Modal.target ? ' sel' : '') + '" data-tgt="' + t.id + '">' + esc(t.label) + '</button>';
+  }).join('');
+  wrap.onclick = function(e){
+    const b = e.target.closest('[data-tgt]');
+    if(!b) return;
+    Modal.target = b.dataset.tgt;
+    renderTargetButtons();
+  };
+}
+
+async function addCategory(){
+  const nameEl = document.getElementById('kindName');
+  const name = nameEl.value.trim();
+  const color = document.getElementById('kindColor').value;
+  if(!name){ nameEl.focus(); return; }
+  const existing = kindList().find(function(k){ return k.name === name; });
+  if(existing){ Modal.kind = existing.name; Modal.color = existing.color; }
+  else {
+    if(!CategoriesReady){ alert('새 항목 저장 기능이 아직 준비되지 않았어요.\n관리자가 schedule_migration_2.sql을 먼저 실행해야 해요.'); return; }
+    const { data, error } = await supabaseClient.from('schedule_categories').insert({ owner_uid: Me.id, name: name, color: color }).select().single();
+    if(error){ alert('항목 추가 실패: ' + error.message); return; }
+    MyCategories.push(data);
+    Modal.kind = data.name; Modal.color = data.color;
   }
+  nameEl.value = '';
+  document.getElementById('kindForm').classList.remove('open');
+  document.getElementById('kindColor').value = suggestNewColor();
+  renderKindButtons();
+}
+async function deleteCategory(catId){
+  const c = MyCategories.find(function(x){ return x.id === catId; });
+  if(!c || !confirm('"' + c.name + '" 항목을 목록에서 지울까요?\n(이미 저장된 일정의 색은 그대로 남아요)')) return;
+  const { error } = await supabaseClient.from('schedule_categories').delete().eq('id', catId);
+  if(error){ alert('삭제 실패: ' + error.message); return; }
+  MyCategories = MyCategories.filter(function(x){ return x.id !== catId; });
+  if(Modal && Modal.kind === c.name && !(Modal.ev && Modal.ev.kind === c.name)){
+    Modal.kind = PRESET_TYPES[0].key; Modal.color = PRESET_TYPES[0].color;
+  } else if(Modal && Modal.ev && Modal.ev.kind === c.name){
+    Modal.extraKind = { name: c.name, color: c.color };
+  }
+  renderKindButtons();
+}
+
+async function handleSaveEvent(){
+  if(!Modal || Modal.readOnly) return;
+  const label = document.getElementById('evLabel').value.trim();
+  if(!label){ alert('제목을 입력해주세요'); document.getElementById('evLabel').focus(); return; }
+  const n = leadNum(label);
+  const orderNum = isFinite(n) ? Math.min(n, 9999) : 9999;
+  const ev = Modal.ev;
+  const btn = document.getElementById('evSaveBtn');
+  btn.disabled = true;
+  if(ev){
+    const { error } = await supabaseClient.from('schedule_events').update({
+      label: label, kind: Modal.kind, color: Modal.color, order_num: orderNum, updated_at: new Date().toISOString()
+    }).eq('id', ev.id);
+    if(error){ btn.disabled = false; alert('저장 실패: ' + error.message); return; }
+  } else {
+    const isCommon = Modal.target === 'common';
+    const owner = isCommon ? null : Modal.target;
+    const { error } = await supabaseClient.from('schedule_events').insert({
+      owner_uid: owner, is_common: isCommon, event_date: Modal.dateStr, order_num: orderNum,
+      kind: Modal.kind, label: label, color: Modal.color, author_uid: Me.id, author_name: myName()
+    });
+    if(error){ btn.disabled = false; alert('저장 실패: ' + error.message); return; }
+    // 꺼져 있는 캘린더에 저장했으면 바로 보이도록 켜준다
+    if(isCommon) Active.common = true;
+    else if(owner === Me.id) Active.mine = true;
+    else if(Active.members.indexOf(owner) < 0) Active.members.push(owner);
+    saveActive();
+  }
+  closeEventModal();
+  await refreshMonth();
+}
+async function handleDeleteEvent(){
+  if(!Modal || !Modal.ev) return;
+  if(!confirm('이 일정을 삭제할까요?')) return;
+  const { error } = await supabaseClient.from('schedule_events').delete().eq('id', Modal.ev.id);
+  if(error){ alert('삭제 실패: ' + error.message); return; }
   closeEventModal();
   await refreshMonth();
 }
@@ -451,10 +650,9 @@ async function toggleIncheon(dateStr){
   } else {
     const used = {};
     dayEventsFor(dateStr).forEach(function(e){ used[e.color] = true; });
-    let pick = INCHEON_PALETTE.find(function(c){ return !used[c]; }) || INCHEON_PALETTE[0];
+    const pick = INCHEON_PALETTE.find(function(c){ return !used[c]; }) || INCHEON_PALETTE[0];
     const { error } = await supabaseClient.from('schedule_day_flags').upsert({
-      event_date: dateStr, incheon: true, incheon_color: pick,
-      set_by_uid: Me.id, set_by_name: myName(), updated_at: new Date().toISOString()
+      event_date: dateStr, incheon: true, incheon_color: pick, set_by_uid: Me.id, set_by_name: myName(), updated_at: new Date().toISOString()
     });
     if(error){ alert('처리 실패: ' + error.message); return; }
   }
@@ -463,7 +661,7 @@ async function toggleIncheon(dateStr){
   renderGrid();
 }
 
-/* ---------------------------- 이벤트 바인딩 ---------------------------- */
+/* ---------------------------- 이벤트 연결 ---------------------------- */
 function wireUi(){
   document.getElementById('prevMonthBtn').addEventListener('click', function(){ changeMonth(-1); });
   document.getElementById('nextMonthBtn').addEventListener('click', function(){ changeMonth(1); });
@@ -472,19 +670,48 @@ function wireUi(){
     refreshMonth();
   });
 
-  document.getElementById('ownerTabs').addEventListener('click', function(e){
-    const btn = e.target.closest('.sch-tab');
-    if(!btn) return;
-    ViewOwnerUid = btn.dataset.uid;
-    renderOwnerTabs();
-    renderGrid();
+  document.querySelectorAll('#calToggles [data-cal]').forEach(function(b){
+    b.addEventListener('click', function(){
+      Active[b.dataset.cal] = !Active[b.dataset.cal];
+      saveActive();
+      renderAll();
+    });
   });
+  const memPop = document.getElementById('memPop');
+  document.getElementById('memBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    memPop.classList.toggle('open');
+  });
+  memPop.addEventListener('click', function(e){
+    e.stopPropagation();
+    const all = e.target.closest('[data-memall]');
+    if(all){
+      Active.members = all.dataset.memall === '1' ? teammates().map(function(u){ return u.uid; }) : [];
+      saveActive(); renderAll(); memPop.classList.add('open');
+    }
+  });
+  memPop.addEventListener('change', function(e){
+    const cb = e.target.closest('[data-mem]');
+    if(!cb) return;
+    const uid = cb.dataset.mem;
+    Active.members = Active.members.filter(function(x){ return x !== uid; });
+    if(cb.checked) Active.members.push(uid);
+    saveActive();
+    renderToggles(); renderLegend(); renderGrid();
+    memPop.classList.add('open');
+  });
+  document.addEventListener('click', function(){ memPop.classList.remove('open'); });
 
+  // 날짜 칸 클릭 = 일정 추가, 일정 클릭 = 수정/삭제/메모
   document.getElementById('calGrid').addEventListener('click', function(e){
-    const addBtn = e.target.closest('[data-add]');
-    if(addBtn){ openEventModal(null, addBtn.dataset.add); return; }
+    if(e.target.closest('[data-incheon]')) return;
     const chip = e.target.closest('.sch-chip');
-    if(chip && chip.dataset.id){ openEventModal(chip.dataset.id, null); return; }
+    if(chip){
+      if(chip.dataset.id) openEventModal(chip.dataset.id, null);
+      return;
+    }
+    const day = e.target.closest('.sch-day');
+    if(day) openEventModal(null, day.dataset.date);
   });
   document.getElementById('calGrid').addEventListener('change', function(e){
     const cb = e.target.closest('[data-incheon]');
@@ -498,8 +725,11 @@ function wireUi(){
     const btn = this;
     btn.disabled = true; const orig = btn.textContent; btn.textContent = '이미지 만드는 중...';
     try{
-      const el = document.getElementById('calendarCapture');
-      const canvas = await html2canvas(el, { backgroundColor: '#ffffff', scale: 2 });
+      const canvas = await html2canvas(document.getElementById('calendarCapture'), {
+        backgroundColor: '#ffffff', scale: 2,
+        ignoreElements: function(el){ return el.classList && el.classList.contains('sch-incheon-toggle'); },
+        onclone: function(doc){ const t = doc.getElementById('capTitle'); if(t) t.style.display = 'block'; }
+      });
       const link = document.createElement('a');
       link.download = '일정표_' + ViewYear + '-' + pad2(ViewMonth) + '.png';
       link.href = canvas.toDataURL('image/png');
@@ -521,7 +751,7 @@ async function changeMonth(delta){
   await refreshMonth();
 }
 
-/* ---------------------------- 초기화 ---------------------------- */
+/* ---------------------------- 시작 ---------------------------- */
 (async function init(){
   const session = await requireLogin();
   if(!session) return;
@@ -533,16 +763,14 @@ async function changeMonth(delta){
   }
   await loadRoster();
   if(!RosterByUid[Me.id]){
-    // 아직 승인 목록(get_team_names)에 안 걸려도, 본인은 최소한 스스로의 일정은 쓸 수 있게 자기 자신을 등록해 둔다.
-    Roster.push({ uid: Me.id, name: Me.nickname || Me.name || Me.email, role: Me.role, grade: Me.role === 'admin' ? 'SM' : '후보자', tlMembers: [], birth: '', hidden: false });
-    RosterByUid[Me.id] = Roster[Roster.length - 1];
+    const self = { uid: Me.id, name: myName(), role: Me.role, grade: Me.role === 'admin' ? 'SM' : '후보자', tlMembers: [], birth: '', hidden: false, disabled: false };
+    Roster.push(self); RosterByUid[Me.id] = self;
   }
-  ViewOwnerUid = Me.id;
+  loadActive();
   const now = new Date();
   ViewYear = now.getFullYear(); ViewMonth = now.getMonth() + 1;
-  await loadHolidays();
+  await Promise.all([loadHolidays(), loadCategories()]);
   document.getElementById('schBody').style.display = 'block';
-  renderOwnerTabs();
   wireUi();
   await refreshMonth();
 })();
