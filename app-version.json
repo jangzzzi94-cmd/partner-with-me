@@ -1,6 +1,6 @@
 {
-  "versionCode": 13,
-  "versionName": "1.12",
+  "versionCode": 14,
+  "versionName": "1.13",
   "apkUrl": "https://partner-with-me.vercel.app/app-release.apk",
-  "notes": "오래 안 쓰다가 켜면 흰 화면만 뜨던 문제 수정"
+  "notes": "일정 이미지 저장 시 갤러리에 바로 저장"
 }
