@@ -1470,7 +1470,8 @@ document.getElementById("runBtn").addEventListener("click", async ()=>{
                               }
                   }
 
-                  lastResult = { matrix, textA, textB, textC, textD, rawBase: regBase, rawDetail: regDetail, rawAutoBase: autoBase, rawAutoDetail: autoDetail, baseName: (file1||file3).name.replace(/\.(xlsx|xlsm|xls|pdf)$/i,"") };
+                  lastResult = { matrix, textA, textB, textC, textD, rawBase: regBase, rawDetail: regDetail, rawAutoBase: autoBase, rawAutoDetail: autoDetail, baseName: (file1||file3).name.replace(/\.(xlsx|xlsm|xls|pdf)$/i,""),
+                                 inputs: { 1:file1, 2:file2, 3:file3, 4:file4 } }; // 고객리스트 저장 때 올렸던 원본 파일(PDF·엑셀)도 같이 저장
                   renderTable(matrix);
                   document.getElementById("textA").textContent = textA || "(조건에 해당하는 입원/수술 건이 없습니다)";
                   document.getElementById("textB").textContent = textB || "(조건에 해당하는 코드가 없습니다)";
@@ -1520,25 +1521,45 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
     if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==="x"?r:(r&3|8)).toString(16); });
   }
-  // 1~4번 중 PDF로 올렸던 파일들을 고객에게도 그대로(비밀번호가 있었으면 풀어서) 저장한다.
-  // "□□□님 기본/세부/자동차기본/자동차세부" 순서로, 올린 것만 저장한다.
+  // 1~4번에 올렸던 원본 파일(PDF는 비밀번호가 있었으면 풀어서, 엑셀은 그대로)과 병력정리 결과 엑셀을
+  // 고객에게 저장한다. "□□□님 기본/세부/자동차기본/자동차세부" + "□□□님 병력정리" 순서.
+  // 항상 최신 것만 남긴다: 새로 저장하면 예전에 저장했던 병력파일은 전부 지운다.
+  const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const EXCEL_TYPES = { xlsx: XLSX_TYPE, xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12", xls: "application/vnd.ms-excel" };
   async function saveHistoryPdfs(uid, custId, custName, oldFiles){
-    const slots = [1,2,3,4].filter(i => PDF_SLOT[i]);
-    const items = [], uploaded = [];
+    const inputs = (lastResult && lastResult.inputs) || {};
+    const items = [];
     let warn = "";
-    for(const i of slots){
-      const info = PDF_SLOT[i];
+    for(const i of [1,2,3,4]){
+      const f = inputs[i];
+      if(!f) continue;
+      const pdf = PDF_SLOT[i];
       try{
-        let blob = info.file, name = info.file.name;
-        if(info.wasLocked && info.doc){ blob = await rasterizePdfToBlob(info.doc); }
-        const path = uid + "/" + custId + "/hist_" + PDF_SLOT_KEY[i] + "_" + uuid() + ".pdf";
-        const up = await supabaseClient.storage.from(BUCKET).upload(path, blob, { contentType:"application/pdf", upsert:false });
+        let blob = f, name = f.name, type, ext;
+        if(pdf){
+          if(pdf.wasLocked && pdf.doc){ blob = await rasterizePdfToBlob(pdf.doc); }
+          type = "application/pdf"; ext = "pdf";
+        } else {
+          ext = ((/\.(xlsx|xlsm|xls)$/i.exec(name) || [])[1] || "xlsx").toLowerCase();
+          type = f.type || EXCEL_TYPES[ext] || XLSX_TYPE;
+        }
+        const path = uid + "/" + custId + "/hist_" + PDF_SLOT_KEY[i] + "_" + uuid() + "." + ext;
+        const up = await supabaseClient.storage.from(BUCKET).upload(path, blob, { contentType:type, upsert:false });
         if(up.error) throw up.error;
-        uploaded.push(path);
-        items.push({ key:PDF_SLOT_KEY[i], label: custName + "님 " + PDF_SLOT_LABEL[i], path, type:"application/pdf", size: blob.size, name, saved_at: new Date().toISOString() });
+        items.push({ key:PDF_SLOT_KEY[i], label: custName + "님 " + PDF_SLOT_LABEL[i], path, type, size: blob.size, name, saved_at: new Date().toISOString() });
       }catch(e){ warn += (warn ? " / " : "") + PDF_SLOT_LABEL[i] + ": " + (e && e.message ? e.message : e); }
     }
-    if(!items.length && !warn) return { items: (oldFiles || []), warn: "" }; // 이번에 올린 PDF가 없으면 기존 파일을 그대로 둔다
+    // 병력정리 결과 엑셀(「엑셀 파일 다운로드」로 받는 것과 같은 파일)
+    try{
+      const r = lastResult;
+      const wb = await buildWorkbook(r.matrix, r.textA, r.textB, r.textC, r.textD, r.rawBase, r.rawDetail, r.rawAutoBase, r.rawAutoDetail);
+      const blob = new Blob([await wb.xlsx.writeBuffer()], { type: XLSX_TYPE });
+      const path = uid + "/" + custId + "/hist_result_" + uuid() + ".xlsx";
+      const up = await supabaseClient.storage.from(BUCKET).upload(path, blob, { contentType:XLSX_TYPE, upsert:false });
+      if(up.error) throw up.error;
+      items.push({ key:"result", label: custName + "님 병력정리", path, type:XLSX_TYPE, size: blob.size, name: r.baseName + " 병력정리.xlsx", saved_at: new Date().toISOString() });
+    }catch(e){ warn += (warn ? " / " : "") + "병력정리 엑셀: " + (e && e.message ? e.message : e); }
+    if(!items.length) return { items: (oldFiles || []), warn }; // 하나도 못 올렸으면 기존 파일을 그대로 둔다
     const oldPaths = (oldFiles || []).map(x => x && x.path).filter(Boolean);
     if(oldPaths.length){ try{ await supabaseClient.storage.from(BUCKET).remove(oldPaths); }catch(e){ console.warn(e); } }
     return { items, warn };
@@ -1609,13 +1630,13 @@ document.getElementById("dlBtn").addEventListener("click", async ()=>{
   }
   function done(id, name, created, pdfWarn){
     const el = $("cmMsg"); el.className = "cm-msg ok"; el.textContent = "";
-    el.appendChild(document.createTextNode((created ? "새 고객 「" + name + "」을(를) 만들어 " : "「" + name + "」에 ") + "병력사항(간편·표준체·치아·중대질환)을 저장했어요. " + (pdfWarn ? "(병력파일 일부는 저장하지 못했어요: " + pdfWarn + ") " : "")));
+    el.appendChild(document.createTextNode((created ? "새 고객 「" + name + "」을(를) 만들어 " : "「" + name + "」에 ") + "병력사항(간편·표준체·치아·중대질환)과 병력파일(올린 원본 + 병력정리 엑셀)을 저장했어요. " + (pdfWarn ? "(병력파일 일부는 저장하지 못했어요: " + pdfWarn + ") " : "")));
     const a = document.createElement("a"); a.href = "customers.html#/c/" + id; a.textContent = "고객 페이지 열기"; el.appendChild(a);
     $("cmActions").innerHTML = "";
   }
   async function saveToPicked(){
     if(!picked) return;
-    if(hasHistory(picked) && !confirm("「" + dispName(picked) + "」에는 이미 적어 둔 병력사항이 있어요.\n새 병력정리 결과로 덮어쓸까요?")) return;
+    if(hasHistory(picked) && !confirm("「" + dispName(picked) + "」에는 이미 적어 둔 병력사항이 있어요.\n새 병력정리 결과로 덮어쓸까요?\n(병력파일도 이번에 올린 최신 파일로 바뀌어요)")) return;
     setMsg("저장 중…");
     const v = newValues();
     try{
